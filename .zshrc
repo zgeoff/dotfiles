@@ -72,6 +72,16 @@ autoload -Uz compinit && compinit
 # shellcheck source=.zaliases
 . "$HOME/.zaliases"
 
+# install zinit if required
+ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+if [ ! -d $ZINIT_HOME ]; then
+  mkdir -p "$(dirname $ZINIT_HOME)"
+fi
+
+if [ ! -d $ZINIT_HOME/.git ]; then
+  git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+fi
+
 # initialize zinit
 . "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
 
