@@ -40,46 +40,46 @@ lib32-libpulse
 lib32-alsa-plugins
 
 # desktop environment
-# awesome
-# compton
-# conky
-# lightdm
-# lightdm-mini-greeter
-# light-locker
-# plata-theme
-# rofi
+awesome
+compton
+conky
+lightdm
+lightdm-mini-greeter
+light-locker
+plata-theme
+rofi
 # rofi-1pass
-# qt5-styleplugins
-# xcape
-# xclip
-# xdg-utils
-# xdotool
-# xinit
-# xinit-xsession
-# xorg-xinit
-# xorg-server
-# xorg-server-xephyr
-# xorg-xauth
-# xorg-xhost
-# xorg-xrandr
-# xorg-xdpyinfo
-# zafiro-icon-theme
+qt5-styleplugins
+xcape
+xclip
+xdg-utils
+xdotool
+xinit
+xinit-xsession
+xorg-xinit
+xorg-server
+xorg-server-xephyr
+xorg-xauth
+xorg-xhost
+xorg-xrandr
+xorg-xdpyinfo
+zafiro-icon-theme
 
 # fonts
-# ttf-fira-code
+ttf-fira-code
 
 # core software
 asciinema
 aria2
-# barrier
+barrier
 bat
 cli-visualizer
-# feh
-# fbset
+feh
+fbset
 fff
 fzf
-# kitty
-# maim
+kitty
+maim
 mpd
 mpv
 ncmpcpp
@@ -92,10 +92,10 @@ task
 tmux
 # w3m
 # w3m-img
-# xdg-utils
-# xdotool
-# zathura
-# zathura-pdf-mupdf
+xdg-utils
+xdotool
+zathura
+zathura-pdf-mupdf
 
 # virtualization
 # dmidecode
@@ -104,13 +104,12 @@ tmux
 # libvirt
 # qemu
 
-# docker
-# docker
-# docker-compose
-# docker-machine
+# virtualization/containers
+docker
+docker-compose
+docker-machine
 # nvidia-container-toolkit
-
-# kubernetes
+kubernetes
 # docker-machine-driver-kvm2
 kubectl
 minikube
@@ -124,11 +123,11 @@ minikube
 # haskell-ide-engine-git
 neovim
 python-pynvim
-# visual-studio-code-insiders
+visual-studio-code-insiders
 
 # dev
 act
-# google-cloud-sdk
+google-cloud-sdk
 watchman
 
 # browsers
@@ -136,8 +135,8 @@ watchman
 # firefox-developer-edition
 # google-chrome
 # google-chrome-dev
-# vivaldi
-# vivaldi-ffmpeg-codecs
+vivaldi
+vivaldi-ffmpeg-codecs
 # vivaldi-snapshot
 # vivaldi-snapshot-ffmpeg-codecs
 
