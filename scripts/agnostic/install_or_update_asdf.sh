@@ -36,6 +36,16 @@ install_or_update_asdf() {
       asdf plugin update "$plugin" >/dev/null
     fi
   done
+
+  # upgrade and use the latest versions of our packages
+  for plugin in $desired_plugins; do
+    latest_version="$(asdf list-all "$plugin" | grep -E '^[0-9.]+$' | tail -n 1)"
+
+    echo "asdf: installing latest version of $plugin@$latest_version"
+
+    asdf install "$plugin" "$latest_version" >/dev/null
+    asdf global "$plugin" "$latest_version" >/dev/null
+  done
 }
 
 install_or_update_asdf "$@"
