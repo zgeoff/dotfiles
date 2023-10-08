@@ -22,7 +22,7 @@ install_or_update_asdf() {
     asdf update >/dev/null || true
   fi
 
-  desired_plugins="golang lua nodejs python ruby"
+  desired_plugins="nodejs python ruby"
 
   # add our version manager plugins
   for plugin in $desired_plugins; do
