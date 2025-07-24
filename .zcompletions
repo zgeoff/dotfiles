@@ -1,9 +1,8 @@
-asdf_dir="$MEATBOX_LIBS_DIR/asdf"
+asdf_dir="$HOME/.asdf"
 
 # TODO(#xxxx): cache completion output to minimize startup overhead
 if [ -d "$asdf_dir" ]; then
-  # shellcheck source=.meatbox/libs/asdf/completions/asdf.bash
-  . "$asdf_dir/completions/asdf.bash"
+  fpath=(${asdf_dir}/completions $fpath)
 fi
 
 if [ -x "$(command -v pipenv)" ]; then

@@ -5,8 +5,6 @@ path=(
   "$MEATBOX_BIN_DIR"
   "$HOME/.pub-cache/bin"
   "$HOME/.yarn/bin"
-  "$HOME/go/bin"
-  "$(npm bin -g)"
   "$ANDROID_HOME/emulator"
   "$ANDROID_HOME/tools"
   "$ANDROID_HOME/tools/bin"
@@ -21,6 +19,18 @@ if [ $(uname -s) = "Darwin" ]; then
   path=(
     "/usr/sbin"
     "$HOME/.fastlane/bin"
+    $path
+  )
+fi
+
+ASDF_DIR="$HOME/.asdf"
+
+# load `asdf`, our version manager
+if [ -d "$ASDF_DIR" ]; then
+  . "$ASDF_DIR/plugins/golang/set-env.zsh"
+
+  path=(
+    "$ASDF_DIR/shims"
     $path
   )
 fi
