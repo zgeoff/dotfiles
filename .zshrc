@@ -1,9 +1,5 @@
 #/usr/bin/env zsh
 
-if [ "$(uname -s)" = "Darwin" ]; then
-  . "$HOME/.linuxify"
-fi
-
 . "$HOME/.bashrc"
 
 # load in our path that will be searched for commands
@@ -101,15 +97,10 @@ bindkey -v
 KEYTIMEOUT=1
 
 # set up fzf keybindings & completion
-fzf_path="/usr/share/fzf"
+source <(fzf --zsh)
 
-if [ $(uname -s) = "Darwin" ]; then
-  fzf_path="/usr/local/opt/fzf/shell"
-fi
-
-. "$fzf_path/key-bindings.zsh"
-
-if [ -f "$fzf_path/completion.zsh" ]; then
-  . "$fzf_path/completion.zsh"
+# set up orbstack integration
+if [ "$(uname -s)" = "Darwin" ]; then
+  source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 fi
 
