@@ -1,17 +1,13 @@
 cask_args appdir: '/Applications'
 
-tap 'homebrew/cask-versions'
-tap 'homebrew/bundle'
-tap 'homebrew/cask-fonts'
-tap 'koekeishiya/formulae'
+tap 'shopify/shopify'
 
 # languages & package managers
-#brew 'esy'
+# brew 'esy'
 brew 'mas'
 brew 'python'
 brew 'python3'
 brew 'pipenv'
-brew 'yarn'
 
 # shell
 brew 'zsh'
@@ -33,80 +29,69 @@ brew 'gcc'
 brew 'hub'
 brew 'jq'
 brew 'p7zip'
-#brew 'sox', args: [ 'with-flac', 'with-libvorbis']
-#brew 'unrar'
+# brew 'sox', args: [ 'with-flac', 'with-libvorbis']
+# brew 'unrar'
 cask 'xquartz'
 
 # desktop environment
-#brew 'yabai'
-brew 'skhd'
-cask 'alfred'
+# brew 'yabai'
+cask 'raycast'
 
 # core software
-cask 'alacritty'
 brew 'aria2'
 brew 'feh'
 brew 'fff'
 brew 'fzf'
-cask 'insync'
 cask 'kitty'
-# brew 'maim' - mac equivelant?
 brew 'mpd'
 brew 'mpv'
 brew 'ncmpcpp'
 brew 'neofetch'
 brew 'nnn'
+brew 'pinentry-mac'
 brew 'ripgrep'
-brew 'sampler'
-brew 'scrcpy'
 brew 'task'
 brew 'tmux'
 brew 'w3m'
 
 # fonts
-cask "font-fantasque-sans-mono"
-cask "font-fira-code"
+cask 'font-fantasque-sans-mono'
+cask 'font-fira-code'
 
 # docker
-brew 'docker'
-#brew 'docker-compose'
+cask 'orbstack'
 
 # kubernetes
-#brew 'kubernetes-cli'
-#cask 'minikube'
+brew 'kubernetes-cli'
+cask 'minikube'
 
 # editors
-# brew 'emacs'
 brew 'neovim'
-# cask 'oni'
-# cask 'sublime-text'
-#cask 'veonim'
-cask 'visual-studio-code-insiders'
+cask 'cursor'
+cask 'sublime-text'
 
 # dev
-brew 'act'
-brew 'watchman'
+# brew 'act'
+# brew 'watchman'
 # brew 'shellcheck'
-#cask 'google-cloud-sdk'
-#cask 'fastlane'
+cask 'google-cloud-sdk'
+# cask 'fastlane'
 
 # browsers
-#cask 'firefox'
-##cask 'firefox-developer-edition'
+cask 'firefox'
+cask 'firefox-developer-edition'
 cask 'google-chrome'
-#cask 'vivaldi'
-# cask 'vivaldi-snapshot'
 
 # quicklook providers
 # cask 'provisionql'
 
 # password managers
-cask '1password'
+# cask '1password'
 
 # misc
-#cask 'krita'
+cask 'obsidian'
+# cask 'krita'
 # brew 'transmission'
 # cask 'plex-media-server'
-#cask 'station'
-
-#cask 'notion'
+# cask 'station'
+# cask 'notion'
