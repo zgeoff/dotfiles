@@ -3,14 +3,10 @@
 set -eu
 
 install_or_update_go_packages() {
-  echo "go: updating to yaml.v2"
-
-  go get -u gopkg.in/yaml.v2
-
   echo "go: installing packages"
 
-  go get github.com/mattn/efm-langserver
-  go get golang.org/x/tools/gopls
+  go install github.com/mattn/efm-langserver@latest
+  go install golang.org/x/tools/gopls@latest
 }
 
 install_or_update_go_packages "$@"
