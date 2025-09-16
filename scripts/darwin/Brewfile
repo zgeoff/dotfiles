@@ -1,6 +1,7 @@
 cask_args appdir: '/Applications'
 
 tap 'shopify/shopify'
+tap 'localstack/tap'
 
 # languages & package managers
 # brew 'esy'
@@ -38,9 +39,12 @@ cask 'xquartz'
 cask 'raycast'
 
 # core software
-brew 'aria2'
+brew 'bat'
+brew 'eza'
+brew 'delta'
+brew 'doggo'
+brew 'fd'
 brew 'feh'
-brew 'fff'
 brew 'fzf'
 cask 'kitty'
 brew 'mpd'
@@ -49,14 +53,12 @@ brew 'ncmpcpp'
 brew 'neofetch'
 brew 'nnn'
 brew 'pinentry-mac'
+brew 'procs'
 brew 'ripgrep'
 brew 'task'
-brew 'tmux'
-brew 'w3m'
-
-# fonts
-cask 'font-fantasque-sans-mono'
-cask 'font-fira-code'
+brew 'xh'
+brew 'zellij'
+brew 'zoxide'
 
 # docker
 cask 'orbstack'
@@ -72,26 +74,25 @@ cask 'sublime-text'
 
 # dev
 # brew 'act'
-# brew 'watchman'
-# brew 'shellcheck'
-cask 'google-cloud-sdk'
+brew 'awscli'
 # cask 'fastlane'
+cask 'google-cloud-sdk'
+cask 'insomnia'
+brew 'localstack-cli
+# brew 'shellcheck'
+# brew 'watchman'
 
 # browsers
 cask 'firefox'
 cask 'firefox-developer-edition'
 cask 'google-chrome'
+cask 'arc'
 
 # quicklook providers
 # cask 'provisionql'
 
 # password managers
-# cask '1password'
+cask '1password'
 
 # misc
 cask 'obsidian'
-# cask 'krita'
-# brew 'transmission'
-# cask 'plex-media-server'
-# cask 'station'
-# cask 'notion'
