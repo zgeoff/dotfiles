@@ -14,6 +14,15 @@
 [core]
   excludesfile = ~/.gitignore
   editor = nvim
+  pager = delta
+[interactive]
+  diffFilter = delta --color-only
+[delta]
+  navigate = true
+  dark = true
+  side-by-side = true
+[merge]
+  conflictStyle = zdiff3
 [apply]
   whitespace = nowarn
 [mergetool]
