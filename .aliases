@@ -1,29 +1,27 @@
 #!/bin/sh
 
 # commands preloaded w/ default args
-alias ls='ls -F --color'
+alias ls='eza --icons --group-directories-first'
 alias mv='mv -v'
 alias rm='rm -i -v'
 alias cp='cp -v'
 alias mkdir='mkdir -p -v'
-alias emacs='emacs -nw'
-alias act='act --env-file="$HOME/.config/act/.env"'
 
 # single letter shortcuts to core commands
 alias a=''
 alias b='bat'
-alias c='cat'
-alias d='dirs -v | head -10'
+alias c='cursor'
+alias d=''
 alias e=''
-alias f='fff'
+# alias f='' - used for yazi wrapper in .zfuncs
 alias g='git'
 alias h=''
 alias i=''
 alias j=''
 alias k=''
-alias l='ls -F --color'
+alias l='eza --icons --group-directories-first'
 alias m='mkdir'
-alias n='nnn'
+alias n=''
 alias o=''
 alias p=''
 alias q=''
@@ -35,7 +33,7 @@ alias v='nvim'
 alias w=''
 alias x=''
 alias y='yarn'
-alias z=''
+# alias z='' - used for zoxide
 
 # commands aliased to alternatives
 alias vim='nvim'
