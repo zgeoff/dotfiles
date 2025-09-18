@@ -76,6 +76,7 @@ cask 'sublime-text'
 # brew 'act'
 brew 'awscli'
 # cask 'fastlane'
+brew 'gh'
 cask 'google-cloud-sdk'
 cask 'insomnia'
 brew 'localstack-cli
