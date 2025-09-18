@@ -79,7 +79,8 @@ brew 'awscli'
 brew 'gh'
 cask 'google-cloud-sdk'
 cask 'insomnia'
-brew 'localstack-cli
+brew 'lazydocker'
+# brew 'localstack-cli
 # brew 'shellcheck'
 # brew 'watchman'
 
