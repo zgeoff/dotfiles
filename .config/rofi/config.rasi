@@ -1,67 +1,10 @@
-* {
-  foreground: #25c5ff;
-  background: rgba (22,23,25,0.9);
-  background-color: rgba (2,16,18,0);
-  border-color: @foreground;
-  font: "Fantasque Sans Mono 12";
+configuration {
+  timeout {
+      action: "kb-cancel";
+      delay:  0;
+  }
+  filebrowser {
+      directories-first: true;
+      sorting-method:    "name";
+  }
 }
-
-window {
-  background-color: @background;
-  border: 4 0 0 4;
-}
-
-mainbox {}
-
-/* the search bar container */
-inputbar {
-  children: [
-    entry,
-    case-indicator
-  ];
-
-  padding: 8;
-  text-color: @foreground;
-}
-
-/* text element within the search box */
-entry {
-  spacing: 0;
-  text-color: @foreground;
-}
-
-case-indicator {
-  spacing: 0;
-  text-color: @foreground;
-}
-
-message {}
-
-textbox {
-  text-color: @foreground;
-}
-
-listview {
-  fixed-height: 0;
-}
-
-element {
-  padding: 8;
-  text-color: @foreground;
-}
-
-element normal.normal {}
-
-element normal.urgent {}
-
-element normal.active {}
-
-element selected.normal {
-  background-color: @foreground;
-  color: @background;
-}
-
-element selected.urgent {}
-
-element selected.active {}
-
