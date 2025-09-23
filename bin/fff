@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-cd_on_exit_fff() {
-  fff "$@"
-  cd "$(cat "${XDG_CACHE_HOME:=${HOME}/.cache}/fff/.fff_d")"
-}
-
-cd_on_exit_fff "$@"
