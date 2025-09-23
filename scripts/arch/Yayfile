@@ -46,9 +46,7 @@ conky
 lightdm
 lightdm-mini-greeter
 light-locker
-plata-theme
 rofi
-# rofi-1pass
 qt5-styleplugins
 xcape
 xclip
@@ -71,31 +69,31 @@ ttf-fira-code
 # core software
 asciinema
 aria2
-barrier
 bat
-cli-visualizer
+doggo-bin
+eza-git
+fd
 feh
 fbset
 fff
 fzf
+git-delta
 kitty
 maim
 mpd
 mpv
 ncmpcpp
 neofetch
-nnn
+procs
 ripgrep
-sampler
-# scrcpy
 task
-tmux
-# w3m
-# w3m-img
 xdg-utils
 xdotool
+xh
 zathura
 zathura-pdf-mupdf
+zellij
+zoxide
 
 # virtualization
 # dmidecode
@@ -107,12 +105,12 @@ zathura-pdf-mupdf
 # virtualization/containers
 docker
 docker-compose
-docker-machine
+# docker-machine
 # nvidia-container-toolkit
-kubernetes
+# kubernetes
 # docker-machine-driver-kvm2
-kubectl
-minikube
+# kubectl
+# minikube
 
 # editors & development tooling
 # android-studio
@@ -120,23 +118,24 @@ minikube
 # android-sdk-build-tools-dummy
 # android-sdk-platform-tools-dummy
 # android-emulator-dummy
+github-cli
 # haskell-ide-engine-git
 neovim
 python-pynvim
 visual-studio-code-insiders
 
 # dev
-act
+# act
 google-cloud-sdk
-watchman
+# watchman
 
 # browsers
 # firefox
 # firefox-developer-edition
 # google-chrome
 # google-chrome-dev
-vivaldi
-vivaldi-ffmpeg-codecs
+# vivaldi
+# vivaldi-ffmpeg-codecs
 # vivaldi-snapshot
 # vivaldi-snapshot-ffmpeg-codecs
 
