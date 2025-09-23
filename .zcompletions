@@ -19,6 +19,11 @@ if [ -x "$(command -v kubectl)" ]; then
   # . <(kubectl completion zsh)
 fi
 
+if [ -x "$(command -v gcloud)" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/google-cloud-sdk/completion.zsh.inc"
+fi
+
 # TODO(#xxxx): enable warpdrive completion on arch
 # fpath=(~/bin/wd "$fpath")
 
