@@ -2,9 +2,6 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 
 # add our non-platform specific directories to our path
 path=(
-  "$MEATBOX_BIN_DIR"
-  "$HOME/.pub-cache/bin"
-  "$HOME/.yarn/bin"
   "$ANDROID_HOME/emulator"
   "$ANDROID_HOME/tools"
   "$ANDROID_HOME/tools/bin"

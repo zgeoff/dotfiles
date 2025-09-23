@@ -22,7 +22,7 @@ install_or_update_asdf() {
     asdf update >/dev/null || true
   fi
 
-  desired_plugins="nodejs python ruby"
+  desired_plugins="nodejs golang python ruby"
 
   # add our version manager plugins
   for plugin in $desired_plugins; do
@@ -39,12 +39,13 @@ install_or_update_asdf() {
 
   # upgrade and use the latest versions of our packages
   for plugin in $desired_plugins; do
-    latest_version="$(asdf list-all "$plugin" | grep -E '^[0-9.]+$' | tail -n 1)"
+    latest_version="$(asdf list all "$plugin" | grep -E '^[0-9.]+$' | tail -n 1)"
 
     echo "asdf: installing latest version of $plugin@$latest_version"
 
     asdf install "$plugin" "$latest_version" >/dev/null
-    asdf global "$plugin" "$latest_version" >/dev/null
+
+    asdf set -u "$plugin" "$latest_version" >/dev/null
   done
 }
 
