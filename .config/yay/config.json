@@ -5,7 +5,7 @@
 	"editorflags": "",
 	"makepkgbin": "makepkg",
 	"makepkgconf": "",
-	"pacmanbin": "pacfast",
+	"pacmanbin": "/usr/sbin/pacman",
 	"pacmanconf": "$HOME/.config/pacman/pacman.conf",
 	"tarbin": "bsdtar",
 	"redownload": "no",
