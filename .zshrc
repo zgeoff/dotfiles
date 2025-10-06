@@ -63,6 +63,10 @@ autoload -Uz compinit && compinit
 # shellcheck source=.zcompletions
 . "$HOME/.zcompletions"
 
+# initialize fzf completion
+source "$HOME/bin/fzf-zsh-completion.sh"
+bindkey '^I' fzf_completion
+
 # shellcheck source=.zaliases
 . "$HOME/.zaliases"
 
