@@ -2,4 +2,4 @@
 
 set -eu
 
-mas upgrade >/dev/null
+# mas upgrade >/dev/null
