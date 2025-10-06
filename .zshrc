@@ -56,18 +56,16 @@ setopt LOCAL_TRAPS                # allow functions to have local traps
 # matches case insensitive for lowercase
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
-# pasting with tabs doesn't perform completion
-# zstyle ':completion:*' insert-tab pending
-
-# menu-driven auto completion
-# zstyle ':completion:*' menu select
-
 # initialize our completion
 autoload -Uz bashcompinit && bashcompinit
 autoload -Uz compinit && compinit
 
 # shellcheck source=.zcompletions
 . "$HOME/.zcompletions"
+
+# initialize fzf completion
+source "$HOME/bin/fzf-zsh-completion.sh"
+bindkey '^I' fzf_completion
 
 # shellcheck source=.zaliases
 . "$HOME/.zaliases"
@@ -114,3 +112,4 @@ if [ "$(uname -s)" = "Darwin" ]; then
   source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 fi
 
+export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"

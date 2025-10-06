@@ -21,9 +21,11 @@ fi
 
 if [ -x "$(command -v gcloud)" ]; then
   # shellcheck source=/dev/null
-  . "$HOME/google-cloud-sdk/completion.zsh.inc"
+  # . "$HOME/google-cloud-sdk/completion.zsh.inc"
 fi
 
-# TODO(#xxxx): enable warpdrive completion on arch
-# fpath=(~/bin/wd "$fpath")
+if [ -x "$(command -v aws_completer)" ]; then
+  complete -C $(which aws_completer) aws
+  zstyle ':completion:*:*:aws' fzf-search-display true
+fi
 
