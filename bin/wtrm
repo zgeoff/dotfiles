@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: wtrm [--force|-f] [--dry-run|-n]
+
+Interactively select one or more git worktrees to remove.
+- Refuses to remove the current worktree.
+- Shows preview with status and recent commits.
+- After removal, runs `git worktree prune`.
+
+Options:
+  -f, --force    Pass --force to `git worktree remove`
+  -n, --dry-run  Show what would be removed, but do not actually remove
+  -h, --help     Show this help
+EOF
+}
+
+force_flag=""
+dry_run=""
+while [[ $# -gt 0 ]]; do
+  case "${1:-}" in
+    -f|--force)   force_flag="--force"; shift;;
+    -n|--dry-run) dry_run="1"; shift;;
+    -h|--help)    usage; exit 0;;
+    *) echo "Unknown option: $1" >&2; usage; exit 2;;
+  esac
+done
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Not inside a git work tree." >&2
+  exit 1
+fi
+
+current_root="$(git rev-parse --show-toplevel)"
+
+# Build "label - /path" lines using porcelain output
+selection_lines="$(
+  git worktree list --porcelain |
+    awk '
+      /^worktree / { path=substr($0,10) }
+      /^branch /   { branch=$2 }
+      /^HEAD /     { head=$2 }
+      /^$/ {
+        if (path != "") {
+          gsub("refs/heads/","",branch)
+          label = (branch != "" ? branch : substr(head,1,7))
+          printf "%s - %s\n", label, path
+        }
+        path=""; branch=""; head=""
+      }
+      END {
+        if (path != "") {
+          gsub("refs/heads/","",branch)
+          label = (branch != "" ? branch : substr(head,1,7))
+          printf "%s - %s\n", label, path
+        }
+      }'
+)"
+
+[ -n "$selection_lines" ] || { echo "No worktrees found." >&2; exit 1; }
+
+preview_cmd='
+sel="{}"
+path="${sel#*- }"
+echo "Path: $path"
+echo "------ status (porcelain) ------"
+git -C "$path" status --porcelain || true
+echo
+echo "------ HEAD & branch ------"
+git -C "$path" rev-parse --short HEAD || true
+git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "(detached)"
+echo
+echo "------ recent commits ------"
+git -C "$path" log --oneline -n 7 2>/dev/null || true
+'
+
+# Collect picks (newline-separated) without mapfile
+picks="$(printf '%s\n' "$selection_lines" | \
+  fzf --prompt="wtrm > " --height=60% --multi \
+      --header="TAB to mark, ENTER to delete. Current worktree cannot be removed." \
+      --preview="$preview_cmd")" || exit 130
+
+# If nothing selected, exit cleanly
+[ -n "${picks:-}" ] || { echo "Nothing selected."; exit 0; }
+
+# Extract paths and skip current worktree
+paths=()
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  p="${line#*- }"
+  if [[ "$p" == "$current_root" ]]; then
+    echo "Skipping current worktree: $p" >&2
+    continue
+  fi
+  paths+=("$p")
+done <<< "$picks"
+
+[ "${#paths[@]}" -gt 0 ] || { echo "Nothing to remove." >&2; exit 0; }
+
+echo "You are about to remove the following worktrees:"
+printf '  - %s\n' "${paths[@]}"
+
+if [[ -n "$dry_run" ]]; then
+  echo "(dry-run) Would run:"
+  for p in "${paths[@]}"; do
+    echo "git worktree remove $force_flag \"$p\""
+  done
+  echo "(dry-run) Would also run: git worktree prune"
+  exit 0
+fi
+
+read -r -p "Type 'delete' to confirm: " confirm
+if [[ "$confirm" != "delete" ]]; then
+  echo "Aborted." >&2
+  exit 1
+fi
+
+for p in "${paths[@]}"; do
+  echo "Removing: $p"
+  git worktree remove $force_flag "$p"
+done
+
+git worktree prune
+echo "Done."

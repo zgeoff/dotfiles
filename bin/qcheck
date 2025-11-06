@@ -1,0 +1,64 @@
+#!/bin/sh
+
+#############################################
+#                                           #
+#  ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗     #
+#  ██║    ██║██╔══██╗██╔══██╗████╗  ██║     #
+#  ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║     #
+#  ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║     #
+#  ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║     #
+#   ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝     #
+#                                           #
+#        ███████╗██╗      ██████╗           #
+#        ██╔════╝██║     ██╔═══██╗          #
+#        ███████╗██║     ██║   ██║          #
+#        ╚════██║██║     ██║   ██║          #
+#        ███████║███████╗╚██████╔╝          #
+#        ╚══════╝╚══════╝ ╚═════╝           #
+#                                           #
+#         WARNING: AI SLOP AHEAD            #
+#                                           #
+#############################################
+
+set -eu
+
+# If input looks like a URL, return it; otherwise resolve name -> URL.
+resolve_queue_url() {
+  IN="$1"
+  case "$IN" in
+    http://*|https://*)
+      printf '%s\n' "$IN"
+      ;;
+    *)
+      aws sqs get-queue-url --queue-name "$IN" --query 'QueueUrl' --output text
+      ;;
+  esac
+}
+
+pick_queue_name() {
+  # List queue URLs, strip to names, let user pick a name
+  aws sqs list-queues --query 'QueueUrls[]' --output text \
+    | tr '	' '\n' \
+    | sed 's!.*/!!' \
+    | sort -u \
+    | fzf --prompt="SQS queue (name) > " --height=40% --reverse
+}
+
+# Accept either a queue URL or a queue NAME as $1
+QUEUE_ARG="${1:-}"
+
+if [ -z "$QUEUE_ARG" ]; then
+  QUEUE_NAME="$(pick_queue_name || true)"
+  [ -z "$QUEUE_NAME" ] && { printf '%s\n' "No queue selected."; exit 1; }
+  QUEUE_URL="$(resolve_queue_url "$QUEUE_NAME")"
+else
+  QUEUE_URL="$(resolve_queue_url "$QUEUE_ARG")"
+fi
+
+[ -z "$QUEUE_URL" ] && { printf '%s\n' "Failed to resolve queue URL."; exit 1; }
+
+aws sqs get-queue-attributes \
+  --queue-url "$QUEUE_URL" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateNumberOfMessagesDelayed \
+  --output json \
+| jq --arg q "$QUEUE_URL" '{queue:$q} + .Attributes'

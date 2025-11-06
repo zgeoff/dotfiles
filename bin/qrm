@@ -1,0 +1,66 @@
+#!/bin/sh
+
+#############################################
+#                                           #
+#  ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗     #
+#  ██║    ██║██╔══██╗██╔══██╗████╗  ██║     #
+#  ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║     #
+#  ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║     #
+#  ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║     #
+#   ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝     #
+#                                           #
+#        ███████╗██╗      ██████╗           #
+#        ██╔════╝██║     ██╔═══██╗          #
+#        ███████╗██║     ██║   ██║          #
+#        ╚════██║██║     ██║   ██║          #
+#        ███████║███████╗╚██████╔╝          #
+#        ╚══════╝╚══════╝ ╚═════╝           #
+#                                           #
+#         WARNING: AI SLOP AHEAD            #
+#                                           #
+#############################################
+
+set -eu
+
+# Resolve a queue name (e.g., "my-queue.fifo") to its full URL.
+# If input already looks like a URL, pass it through.
+resolve_queue_url() {
+  case "$1" in
+    http://*|https://*) printf '%s\n' "$1" ;;
+    *)
+      aws sqs get-queue-url --queue-name "$1" --query 'QueueUrl' --output text
+      ;;
+  esac
+}
+
+# Show only queue NAMES in fzf (strip the URL prefix).
+pick_queue_name() {
+  aws sqs list-queues --query 'QueueUrls[]' --output text \
+    | tr '	' '\n' \
+    | sed 's!.*/!!' \
+    | sort -u \
+    | fzf --prompt="SQS queue (name) > " --height=40% --reverse
+}
+
+# Accept an optional arg (name or URL). Otherwise prompt by NAME.
+ARG="${1:-}"
+if [ -z "$ARG" ]; then
+  QNAME="$(pick_queue_name || true)"
+  [ -z "$QNAME" ] && { printf '%s\n' "No queue selected."; exit 1; }
+  QURL="$(resolve_queue_url "$QNAME")"
+else
+  QURL="$(resolve_queue_url "$ARG")"
+  QNAME="$(printf "%s\n" "$QURL" | sed 's!.*/!!')"
+fi
+
+[ -z "$QURL" ] && { printf '%s\n' "Failed to resolve queue URL."; exit 1; }
+
+printf 'About to PURGE queue:\n  name: %s\n  url : %s\n\n' "$QNAME" "$QURL"
+
+CHOICE="$(printf '%s\n%s\n' "NO" "YES - PURGE IT" \
+  | fzf --prompt="Confirm purge > " --height=10 --reverse || true)"
+
+[ "$CHOICE" = "YES - PURGE IT" ] || { printf '%s\n' "Cancelled."; exit 0; }
+
+aws sqs purge-queue --queue-url "$QURL"
+printf '%s\n' "Purge requested. It may take up to ~60 seconds to complete."
