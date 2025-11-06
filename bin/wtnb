@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: wtnb <branch-name>
+
+Create a git worktree in a sibling directory:
+  <repo>.worktree.<branch-slug>
+
+- If the branch exists, a worktree is created for it.
+- If the branch does not exist, it is created from the current HEAD.
+
+Example:
+  # from /projects/main-repo
+  wtnb feat/some-new-branch
+  # -> /projects/main-repo.worktree.feat-some-new-branch
+EOF
+}
+
+branch="${1:-}"
+if [[ -z "$branch" ]]; then
+  usage >&2
+  exit 1
+fi
+
+# ensure we're in a git repo
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Not inside a git work tree." >&2
+  exit 1
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+# turn "feat/some-new-branch" -> "feat-some-new-branch"
+branch_slug="$(printf '%s' "$branch" | tr '/:' '-')"
+
+# final path sits NEXT TO the repo, not inside it
+target_path="${repo_root}.worktree.${branch_slug}"
+
+if [[ -e "$target_path" ]]; then
+  echo "Target path already exists: $target_path" >&2
+  exit 1
+fi
+
+# check if branch already exists
+if git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
+  echo "Branch '$branch' exists, creating worktree for it..."
+  git worktree add "$target_path" "$branch"
+else
+  # create new branch from current HEAD
+  current_head="$(git rev-parse --abbrev-ref HEAD)"
+  echo "Branch '$branch' does not exist, creating from '$current_head'..."
+  git worktree add -b "$branch" "$target_path"
+fi
+
+echo "Created worktree:"
+echo "  branch: $branch"
+echo "  path:   $target_path"

@@ -1,0 +1,36 @@
+#! /bin/sh
+
+set -euo pipefail
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "Not inside a git work tree." >&2; exit 1;
+}
+
+selection="$(
+  git worktree list --porcelain |
+    awk '
+      /^worktree / { path=$2 }
+      /^branch /   { branch=$2 }
+      /^HEAD /     { head=$2 }
+      /^$/ {
+        if (path != "") {
+          gsub("refs/heads/","",branch)
+          label = (branch != "" ? branch : substr(head,1,7))
+          printf "%s - %s\n", label, path
+        }
+        path=""; branch=""; head=""
+      }
+      END {
+        if (path != "") {
+          gsub("refs/heads/","",branch)
+          label = (branch != "" ? branch : substr(head,1,7))
+          printf "%s - %s\n", label, path
+        }
+      }
+    ' |
+    fzf --prompt="worktree > " --no-sort --height=40%
+)" || exit 130  # user pressed Esc
+
+# print just the path
+[ -n "${selection:-}" ] || exit 1
+printf '%s\n' "${selection#*- }"

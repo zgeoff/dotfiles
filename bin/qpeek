@@ -1,0 +1,133 @@
+#!/bin/sh
+
+#############################################
+#                                           #
+#  ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗     #
+#  ██║    ██║██╔══██╗██╔══██╗████╗  ██║     #
+#  ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║     #
+#  ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║     #
+#  ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║     #
+#   ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝     #
+#                                           #
+#        ███████╗██╗      ██████╗           #
+#        ██╔════╝██║     ██╔═══██╗          #
+#        ███████╗██║     ██║   ██║          #
+#        ╚════██║██║     ██║   ██║          #
+#        ███████║███████╗╚██████╔╝          #
+#        ╚══════╝╚══════╝ ╚═════╝           #
+#                                           #
+#         WARNING: AI SLOP AHEAD            #
+#                                           #
+#############################################
+
+set -eu
+
+# Resolve a queue name to its full URL (URL passthrough if already a URL).
+resolve_queue_url() {
+  case "$1" in
+    http://*|https://*) printf '%s\n' "$1" ;;
+    *) aws sqs get-queue-url --queue-name "$1" --query 'QueueUrl' --output text ;;
+  esac
+}
+
+# fzf picker that shows only queue names (not full URLs).
+pick_queue_name() {
+  aws sqs list-queues --query 'QueueUrls[]' --output text \
+    | tr '	' '\n' \
+    | sed 's!.*/!!' \
+    | sort -u \
+    | fzf --prompt="SQS queue (name) > " --height=40% --reverse
+}
+
+# Arg may be a queue NAME or URL; otherwise prompt by name.
+QUEUE_ARG="${1:-}"
+if [ -z "$QUEUE_ARG" ]; then
+  QUEUE_NAME="$(pick_queue_name || true)"
+  [ -z "$QUEUE_NAME" ] && { printf '%s\n' "No queue selected."; exit 1; }
+  QUEUE_URL="$(resolve_queue_url "$QUEUE_NAME")"
+else
+  QUEUE_URL="$(resolve_queue_url "$QUEUE_ARG")"
+fi
+[ -z "$QUEUE_URL" ] && { printf '%s\n' "Failed to resolve queue URL."; exit 1; }
+
+# Temp files (GNU/BSD compatible).
+TMP_JSON="$(mktemp 2>/dev/null || mktemp -t sqs)"
+PREVIEW_SH="$(mktemp 2>/dev/null || mktemp -t sqs-preview)"
+cleanup() {
+  rm -f "$TMP_JSON" "$PREVIEW_SH" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+
+# Receive with a small visibility timeout so the receipt handles are valid for delete.
+# Export VIS_TIMEOUT=10 qpeek   # if you want a shorter window.
+VIS_TIMEOUT="${VIS_TIMEOUT:-30}"
+
+aws sqs receive-message \
+  --queue-url "$QUEUE_URL" \
+  --max-number-of-messages 10 \
+  --visibility-timeout "$VIS_TIMEOUT" \
+  --wait-time-seconds 0 \
+  --attribute-names All \
+  --message-attribute-names All \
+  --output json >"$TMP_JSON" 2>/dev/null || true
+
+COUNT="$(jq '(.Messages // []) | length' "$TMP_JSON" 2>/dev/null || echo 0)"
+[ "$COUNT" -eq 0 ] && { printf '%s\n' "No messages returned."; exit 0; }
+
+# TSV: MessageId \t short-body
+TSV="$(jq -r '
+  (.Messages // [])[]
+  | [ .MessageId
+    , ( .Body | tostring | gsub("\n";" ") | .[0:120] )
+    ]
+  | @tsv
+' "$TMP_JSON")"
+
+# Preview helper (avoids nested quoting issues).
+# Pretty-prints Body as JSON if possible, else shows raw string.
+cat >"$PREVIEW_SH" <<'SH'
+#!/bin/sh
+# $1 = full selected TSV line, $2 = JSON file path
+MID=$(printf "%s" "$1" | cut -f1)
+jq -C --arg mid "$MID" '
+  .Messages[]
+  | select(.MessageId==$mid)
+  | {
+      MessageId,
+      Attributes,
+      MessageAttributes,
+      Body: (try (.Body | fromjson) catch .)
+    }
+' "$2"
+SH
+chmod +x "$PREVIEW_SH"
+
+# fzf selection with robust preview
+SEL=$(
+  printf '%s\n' "$TSV" \
+  | fzf --multi --ansi --height=80% --reverse \
+        --prompt="Select messages to DELETE (ESC to skip) > " \
+        --with-nth=1,2 \
+        --preview "$PREVIEW_SH {} $TMP_JSON" \
+        --preview-window=down:60%
+) || true
+
+[ -z "${SEL:-}" ] && {
+  printf '%s\n' "No messages selected; nothing deleted. (They'll reappear in ~${VIS_TIMEOUT}s.)"
+  exit 0
+}
+
+# Delete selected messages by MessageId -> ReceiptHandle lookup.
+printf '%s\n' "$SEL" \
+| cut -f1 \
+| while IFS= read -r MID; do
+    RH="$(jq -r --arg mid "$MID" '.Messages[] | select(.MessageId==$mid) | .ReceiptHandle' "$TMP_JSON" | sed -n '1p')"
+    if [ -n "$RH" ] && [ "$RH" != "null" ]; then
+      printf 'Deleting MessageId=%s\n' "$MID"
+      aws sqs delete-message --queue-url "$QUEUE_URL" --receipt-handle "$RH" >/dev/null
+    else
+      printf 'Skip: no receipt handle for MessageId=%s (may have timed out)\n' "$MID" >&2
+    fi
+  done
+
+printf '%s\n' "Done."
