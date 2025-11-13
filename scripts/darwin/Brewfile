@@ -44,6 +44,7 @@ cask 'raycast'
 
 # core software
 brew 'bat'
+brew 'btop'
 brew 'eza'
 brew 'delta'
 brew 'doggo'
