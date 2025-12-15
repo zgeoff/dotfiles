@@ -107,6 +107,9 @@ KEYTIMEOUT=1
 # set up fzf keybindings & completion
 source <(fzf --zsh)
 
+# set up zoxide
+eval "$(zoxide init zsh)"
+
 # set up orbstack integration
 if [ "$(uname -s)" = "Darwin" ]; then
   source ~/.orbstack/shell/init.zsh 2>/dev/null || :
