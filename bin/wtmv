@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+wtmv() {
+  local from="$1"
+
+  mv "$from" "$(wtpick)"
+}
+
+wtmv "$@"
