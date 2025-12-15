@@ -63,18 +63,18 @@ selection_lines="$(
 [ -n "$selection_lines" ] || { echo "No worktrees found." >&2; exit 1; }
 
 preview_cmd='
-sel="{}"
-path="${sel#*- }"
-echo "Path: $path"
+sel=$(printf "%s\n" {})
+wtpath="${sel#*- }"
+echo "Path: $wtpath"
 echo "------ status (porcelain) ------"
-git -C "$path" status --porcelain || true
+git -C "$wtpath" status --porcelain || true
 echo
 echo "------ HEAD & branch ------"
-git -C "$path" rev-parse --short HEAD || true
-git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "(detached)"
+git -C "$wtpath" rev-parse --short HEAD || true
+git -C "$wtpath" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "(detached)"
 echo
 echo "------ recent commits ------"
-git -C "$path" log --oneline -n 7 2>/dev/null || true
+git -C "$wtpath" log --oneline -n 7 2>/dev/null || true
 '
 
 # Collect picks (newline-separated) without mapfile
