@@ -95,6 +95,8 @@ alias shc="shellcheck"
 alias shfc="shfmt"
 alias rn='react-native'
 alias wt='cd "$(wtpick)"'
+alias wtc='cursor -n "$(wtpick)"'
+alias ca='cursor agent --model=gpt-5'
 
 # term
 alias reload!='. "$HOME"/.profile'
