@@ -2,7 +2,7 @@ layout splits
 
 launch --var window=fullheight
 
-launch --location=vsplit --var window=stack_top
+launch --location=vsplit --var window=stack_top btop
 
 launch --location=hsplit --var window=stack_middle
 
