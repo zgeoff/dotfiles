@@ -8,7 +8,7 @@ refresh_package_databases.sh
 update_pacman_mirrorlist.sh
 refresh_package_databases.sh
 install_yay.sh
-install_pciutils.sh
+install_build_deps.sh
 "
 
 bootstrap() {
