@@ -1,3 +1,4 @@
+
 #/usr/bin/env zsh
 
 . "$HOME/.bashrc"
@@ -63,10 +64,6 @@ autoload -Uz compinit && compinit
 # shellcheck source=.zcompletions
 . "$HOME/.zcompletions"
 
-# initialize fzf completion
-source "$HOME/bin/fzf-zsh-completion.sh"
-bindkey '^I' fzf_completion
-
 # shellcheck source=.zaliases
 . "$HOME/.zaliases"
 
@@ -106,6 +103,19 @@ KEYTIMEOUT=1
 
 # set up fzf keybindings & completion
 source <(fzf --zsh)
+
+# shell-gpt integration
+_sgpt_zsh() {
+if [[ -n "$BUFFER" ]]; then
+    _sgpt_prev_cmd=$BUFFER
+    BUFFER+="⌛"
+    zle -I && zle redisplay
+    BUFFER=$(sgpt --shell <<< "$_sgpt_prev_cmd" --no-interaction)
+    zle end-of-line
+fi
+}
+zle -N _sgpt_zsh
+bindkey ^F _sgpt_zsh
 
 # set up zoxide
 eval "$(zoxide init zsh)"
