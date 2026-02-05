@@ -8,7 +8,7 @@ alias cp='cp -v'
 alias mkdir='mkdir -p -v'
 
 # single letter shortcuts to core commands
-alias a=''
+alias a='sgpt'
 alias b='bat'
 alias c='cursor'
 alias d=''
@@ -37,6 +37,14 @@ alias y='yarn'
 
 # commands aliased to alternatives
 alias vim='nvim'
+
+# shell-gpt
+alias ac='sgpt --chat'
+alias act='sgpt --chat temp'
+alias acl='sgpt --list-chats'
+alias ar='sgpt --repl'
+alias art='sgpt --repl temp'
+alias as='sgpt --shell'
 
 # docker
 # TODO
