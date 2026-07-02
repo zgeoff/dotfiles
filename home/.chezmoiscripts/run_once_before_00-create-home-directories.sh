@@ -3,7 +3,6 @@
 set -eu
 
 folders="
-  bin
   containers
   docs
   downloads
