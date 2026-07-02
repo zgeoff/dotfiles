@@ -4,3 +4,5 @@ libs/*
 !libs/.gitkeep
 node_modules
 .undodir/
+
+**/.claude/settings.local.json

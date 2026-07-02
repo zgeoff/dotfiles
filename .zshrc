@@ -126,3 +126,19 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+
+ssh-add -l >/dev/null 2>&1 || ssh-add ~/.ssh/id
+
+if [[ -n "$SSH_CONNECTION" ]]; then
+  zellij attach -c dev || zellij -s dev
+fi
+
+# bun completions
+[ -s "/home/geoff/.bun/_bun" ] && source "/home/geoff/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+# add Pulumi to the PATH
+export PATH=$PATH:/home/geoff/.pulumi/bin

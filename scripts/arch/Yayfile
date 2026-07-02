@@ -72,6 +72,7 @@ aria2
 bat
 doggo-bin
 eza
+fastfetch
 fd
 feh
 fbset
@@ -82,7 +83,6 @@ maim
 mpd
 mpv
 ncmpcpp
-neofetch
 procs
 ripgrep
 task

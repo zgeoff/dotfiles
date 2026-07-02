@@ -3,7 +3,6 @@
 set -eu
 
 scripts="
-install_neofetch.sh
 install_or_update_asdf.sh
 "
 

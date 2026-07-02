@@ -105,6 +105,7 @@ alias rn='react-native'
 alias wt='cd "$(wtpick)"'
 alias wtc='cursor -n "$(wtpick)"'
 alias ca='cursor agent --model=gpt-5'
+alias zaude='clother-zai --model=glm-4.7'
 
 # term
 alias reload!='. "$HOME"/.profile'
