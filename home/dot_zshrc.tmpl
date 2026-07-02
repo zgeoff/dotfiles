@@ -11,11 +11,11 @@
 function () {
   local -a zfuncs
 
-  for func in "$HOME"/.zfuncs/*(.); do
+  for func in "$HOME"/.zfuncs/*(N.); do
     zfuncs+="$(basename $func)"
   done
 
-  autoload -Uz "$zfuncs[@]"
+  (( $#zfuncs )) && autoload -Uz "$zfuncs[@]"
 }
 
 # prompt & command configuration
