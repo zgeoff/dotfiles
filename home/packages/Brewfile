@@ -53,6 +53,7 @@ brew 'gh'
 brew 'lazydocker'
 brew 'shellcheck'
 brew 'shfmt'
+brew 'tree-sitter-cli'
 
 # browsers
 cask 'firefox'

@@ -58,3 +58,4 @@ docker-compose
 # editors & development tooling
 github-cli
 neovim
+tree-sitter-cli
