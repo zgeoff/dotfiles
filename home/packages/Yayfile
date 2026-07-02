@@ -24,7 +24,7 @@ git-lfs
 cronie
 gnupg
 jq
-p7zip
+7zip
 reflector
 shellcheck
 shfmt
@@ -35,7 +35,7 @@ asciinema
 aria2
 bat
 cli-visualizer
-doggo-bin
+doggo
 eza
 fastfetch
 fd
