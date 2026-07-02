@@ -10,8 +10,8 @@ personal config for Arch & macOS, managed with [chezmoi](https://chezmoi.io).
 
 - `home/` — chezmoi source state (see `.chezmoiroot`). Deployed to `$HOME` by `chezmoi apply`.
 - `home/packages/` — `Yayfile` (Arch) and `Brewfile` (macOS); never deployed, consumed by
-  `home/.chezmoiscripts/` which re-runs package sync whenever they change.
-- `scripts/` — manual/system-level scripts, not managed by chezmoi.
+  `home/.chezmoiscripts/` which re-runs package sync whenever they change. The package
+  managers themselves (yay, homebrew) are bootstrapped by those scripts if missing.
 
 ## Setup on a new machine
 
@@ -20,7 +20,7 @@ sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
 chezmoi init --apply --source ~/projects/dotfiles git@github.com:zgeoff/dotfiles.git
 ```
 
-`chezmoi init` prompts for machine data (email, home/work profile, GUI) on first run;
+`chezmoi init` prompts for machine data (email, GUI) on first run;
 answers are remembered. Re-run `chezmoi init` to change them.
 
 ## Daily use

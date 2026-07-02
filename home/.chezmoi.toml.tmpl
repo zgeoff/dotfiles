@@ -1,5 +1,4 @@
 {{- $email := promptStringOnce . "email" "Git email" "me@geoffwhatley.com" -}}
-{{- $profile := promptChoiceOnce . "profile" "Machine profile" (list "home" "work") -}}
 {{- $gui := promptBoolOnce . "gui" "Has a GUI/desktop session" -}}
 
 {{- /* detect WSL via the kernel release string (kernel data is linux-only) */ -}}
@@ -22,7 +21,6 @@ encryption = "age"
 
 [data]
     email = {{ $email | quote }}
-    profile = {{ $profile | quote }}
     gui = {{ $gui }}
     wsl = {{ $wsl }}
     arch = {{ $arch }}

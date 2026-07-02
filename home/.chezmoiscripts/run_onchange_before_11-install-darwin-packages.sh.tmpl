@@ -4,8 +4,15 @@
 set -euo pipefail
 
 if ! command -v brew >/dev/null; then
-  echo "darwin packages: homebrew not installed, skipping sync" >&2
-  exit 0
+  echo "darwin packages: homebrew not installed, installing" >&2
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  # the installer doesn't touch PATH; pick up the right prefix (ARM vs Intel)
+  for prefix in /opt/homebrew /usr/local; do
+    if [ -x "$prefix/bin/brew" ]; then
+      eval "$("$prefix/bin/brew" shellenv)"
+      break
+    fi
+  done
 fi
 
 brew bundle --file "{{ .chezmoi.sourceDir }}/packages/Brewfile"

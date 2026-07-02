@@ -1,3 +1,4 @@
+{{ if eq .chezmoi.os "darwin" -}}
 #!/bin/sh
 
 set -eu
@@ -23,3 +24,4 @@ defaults write NSGlobalDomain KeyRepeat -int 1
 # set the Finder prefs for showing a few different volumes on the Desktop
 defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
 defaults write com.apple.finder ShowRemovableMediaOnDesktop -bool true
+{{ end -}}

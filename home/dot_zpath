@@ -1,6 +1,5 @@
 # add our non-platform specific directories to our path
 path=(
-  "$HOME/.fly/bin"
   /usr/local/{bin,sbin}
   $path
 )
