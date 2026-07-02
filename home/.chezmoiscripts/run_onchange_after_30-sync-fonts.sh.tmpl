@@ -1,0 +1,12 @@
+#!/bin/bash
+# fonts hash: {{ range glob (joinPath .chezmoi.sourceDir "dot_local/share/fonts/*.age") | sortAlpha }}{{ include . | sha256sum }} {{ end }}
+set -euo pipefail
+
+{{ if eq .chezmoi.os "darwin" -}}
+# CoreText does not read ~/.local/share/fonts; mirror into ~/Library/Fonts
+cp -f "$HOME"/.local/share/fonts/*.otf "$HOME/Library/Fonts/"
+{{ else -}}
+if command -v fc-cache >/dev/null; then
+  fc-cache -f "$HOME/.local/share/fonts"
+fi
+{{ end -}}
