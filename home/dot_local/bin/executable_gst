@@ -1,0 +1,40 @@
+#!/bin/sh
+
+set -eu
+
+gst() {
+  git ls-files -m -o --exclude-standard \
+    | fzf --multi \
+      --bind 'ctrl-q:abort' \
+      --bind 'ctrl-j:down,ctrl-k:up' \
+      --bind 'ctrl-space:toggle' \
+      --preview 'bash -lc '"'"'
+        f="$1"
+        w="${FZF_PREVIEW_COLUMNS:-120}"
+        if git ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
+          git diff --color=always -- "$f" | delta --paging=never --width="$w"
+        else
+          git diff --no-index --color=always /dev/null "$f" | delta --paging=never --width="$w"
+        fi
+      '"'"' _ {}' \
+      --preview-window=right:70%:wrap \
+      --bind 'enter:execute(bash -lc '"'"'
+        if [ "$#" -gt 0 ]; then
+          git add -- "$@"
+        else
+          git add -- "$1"
+        fi
+      '"'"' _ {} {+})+reload(git ls-files -m -o --exclude-standard)' \
+      --bind 'ctrl-e:execute(bash -lc '"'"'
+        cur="$1"; shift
+        read -r -a cmd <<< "${EDITOR:-vi}"
+        if [ "$#" -gt 0 ]; then
+          "${cmd[@]}" "$@"
+        else
+          "${cmd[@]}" "$cur"
+        fi
+      '"'"' _ {} {+})'
+}
+
+gst "$@"
+
