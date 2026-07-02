@@ -19,6 +19,8 @@ if [ -n "$missing" ]; then
   echo "arch packages: not available, skipped:" $missing >&2
 fi
 
+# -Syu: refresh databases and upgrade together — installing with a stale DB
+# 404s once mirrors rotate packages, and -Sy alone risks partial upgrades
 # shellcheck disable=SC2086
-yay -Sq --noconfirm --needed $packages
+yay -Syuq --noconfirm --needed $packages
 {{ end -}}
