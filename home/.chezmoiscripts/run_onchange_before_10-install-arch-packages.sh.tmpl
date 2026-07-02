@@ -4,8 +4,12 @@
 set -euo pipefail
 
 if ! command -v yay >/dev/null; then
-  echo "arch packages: yay not installed, skipping sync" >&2
-  exit 0
+  echo "arch packages: yay not installed, bootstrapping from the AUR" >&2
+  sudo pacman -Syu --needed --noconfirm git base-devel
+  builddir="$(mktemp -d)"
+  git clone https://aur.archlinux.org/yay-bin.git "$builddir/yay-bin"
+  (cd "$builddir/yay-bin" && makepkg -si --noconfirm)
+  rm -rf "$builddir"
 fi
 
 # intersect the Yayfile with available packages so renamed/removed

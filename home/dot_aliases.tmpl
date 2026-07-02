@@ -10,7 +10,9 @@ alias mkdir='mkdir -p -v'
 # single letter shortcuts to core commands
 alias a='sgpt'
 alias b='bat'
+{{ if eq .chezmoi.os "darwin" -}}
 alias c='cursor'
+{{ end -}}
 # f: yazi wrapper (autoloaded from .zfuncs/f) — cds to yazi's exit directory
 alias g='git'
 alias l='eza --icons --group-directories-first'
@@ -76,9 +78,10 @@ alias setclip="xclip -selection c"
 alias shc="shellcheck"
 alias shfc="shfmt"
 alias wt='cd "$(wtpick)"'
+{{ if eq .chezmoi.os "darwin" -}}
 alias wtc='cursor -n "$(wtpick)"'
 alias ca='cursor agent --model=gpt-5'
-alias zaude='clother-zai --model=glm-4.7'
+{{ end -}}
 
 # term
 alias reload!='. "$HOME"/.profile'

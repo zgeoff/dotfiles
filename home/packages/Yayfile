@@ -36,6 +36,7 @@ xclip
 asciinema
 aria2
 bat
+btop
 cli-visualizer
 doggo
 eza
@@ -58,6 +59,7 @@ docker
 docker-compose
 
 # editors & development tooling
+flyctl
 github-cli
 neovim
 tree-sitter-cli

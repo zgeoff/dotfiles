@@ -8,9 +8,6 @@ web:*.{css,html,js,json,jsx,ts,tsx}*
 config:*.{json,toml,yaml}*
 
 --glob=!**/.git/*
---glob=!**/.undodir/*
---glob=!.vim/files/{backup,swap,undo}/*
---glob=!Session.vim
 
 --no-messages
 --smart-case

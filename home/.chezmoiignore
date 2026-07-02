@@ -13,6 +13,8 @@ packages/**
 .config/mpd/**
 .config/ncmpcpp
 .config/ncmpcpp/**
+.config/vis
+.config/vis/**
 {{ end }}
 
 {{ if not .arch }}
