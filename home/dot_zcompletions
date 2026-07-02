@@ -4,28 +4,3 @@ asdf_dir="$HOME/.asdf"
 if [ -d "$asdf_dir" ]; then
   fpath=(${asdf_dir}/completions $fpath)
 fi
-
-if [ -x "$(command -v pipenv)" ]; then
-  # disabled pipenv completion for now as i'm not actively doing python dev
-  # and without caching it adds ~300-400ms to our prompt startup
-  #  shellcheck source=/dev/null
-  # . <(pipenv --completion)
-fi
-
-if [ -x "$(command -v kubectl)" ]; then
-  # disabled kubectl completions for now as we're not in great need of them
-  # and they add ~100ms of time to our prompt startup
-  # shellcheck source=/dev/null
-  # . <(kubectl completion zsh)
-fi
-
-if [ -x "$(command -v gcloud)" ]; then
-  # shellcheck source=/dev/null
-  # . "$HOME/google-cloud-sdk/completion.zsh.inc"
-fi
-
-if [ -x "$(command -v aws_completer)" ]; then
-  complete -C $(which aws_completer) aws
-  zstyle ':completion:*:*:aws' fzf-search-display true
-fi
-

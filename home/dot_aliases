@@ -11,29 +11,16 @@ alias mkdir='mkdir -p -v'
 alias a='sgpt'
 alias b='bat'
 alias c='cursor'
-alias d=''
-alias e=''
-# alias f='' - used for yazi wrapper in .zfuncs
+# alias f - reserved for yazi wrapper in .zfuncs
 alias g='git'
-alias h=''
-alias i=''
-alias j=''
-alias k=''
 alias l='eza --icons --group-directories-first'
 alias m='mkdir'
-alias n=''
-alias o=''
-alias p=''
-alias q=''
 alias r='rm'
 alias s='sudo'
 alias t='task'
-alias u=''
 alias v='nvim'
-alias w=''
-alias x=''
 alias y='yarn'
-# alias z='' - used for zoxide
+# alias z - reserved for zoxide
 
 # commands aliased to alternatives
 alias vim='nvim'
@@ -62,20 +49,7 @@ alias gp='git push origin HEAD'
 alias gpf='git push origin HEAD --force'
 alias gs='git status -sb'
 
-# soundcloud (tizonia)
-alias scartist='tiz --soundcloud-creator'
-alias sclikes='tizonia --soundcloud-user-likes'
-alias scstream='tizonia --soundcloud-user-stream'
-alias sclist='tizonia --soundcloud-user-playlist'
-
-# spotify (tizonia)
-alias spartist='tizonia --spotify-artist'
-alias spalbum='tizonia --spotify-album'
-alias splist='tizonia --spotify-playlist'
-alias sptrack='tizonia --spotify-tracks'
-
 # task(warrior)
-alias t='task'
 alias tf='task | fzf'
 alias tadd='task add'
 alias tactive='task active'
@@ -101,7 +75,6 @@ alias setclip="xclip -selection c"
 # cli
 alias shc="shellcheck"
 alias shfc="shfmt"
-alias rn='react-native'
 alias wt='cd "$(wtpick)"'
 alias wtc='cursor -n "$(wtpick)"'
 alias ca='cursor agent --model=gpt-5'

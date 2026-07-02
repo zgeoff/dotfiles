@@ -10,7 +10,6 @@ systemd
 
 # languages & package managers
 python
-python2-pipenv
 yay
 
 # shell
@@ -27,117 +26,35 @@ gnupg
 jq
 p7zip
 reflector
-
-# bluetooth
-bluez
-bluez-utils
-
-# audio
-pulseaudio
-pulseaudio-bluetooth
-pulseaudio-alsa
-lib32-libpulse
-lib32-alsa-plugins
-
-# desktop environment
-awesome
-compton
-conky
-lightdm
-lightdm-mini-greeter
-light-locker
-rofi
-qt5-styleplugins
-xcape
+shellcheck
+shfmt
 xclip
-xdg-utils
-xdotool
-xinit
-xinit-xsession
-xorg-xinit
-xorg-server
-xorg-server-xephyr
-xorg-xauth
-xorg-xhost
-xorg-xrandr
-xorg-xdpyinfo
-zafiro-icon-theme
-
-# fonts
-ttf-fira-code
 
 # core software
 asciinema
 aria2
 bat
+cli-visualizer
 doggo-bin
 eza
 fastfetch
 fd
-feh
-fbset
 fzf
 git-delta
-kitty
-maim
 mpd
-mpv
 ncmpcpp
 procs
 ripgrep
 task
-xdg-utils
-xdotool
 xh
-zathura
-zathura-pdf-mupdf
+yazi
 zellij
 zoxide
 
-# virtualization
-# dmidecode
-# dnsmasq
-# iptables-nft
-# libvirt
-# qemu
-
-# virtualization/containers
+# containers
 docker
 docker-compose
-# docker-machine
-# nvidia-container-toolkit
-# kubernetes
-# docker-machine-driver-kvm2
-# kubectl
-# minikube
 
 # editors & development tooling
-# android-studio
-# android-sdk-dummy
-# android-sdk-build-tools-dummy
-# android-sdk-platform-tools-dummy
-# android-emulator-dummy
 github-cli
-# haskell-ide-engine-git
 neovim
-python-pynvim
-visual-studio-code-insiders
-
-# dev
-# act
-google-cloud-sdk
-# watchman
-
-# browsers
-# firefox
-# firefox-developer-edition
-# google-chrome
-# google-chrome-dev
-# vivaldi
-# vivaldi-ffmpeg-codecs
-# vivaldi-snapshot
-# vivaldi-snapshot-ffmpeg-codecs
-
-# misc
-# TODO(#22): reenable 1password cli in arch installation when checksums are reverified
-# 1password-cli

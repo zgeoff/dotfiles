@@ -1,5 +1,0 @@
-#!/bin/sh
-
-# this is ran by XDM at login
-
-/bin/bash --login -i ~/.xinitrc

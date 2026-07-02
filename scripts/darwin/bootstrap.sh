@@ -4,8 +4,7 @@ set -eu
 
 scripts="
 install_or_update_homebrew.sh
-install_mas.sh
-install_utils.sh
+set_system_defaults.sh
 "
 
 bootstrap() {

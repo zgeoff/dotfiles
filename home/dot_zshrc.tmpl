@@ -11,11 +11,11 @@
 function () {
   local -a zfuncs
 
-  for func in "$HOME"/.zfuncs/*(.); do
+  for func in "$HOME"/.zfuncs/*(N.); do
     zfuncs+="$(basename $func)"
   done
 
-  autoload -Uz "$zfuncs[@]"
+  (( $#zfuncs )) && autoload -Uz "$zfuncs[@]"
 }
 
 # prompt & command configuration
@@ -83,19 +83,12 @@ fi
 autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
 
-zinit light-mode for \
-    zdharma-continuum/zinit-annex-as-monitor \
-    zdharma-continuum/zinit-annex-bin-gem-node \
-    zdharma-continuum/zinit-annex-patch-dl \
-    zdharma-continuum/zinit-annex-rust
-# plugins
-
-# theme: purepower
+# theme: powerlevel10k (config in ~/.p10k.zsh; regenerate with `p10k configure`)
 zinit ice depth"1"
 zinit ice src"powerlevel10k.zsh-theme"
 zinit light romkatv/powerlevel10k
 
-. ~/.purepower
+[ -f "$HOME/.p10k.zsh" ] && . "$HOME/.p10k.zsh"
 
 # enforce vi-mode rather than zsh's default emacs mode
 bindkey -v

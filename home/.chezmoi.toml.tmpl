@@ -13,16 +13,6 @@
 {{-   $arch = eq (get .chezmoi.osRelease "id" | default "") "arch" -}}
 {{- end -}}
 
-{{- /* GPU vendor drives ~/.config/docker/daemon.json */ -}}
-{{- $gpu := "none" -}}
-{{- if lookPath "lspci" -}}
-{{-   $vga := output "sh" "-c" "lspci 2>/dev/null | grep -iE 'vga|3d' || true" -}}
-{{-   if contains "NVIDIA" $vga -}}{{- $gpu = "nvidia" -}}
-{{-   else if contains "VirtualBox" $vga -}}{{- $gpu = "virtual" -}}
-{{-   else if contains "AMD" $vga -}}{{- $gpu = "amd" -}}
-{{-   end -}}
-{{- end -}}
-
 sourceDir = {{ joinPath .chezmoi.homeDir "projects/dotfiles" | quote }}
 
 encryption = "age"
@@ -34,7 +24,6 @@ encryption = "age"
     email = {{ $email | quote }}
     profile = {{ $profile | quote }}
     gui = {{ $gui }}
-    gpu = {{ $gpu | quote }}
     wsl = {{ $wsl }}
     arch = {{ $arch }}
 
