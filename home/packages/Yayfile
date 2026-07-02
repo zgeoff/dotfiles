@@ -27,44 +27,7 @@ gnupg
 jq
 p7zip
 reflector
-
-# bluetooth
-bluez
-bluez-utils
-
-# audio
-pulseaudio
-pulseaudio-bluetooth
-pulseaudio-alsa
-lib32-libpulse
-lib32-alsa-plugins
-
-# desktop environment
-awesome
-compton
-conky
-lightdm
-lightdm-mini-greeter
-light-locker
-rofi
-qt5-styleplugins
-xcape
 xclip
-xdg-utils
-xdotool
-xinit
-xinit-xsession
-xorg-xinit
-xorg-server
-xorg-server-xephyr
-xorg-xauth
-xorg-xhost
-xorg-xrandr
-xorg-xdpyinfo
-zafiro-icon-theme
-
-# fonts
-ttf-fira-code
 
 # core software
 asciinema
@@ -74,23 +37,15 @@ doggo-bin
 eza
 fastfetch
 fd
-feh
-fbset
 fzf
 git-delta
-kitty
-maim
 mpd
 mpv
 ncmpcpp
 procs
 ripgrep
 task
-xdg-utils
-xdotool
 xh
-zathura
-zathura-pdf-mupdf
 zellij
 zoxide
 

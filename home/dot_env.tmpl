@@ -6,12 +6,6 @@ export CLICOLOR=1
 export FZF_DEFAULT_OPTS="--color=16"
 export FZF_DEFAULT_COMMAND="rg --files --no-ignore-vcs --hidden"
 
-export HUSKY_USE_YARN=1
-
-{{- if eq .chezmoi.os "linux" }}
-export QT_QPA_PLATFORMTHEME=gtk2
-{{- end }}
-
 export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/config"
 
 export PATH="$HOME/.local/bin:$PATH"
@@ -23,12 +17,6 @@ export BROWSER="google-chrome"
 export EDITOR="nvim"
 export VISUAL="nvim"
 export PAGER="delta"
-
-if command -v kitty >/dev/null; then
-  export TERMINAL="kitty"
-elif command -v xterm >/dev/null; then
-  export TERMINAL="xterm"
-fi
 
 export LANG="en_US.UTF-8"
 export LANGUAGE="en_US.UTF-8"
