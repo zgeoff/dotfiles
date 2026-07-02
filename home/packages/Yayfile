@@ -33,6 +33,7 @@ xclip
 asciinema
 aria2
 bat
+cli-visualizer
 doggo-bin
 eza
 fastfetch
@@ -40,7 +41,6 @@ fd
 fzf
 git-delta
 mpd
-mpv
 ncmpcpp
 procs
 ripgrep

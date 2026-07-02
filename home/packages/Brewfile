@@ -18,11 +18,6 @@ brew 'zsh-completions'
 brew 'git'
 brew 'git-lfs'
 
-# codecs
-brew 'flac'
-brew 'lame'
-brew 'libogg'
-
 # utils
 brew 'ack'
 brew 'bcal'
@@ -53,7 +48,6 @@ brew 'feh'
 brew 'fzf'
 cask 'kitty'
 brew 'mpd'
-brew 'mpv'
 brew 'ncmpcpp'
 brew 'neofetch'
 brew 'nnn'

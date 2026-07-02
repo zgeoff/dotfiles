@@ -62,18 +62,6 @@ alias gp='git push origin HEAD'
 alias gpf='git push origin HEAD --force'
 alias gs='git status -sb'
 
-# soundcloud (tizonia)
-alias scartist='tiz --soundcloud-creator'
-alias sclikes='tizonia --soundcloud-user-likes'
-alias scstream='tizonia --soundcloud-user-stream'
-alias sclist='tizonia --soundcloud-user-playlist'
-
-# spotify (tizonia)
-alias spartist='tizonia --spotify-artist'
-alias spalbum='tizonia --spotify-album'
-alias splist='tizonia --spotify-playlist'
-alias sptrack='tizonia --spotify-tracks'
-
 # task(warrior)
 alias t='task'
 alias tf='task | fzf'
