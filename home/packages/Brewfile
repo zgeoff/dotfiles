@@ -69,7 +69,6 @@ cask 'minikube'
 # editors
 brew 'neovim'
 cask 'cursor'
-cask 'sublime-text'
 
 # dev
 # brew 'act'

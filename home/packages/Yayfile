@@ -73,10 +73,7 @@ docker-compose
 # android-sdk-platform-tools-dummy
 # android-emulator-dummy
 github-cli
-# haskell-ide-engine-git
 neovim
-python-pynvim
-visual-studio-code-insiders
 
 # dev
 # act
