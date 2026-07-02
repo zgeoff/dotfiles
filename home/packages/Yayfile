@@ -27,6 +27,8 @@ gnupg
 jq
 p7zip
 reflector
+shellcheck
+shfmt
 xclip
 
 # core software

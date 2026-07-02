@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-set -eo pipefail
-
-get_bash_version() {
-  echo "${BASH_VERSINFO:-0}"
-}
-
-get_bash_version
