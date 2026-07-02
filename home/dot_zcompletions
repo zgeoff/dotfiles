@@ -1,6 +1,0 @@
-asdf_dir="$HOME/.asdf"
-
-# TODO(#xxxx): cache completion output to minimize startup overhead
-if [ -d "$asdf_dir" ]; then
-  fpath=(${asdf_dir}/completions $fpath)
-fi

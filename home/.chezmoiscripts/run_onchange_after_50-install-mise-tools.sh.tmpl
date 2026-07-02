@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# mise config hash: {{ include "dot_config/mise/config.toml" | sha256sum }}
+
+set -eu
+
+if ! command -v mise >/dev/null; then
+  echo "mise: not installed (Yayfile/Brewfile provide it), skipping tool install" >&2
+  exit 0
+fi
+
+# install everything pinned in ~/.config/mise/config.toml
+mise install --yes

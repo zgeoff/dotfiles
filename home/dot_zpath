@@ -5,18 +5,6 @@ path=(
   $path
 )
 
-ASDF_DIR="$HOME/.asdf"
-
-# load `asdf`, our version manager
-if [ -d "$ASDF_DIR" ]; then
-  . "$ASDF_DIR/plugins/golang/set-env.zsh"
-
-  path=(
-    "$ASDF_DIR/shims"
-    $path
-  )
-fi
-
 # add our ZSH functions to our path
 fpath=(
   "$HOME/.zfuncs"

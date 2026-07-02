@@ -61,11 +61,11 @@ zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 autoload -Uz bashcompinit && bashcompinit
 autoload -Uz compinit && compinit
 
-# shellcheck source=.zcompletions
-. "$HOME/.zcompletions"
-
 # shellcheck source=.zaliases
 . "$HOME/.zaliases"
+
+# set up mise, our version manager
+command -v mise >/dev/null && eval "$(mise activate zsh)"
 
 # install zinit if required
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
