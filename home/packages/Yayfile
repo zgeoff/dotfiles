@@ -10,7 +10,6 @@ systemd
 
 # languages & package managers
 python
-python2-pipenv
 yay
 
 # shell
@@ -48,50 +47,14 @@ procs
 ripgrep
 task
 xh
+yazi
 zellij
 zoxide
 
-# virtualization
-# dmidecode
-# dnsmasq
-# iptables-nft
-# libvirt
-# qemu
-
-# virtualization/containers
+# containers
 docker
 docker-compose
-# docker-machine
-# nvidia-container-toolkit
-# kubernetes
-# docker-machine-driver-kvm2
-# kubectl
-# minikube
 
 # editors & development tooling
-# android-studio
-# android-sdk-dummy
-# android-sdk-build-tools-dummy
-# android-sdk-platform-tools-dummy
-# android-emulator-dummy
 github-cli
 neovim
-
-# dev
-# act
-google-cloud-sdk
-# watchman
-
-# browsers
-# firefox
-# firefox-developer-edition
-# google-chrome
-# google-chrome-dev
-# vivaldi
-# vivaldi-ffmpeg-codecs
-# vivaldi-snapshot
-# vivaldi-snapshot-ffmpeg-codecs
-
-# misc
-# TODO(#22): reenable 1password cli in arch installation when checksums are reverified
-# 1password-cli

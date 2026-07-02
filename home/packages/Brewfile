@@ -1,15 +1,5 @@
 cask_args appdir: '/Applications'
 
-tap 'shopify/shopify'
-tap 'localstack/tap'
-
-# languages & package managers
-# brew 'esy'
-brew 'mas'
-brew 'python'
-brew 'python3'
-brew 'pipenv'
-
 # shell
 brew 'zsh'
 brew 'zsh-completions'
@@ -19,22 +9,15 @@ brew 'git'
 brew 'git-lfs'
 
 # utils
-brew 'ack'
-brew 'bcal'
 brew 'coreutils'
 brew 'gawk'
 brew 'gcc'
 brew 'gnu-sed'
 brew 'grep'
-brew 'hub'
 brew 'jq'
 brew 'p7zip'
-# brew 'sox', args: [ 'with-flac', 'with-libvorbis']
-# brew 'unrar'
-cask 'xquartz'
 
 # desktop environment
-# brew 'yabai'
 cask 'raycast'
 
 # core software
@@ -43,54 +26,39 @@ brew 'btop'
 brew 'eza'
 brew 'delta'
 brew 'doggo'
+brew 'fastfetch'
 brew 'fd'
-brew 'feh'
 brew 'fzf'
 cask 'kitty'
 brew 'mpd'
 brew 'ncmpcpp'
-brew 'neofetch'
-brew 'nnn'
 brew 'pinentry-mac'
 brew 'procs'
 brew 'ripgrep'
 brew 'task'
 brew 'xh'
+brew 'yazi'
 brew 'zellij'
 brew 'zoxide'
 
 # docker
 cask 'orbstack'
 
-# kubernetes
-brew 'kubernetes-cli'
-cask 'minikube'
-
 # editors
 brew 'neovim'
 cask 'cursor'
 
 # dev
-# brew 'act'
-brew 'awscli'
-# cask 'fastlane'
 brew 'gh'
-cask 'google-cloud-sdk'
-cask 'insomnia'
 brew 'lazydocker'
-# brew 'localstack-cli
 brew 'shellcheck'
 brew 'shfmt'
-# brew 'watchman'
 
 # browsers
 cask 'firefox'
 cask 'firefox-developer-edition'
 cask 'google-chrome'
 cask 'arc'
-
-# quicklook providers
-# cask 'provisionql'
 
 # password managers
 cask '1password'
