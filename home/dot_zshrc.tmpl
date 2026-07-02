@@ -120,12 +120,12 @@ bindkey ^F _sgpt_zsh
 # set up zoxide
 eval "$(zoxide init zsh)"
 
+{{- if eq .chezmoi.os "darwin" }}
 # set up orbstack integration
-if [ "$(uname -s)" = "Darwin" ]; then
-  source ~/.orbstack/shell/init.zsh 2>/dev/null || :
-fi
+source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+{{- end }}
 
 ssh-add -l >/dev/null 2>&1 || ssh-add ~/.ssh/id
 
@@ -134,11 +134,11 @@ if [[ -n "$SSH_CONNECTION" ]]; then
 fi
 
 # bun completions
-[ -s "/home/geoff/.bun/_bun" ] && source "/home/geoff/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # add Pulumi to the PATH
-export PATH=$PATH:/home/geoff/.pulumi/bin
+export PATH="$PATH:$HOME/.pulumi/bin"

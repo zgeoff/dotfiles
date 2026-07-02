@@ -1,0 +1,54 @@
+# package manifests: consumed by .chezmoiscripts, never deployed
+packages
+packages/**
+
+{{ if or (ne .chezmoi.os "linux") (not .gui) }}
+# Linux desktop: X11, window manager, theming, gaming
+.Xresources
+.Xclients
+.xinitrc
+.gtkrc-2.0
+.config/awesome
+.config/awesome/**
+.config/compton.conf
+.config/rofi
+.config/rofi/**
+.config/lutris
+.config/lutris/**
+.config/gtk-2.0
+.config/gtk-2.0/**
+.config/gtk-3.0
+.config/gtk-3.0/**
+.config/fontconfig
+.config/fontconfig/**
+.config/Trolltech.conf
+.local/share/applications
+.local/share/applications/**
+{{ end }}
+
+{{ if not .gui }}
+# terminal emulators need a display server
+.config/alacritty
+.config/alacritty/**
+.config/kitty
+.config/kitty/**
+{{ end }}
+
+{{ if ne .chezmoi.os "linux" }}
+.config/docker
+.config/docker/**
+.config/mpd
+.config/mpd/**
+.config/ncmpcpp
+.config/ncmpcpp/**
+.config/user-dirs.dirs
+.config/user-dirs.locale
+.config/locale.conf
+{{ end }}
+
+{{ if not .arch }}
+.config/pacman
+.config/pacman/**
+.config/yay
+.config/yay/**
+{{ end }}

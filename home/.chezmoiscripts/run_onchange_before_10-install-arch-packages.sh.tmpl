@@ -1,0 +1,24 @@
+{{ if .arch -}}
+#!/bin/bash
+# Yayfile hash: {{ include "packages/Yayfile" | sha256sum }}
+set -euo pipefail
+
+if ! command -v yay >/dev/null; then
+  echo "arch packages: yay not installed, skipping sync" >&2
+  exit 0
+fi
+
+# intersect the Yayfile with available packages so renamed/removed
+# packages don't fail the whole sync
+desired="$(grep -vE '^\s*(#|$)' "{{ .chezmoi.sourceDir }}/packages/Yayfile" | sort)"
+available="$(yay -Slq | sort)"
+packages="$(comm -12 <(echo "$available") <(echo "$desired"))"
+
+missing="$(comm -13 <(echo "$available") <(echo "$desired"))"
+if [ -n "$missing" ]; then
+  echo "arch packages: not available, skipped:" $missing >&2
+fi
+
+# shellcheck disable=SC2086
+yay -Sq --noconfirm --needed $packages
+{{ end -}}

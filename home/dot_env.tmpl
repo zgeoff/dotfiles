@@ -8,9 +8,9 @@ export FZF_DEFAULT_COMMAND="rg --files --no-ignore-vcs --hidden"
 
 export HUSKY_USE_YARN=1
 
-if ! [ "$(uname -s)" = "Darwin" ]; then
-  export QT_QPA_PLATFORMTHEME=gtk2
-fi
+{{- if eq .chezmoi.os "linux" }}
+export QT_QPA_PLATFORMTHEME=gtk2
+{{- end }}
 
 export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/config"
 
@@ -18,7 +18,6 @@ export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/.yarn/bin:$PATH"
 export PATH="$HOME/.config/yarn/global/node_modules/.bin:$PATH"
 export PATH="$HOME/node_modules/.bin:$PATH"
-export PATH="$HOME/bin:$PATH"
 
 export BROWSER="google-chrome"
 export EDITOR="nvim"
@@ -33,9 +32,7 @@ fi
 
 export LANG="en_US.UTF-8"
 export LANGUAGE="en_US.UTF-8"
-
-if [ "$(uname -s)" = "Darwin" ]; then
-  export LANG="en_US.UTF-8"
-fi
+{{- if eq .chezmoi.os "linux" }}
 
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
+{{- end }}
