@@ -373,6 +373,7 @@ do
       { '<leader>t', group = '[T]oggle' },
       { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } }, -- Enable gitsigns recommended keymaps first
       { 'gr', group = 'LSP Actions', mode = { 'n' } },
+      { 'gs', group = '[S]urround', mode = { 'n', 'v' } },
     },
   }
 
@@ -382,18 +383,22 @@ do
   -- change the command under that to load whatever the name of that colorscheme is.
   --
   -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-  vim.pack.add { gh 'folke/tokyonight.nvim' }
-  ---@diagnostic disable-next-line: missing-fields
-  require('tokyonight').setup {
-    styles = {
-      comments = { italic = false }, -- Disable italics in comments
+  -- The repo is named `nvim`, so give the plugin an explicit name.
+  vim.pack.add { { src = gh 'catppuccin/nvim', name = 'catppuccin' } }
+  require('catppuccin').setup {
+    flavour = 'mocha',
+    integrations = {
+      blink_cmp = true,
+      fidget = true,
+      mini = { enabled = true },
+      which_key = true,
     },
   }
 
   -- Load the colorscheme here.
   -- Like many other themes, this one has different styles, and you could load
-  -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-  vim.cmd.colorscheme 'tokyonight-night'
+  -- any other, such as 'catppuccin-macchiato', 'catppuccin-frappe', or 'catppuccin-latte'.
+  vim.cmd.colorscheme 'catppuccin-mocha'
 
   -- Highlight todo, notes, etc in comments
   vim.pack.add { gh 'folke/todo-comments.nvim' }
@@ -427,10 +432,22 @@ do
 
   -- Add/delete/replace surroundings (brackets, quotes, etc.)
   --
-  -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
-  -- - sd'   - [S]urround [D]elete [']quotes
-  -- - sr)'  - [S]urround [R]eplace [)] [']
-  require('mini.surround').setup()
+  -- Mapped under the `gs` prefix (LazyVim convention) so that plain `s`
+  -- stays free for flash.nvim jumps:
+  -- - gsaiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
+  -- - gsd'   - [S]urround [D]elete [']quotes
+  -- - gsr)'  - [S]urround [R]eplace [)] [']
+  require('mini.surround').setup {
+    mappings = {
+      add = 'gsa',
+      delete = 'gsd',
+      find = 'gsf',
+      find_left = 'gsF',
+      highlight = 'gsh',
+      replace = 'gsr',
+      update_n_lines = 'gsn',
+    },
+  }
 
   -- Simple and easy statusline.
   --  You could remove this setup call if you don't like it,
@@ -445,8 +462,79 @@ do
   ---@diagnostic disable-next-line: duplicate-set-field
   statusline.section_location = function() return '%2l:%-2v' end
 
+  -- Auto-close brackets and quotes as you type
+  require('mini.pairs').setup()
+
+  -- Move lines and selections in any direction with Alt+hjkl
+  require('mini.move').setup()
+
+  -- Toggle argument lists / tables between one-line and multi-line with gS
+  require('mini.splitjoin').setup()
+
+  -- Highlight trailing whitespace; trim it with <leader>tw
+  require('mini.trailspace').setup()
+  vim.keymap.set('n', '<leader>tw', function()
+    MiniTrailspace.trim()
+    MiniTrailspace.trim_last_lines()
+  end, { desc = '[T]rim trailing [W]hitespace' })
+
+  -- Draw a guide line along the current indent scope
+  require('mini.indentscope').setup()
+
+  -- Show inline color swatches for hex codes like #cba6f7
+  local hipatterns = require 'mini.hipatterns'
+  hipatterns.setup {
+    highlighters = {
+      hex_color = hipatterns.gen_highlighter.hex_color(),
+    },
+  }
+
+  -- Underline other occurrences of the word under the cursor
+  require('mini.cursorword').setup()
+
+  -- Clean floating notifications for vim.notify messages
+  require('mini.notify').setup()
+  vim.notify = require('mini.notify').make_notify()
+
   -- ... and there is more!
   --  Check out: https://github.com/nvim-mini/mini.nvim
+end
+
+-- ============================================================
+-- SECTION 4b: EDITOR EXTRAS
+-- oil, flash, render-markdown, zen-mode
+-- ============================================================
+do
+  -- [[ oil.nvim ]]
+  -- Edit your filesystem like a normal buffer: press `-` to open the parent
+  -- directory, edit lines to rename/delete/create files, then `:w` to apply.
+  vim.pack.add { gh 'stevearc/oil.nvim' }
+  require('oil').setup {
+    view_options = { show_hidden = true },
+  }
+  vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
+
+  -- [[ flash.nvim ]]
+  -- Jump anywhere on screen: press `s` followed by two characters, then the
+  -- label that appears at your target. `S` selects treesitter nodes.
+  vim.pack.add { gh 'folke/flash.nvim' }
+  require('flash').setup {}
+  vim.keymap.set({ 'n', 'x', 'o' }, 's', function() require('flash').jump() end, { desc = 'Flash jump' })
+  vim.keymap.set({ 'n', 'x', 'o' }, 'S', function() require('flash').treesitter() end, { desc = 'Flash treesitter' })
+  vim.keymap.set('o', 'r', function() require('flash').remote() end, { desc = 'Remote flash' })
+  vim.keymap.set({ 'o', 'x' }, 'R', function() require('flash').treesitter_search() end, { desc = 'Treesitter search' })
+
+  -- [[ render-markdown.nvim ]]
+  -- Pretty in-buffer markdown: styled headings, tables, checkboxes.
+  -- Uses the treesitter markdown parsers and mini.icons already set up above.
+  vim.pack.add { gh 'MeanderingProgrammer/render-markdown.nvim' }
+  require('render-markdown').setup {}
+
+  -- [[ zen-mode.nvim ]]
+  -- Distraction-free mode: centers the buffer and hides UI chrome.
+  vim.pack.add { gh 'folke/zen-mode.nvim' }
+  require('zen-mode').setup {}
+  vim.keymap.set('n', '<leader>tz', '<CMD>ZenMode<CR>', { desc = '[T]oggle [Z]en mode' })
 end
 
 -- ============================================================
