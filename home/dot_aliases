@@ -11,7 +11,7 @@ alias mkdir='mkdir -p -v'
 alias a='sgpt'
 alias b='bat'
 alias c='cursor'
-# alias f - reserved for yazi wrapper in .zfuncs
+# f: yazi wrapper (autoloaded from .zfuncs/f) — cds to yazi's exit directory
 alias g='git'
 alias l='eza --icons --group-directories-first'
 alias m='mkdir'
