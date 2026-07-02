@@ -9,7 +9,9 @@ dbus
 systemd
 
 # languages & package managers
+mise
 python
+uv
 yay
 
 # shell

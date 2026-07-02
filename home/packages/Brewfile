@@ -50,6 +50,8 @@ cask 'cursor'
 
 # dev
 brew 'gh'
+brew 'mise'
+brew 'uv'
 brew 'lazydocker'
 brew 'shellcheck'
 brew 'shfmt'
