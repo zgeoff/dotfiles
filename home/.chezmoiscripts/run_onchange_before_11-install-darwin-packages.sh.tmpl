@@ -1,0 +1,12 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Brewfile hash: {{ include "packages/Brewfile" | sha256sum }}
+set -euo pipefail
+
+if ! command -v brew >/dev/null; then
+  echo "darwin packages: homebrew not installed, skipping sync" >&2
+  exit 0
+fi
+
+brew bundle --file "{{ .chezmoi.sourceDir }}/packages/Brewfile"
+{{ end -}}

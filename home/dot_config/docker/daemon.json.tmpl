@@ -1,3 +1,4 @@
+{{- if eq .gpu "nvidia" -}}
 {
   "default-runtime": "nvidia",
   "runtimes": {
@@ -7,4 +8,6 @@
     }
   }
 }
-
+{{- else -}}
+{}
+{{- end }}

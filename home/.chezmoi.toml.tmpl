@@ -1,0 +1,43 @@
+{{- $email := promptStringOnce . "email" "Git email" "me@geoffwhatley.com" -}}
+{{- $profile := promptChoiceOnce . "profile" "Machine profile" (list "home" "work") -}}
+{{- $gui := promptBoolOnce . "gui" "Has a GUI/desktop session" -}}
+
+{{- /* detect WSL via the kernel release string (kernel data is linux-only) */ -}}
+{{- $wsl := false -}}
+{{- if hasKey .chezmoi "kernel" -}}
+{{-   $wsl = .chezmoi.kernel.osrelease | lower | contains "microsoft" -}}
+{{- end -}}
+
+{{- $arch := false -}}
+{{- if hasKey .chezmoi "osRelease" -}}
+{{-   $arch = eq (get .chezmoi.osRelease "id" | default "") "arch" -}}
+{{- end -}}
+
+{{- /* GPU vendor drives ~/.config/docker/daemon.json */ -}}
+{{- $gpu := "none" -}}
+{{- if lookPath "lspci" -}}
+{{-   $vga := output "sh" "-c" "lspci 2>/dev/null | grep -iE 'vga|3d' || true" -}}
+{{-   if contains "NVIDIA" $vga -}}{{- $gpu = "nvidia" -}}
+{{-   else if contains "VirtualBox" $vga -}}{{- $gpu = "virtual" -}}
+{{-   else if contains "AMD" $vga -}}{{- $gpu = "amd" -}}
+{{-   end -}}
+{{- end -}}
+
+sourceDir = {{ joinPath .chezmoi.homeDir "projects/dotfiles" | quote }}
+
+encryption = "age"
+[age]
+    identity = "{{ .chezmoi.homeDir }}/.config/chezmoi/key.txt"
+    recipient = "age1t52fcvp9dek936uwju5trk5suuta459euh4w3rzhkszdpmyuyvlq4z4zln"
+
+[data]
+    email = {{ $email | quote }}
+    profile = {{ $profile | quote }}
+    gui = {{ $gui }}
+    gpu = {{ $gpu | quote }}
+    wsl = {{ $wsl }}
+    arch = {{ $arch }}
+
+[git]
+    autoAdd = true
+    # autoCommit/autoPush deliberately off: public repo, commit and push by hand

@@ -35,7 +35,7 @@
   default = simple
 [user]
   name = Geoff Whatley
-  email = me@geoffwhatley.com
+  email = {{ .email }}
   signingkey = 95DE937EC9E87357
 [filter "lfs"]
   clean = git-lfs clean -- %f
@@ -51,8 +51,8 @@
 [pull]
 	rebase = true
 [credential "https://github.com"]
-	helper = 
-	helper = !/usr/bin/gh auth git-credential
+	helper =
+	helper = !gh auth git-credential
 [credential "https://gist.github.com"]
-	helper = 
-	helper = !/usr/bin/gh auth git-credential
+	helper =
+	helper = !gh auth git-credential

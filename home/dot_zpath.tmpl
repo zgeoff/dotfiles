@@ -1,4 +1,8 @@
+{{- if eq .chezmoi.os "darwin" }}
 export ANDROID_HOME="$HOME/Library/Android/sdk"
+{{- else }}
+export ANDROID_HOME="$HOME/Android/Sdk"
+{{- end }}
 
 # add our non-platform specific directories to our path
 path=(
@@ -12,14 +16,14 @@ path=(
   $path
 )
 
+{{- if eq .chezmoi.os "darwin" }}
 # add Mac specific directories to our path
-if [ $(uname -s) = "Darwin" ]; then
-  path=(
-    "/usr/sbin"
-    "$HOME/.fastlane/bin"
-    $path
-  )
-fi
+path=(
+  "/usr/sbin"
+  "$HOME/.fastlane/bin"
+  $path
+)
+{{- end }}
 
 ASDF_DIR="$HOME/.asdf"
 
