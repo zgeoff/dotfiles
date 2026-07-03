@@ -79,11 +79,9 @@ brew 'kubernetes-cli'
 brew 'k9s'
 brew 'int128/kubelogin/kubelogin'
 brew 'pulumi'
-brew 'localstack/tap/localstack-cli'
 brew 'infisical/get-cli/infisical'
 
 # work: dev
-brew 'withgraphite/tap/graphite'
 brew 'shopify/shopify/shopify-cli'
 brew 'postgresql@16'
 brew 'lazygit'
@@ -92,7 +90,6 @@ cask 'bruno'
 
 # work: apps
 cask 'slack'
-cask 'karabiner-elements'
 cask 'caffeine'
 
 # misc
