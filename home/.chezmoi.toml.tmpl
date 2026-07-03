@@ -1,9 +1,10 @@
 {{- $email := promptStringOnce . "email" "Git email" "me@geoffwhatley.com" -}}
 {{- $gui := promptBoolOnce . "gui" "Has a GUI/desktop session" -}}
 
-{{- /* detect WSL via the kernel release string (kernel data is linux-only) */ -}}
+{{- /* detect WSL via the kernel release string (on darwin .chezmoi.kernel
+       exists but has no osrelease key, so check for the key itself) */ -}}
 {{- $wsl := false -}}
-{{- if hasKey .chezmoi "kernel" -}}
+{{- if and (hasKey .chezmoi "kernel") (hasKey .chezmoi.kernel "osrelease") -}}
 {{-   $wsl = .chezmoi.kernel.osrelease | lower | contains "microsoft" -}}
 {{- end -}}
 
