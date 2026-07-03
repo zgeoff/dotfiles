@@ -6,6 +6,8 @@ export CLICOLOR=1
 export FZF_DEFAULT_OPTS="--color=16"
 export FZF_DEFAULT_COMMAND="rg --files --no-ignore-vcs --hidden"
 
+export BEADS_DIR="$HOME/.beads-personal"
+
 export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/config"
 
 export PATH="$HOME/.local/bin:$PATH"
@@ -21,3 +23,7 @@ export LANGUAGE="en_US.UTF-8"
 
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 {{- end }}
+
+if command -v gh >/dev/null; then
+  export GITHUB_TOKEN="$(gh auth token)"
+fi
