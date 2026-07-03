@@ -3,22 +3,75 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: wtnb <branch-name>
+Usage: wtnb <branch-name> [--pointer <ref>] [--files <f1,f2,...>]
 
-Create a git worktree in a sibling directory:
-  <repo>.worktree.<branch-slug>
+Create a git worktree in the .worktrees/ subdirectory of the repo root:
+  <repo>/.worktrees/<branch-slug>
 
 - If the branch exists, a worktree is created for it.
-- If the branch does not exist, it is created from the current HEAD.
+- If the branch does not exist, it is created from --pointer (default: HEAD).
+- --files moves the listed files into the root of the new worktree.
 
-Example:
-  # from /projects/main-repo
+Options:
+  --pointer <ref>      Start point for a new branch (branch, tag, or commit).
+                       Only valid when creating a new branch.
+  --files <f1,f2,...>  Comma-separated files to move into the worktree root.
+
+(--pointer=<ref> and --files=<...> are also accepted.)
+
+Examples:
   wtnb feat/some-new-branch
-  # -> /projects/main-repo.worktree.feat-some-new-branch
+  # -> <repo>/.worktrees/feat-some-new-branch (forks current HEAD)
+
+  wtnb feat/blah --pointer main --files TICKET.md,notes.txt
+  # -> forks main, moves TICKET.md & notes.txt into the worktree
 EOF
 }
 
-branch="${1:-}"
+branch=""
+pointer=""
+files=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --pointer=*)
+      pointer="${1#*=}"
+      shift
+      ;;
+    --pointer)
+      pointer="${2:-}"
+      shift 2
+      ;;
+    --files=*)
+      IFS=',' read -r -a files <<<"${1#*=}"
+      shift
+      ;;
+    --files)
+      IFS=',' read -r -a files <<<"${2:-}"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -z "$branch" ]]; then
+        branch="$1"
+        shift
+      else
+        echo "Unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
 if [[ -z "$branch" ]]; then
   usage >&2
   exit 1
@@ -30,13 +83,21 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
-repo_root="$(git rev-parse --show-toplevel)"
+# --git-common-dir always resolves to the main repo's .git dir,
+# even when run from inside a worktree
+repo_root="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 
 # turn "feat/some-new-branch" -> "feat-some-new-branch"
 branch_slug="$(printf '%s' "$branch" | tr '/:' '-')"
 
-# final path sits NEXT TO the repo, not inside it
-target_path="${repo_root}.worktree.${branch_slug}"
+# final path sits inside the repo's .worktrees/ directory
+target_path="${repo_root}/.worktrees/${branch_slug}"
+
+# ensure .worktrees dir exists and is gitignored
+mkdir -p "${repo_root}/.worktrees"
+if ! grep -qxF '.worktrees' "${repo_root}/.gitignore" 2>/dev/null; then
+  echo '.worktrees' >> "${repo_root}/.gitignore"
+fi
 
 if [[ -e "$target_path" ]]; then
   echo "Target path already exists: $target_path" >&2
@@ -45,15 +106,54 @@ fi
 
 # check if branch already exists
 if git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
-  echo "Branch '$branch' exists, creating worktree for it..."
-  git worktree add "$target_path" "$branch"
+  if [[ -n "$pointer" ]]; then
+    echo "Branch '$branch' already exists; --pointer only applies when creating a new branch." >&2
+    exit 1
+  fi
+  echo "Branch '$branch' exists, creating worktree for it..." >&2
+  git worktree add "$target_path" "$branch" >&2
 else
-  # create new branch from current HEAD
-  current_head="$(git rev-parse --abbrev-ref HEAD)"
-  echo "Branch '$branch' does not exist, creating from '$current_head'..."
-  git worktree add -b "$branch" "$target_path"
+  # create new branch from the pointer (defaults to current HEAD)
+  start_point="${pointer:-HEAD}"
+  if ! git rev-parse --verify --quiet "${start_point}^{commit}" >/dev/null; then
+    echo "Pointer '$start_point' is not a valid branch, tag, or commit." >&2
+    exit 1
+  fi
+  start_desc="$(git rev-parse --abbrev-ref "$start_point" 2>/dev/null || printf '%s' "$start_point")"
+  echo "Branch '$branch' does not exist, creating from '$start_desc'..." >&2
+  git worktree add -b "$branch" "$target_path" "$start_point" >&2
 fi
 
-echo "Created worktree:"
-echo "  branch: $branch"
-echo "  path:   $target_path"
+# copy Claude Code's gitignored local settings from the main repo so
+# permission allowlists carry into the new worktree (otherwise every
+# worktree starts fresh and re-prompts for the same approvals)
+if [[ -f "${repo_root}/.claude/settings.local.json" ]]; then
+  mkdir -p "${target_path}/.claude"
+  cp "${repo_root}/.claude/settings.local.json" "${target_path}/.claude/settings.local.json"
+  echo "Copied .claude/settings.local.json from main repo." >&2
+fi
+
+# install dependencies based on lock file
+if [[ -f "${target_path}/pnpm-lock.yaml" ]]; then
+  echo "Running pnpm install..." >&2
+  (cd "$target_path" && pnpm install) >&2
+elif [[ -f "${target_path}/yarn.lock" ]]; then
+  echo "Running yarn install..." >&2
+  (cd "$target_path" && yarn install) >&2
+elif [[ -f "${target_path}/package-lock.json" ]]; then
+  echo "Running npm install..." >&2
+  (cd "$target_path" && npm install) >&2
+fi
+
+# move optional files into the worktree root
+if [[ ${#files[@]} -gt 0 ]]; then
+  mv "${files[@]}" "$target_path" >&2
+  echo "Moved ${#files[@]} file(s) into worktree." >&2
+fi
+
+echo "Created worktree:" >&2
+echo "  branch: $branch" >&2
+echo "  path:   $target_path" >&2
+
+# print path to stdout for use by shell wrappers
+echo "$target_path"
