@@ -98,11 +98,15 @@ en() { awk '{printf "%s\\n", $0}' "$1"; }         # escapes newlines
 alias getclip="xclip -selection c -o"
 alias setclip="xclip -selection c"
 
+# zellij
+za() { zellij attach agents 2>/dev/null || zellij -s agents -n "$HOME/projects/layouts/agents.kdl"; }
+
 # cli
 alias shc="shellcheck"
 alias shfc="shfmt"
 alias rn='react-native'
 alias wt='cd "$(wtpick)"'
+wtnb() { cd "$(command wtnb "$@")"; }
 alias wtc='cursor -n "$(wtpick)"'
 alias ca='cursor agent --model=gpt-5'
 

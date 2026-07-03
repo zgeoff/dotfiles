@@ -4,3 +4,10 @@ libs/*
 !libs/.gitkeep
 node_modules
 .undodir/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+**/.claude/settings.local.json

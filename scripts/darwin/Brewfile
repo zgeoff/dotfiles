@@ -80,10 +80,10 @@ cask 'sublime-text'
 # dev
 # brew 'act'
 brew 'awscli'
+brew 'bruno'
 # cask 'fastlane'
 brew 'gh'
 cask 'google-cloud-sdk'
-cask 'insomnia'
 brew 'lazydocker'
 # brew 'localstack-cli
 # brew 'shellcheck'

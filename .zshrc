@@ -126,3 +126,18 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+
+# pnpm
+export PNPM_HOME="/Users/geoff/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+# bun completions
+[ -s "/Users/geoff/.bun/_bun" ] && source "/Users/geoff/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"

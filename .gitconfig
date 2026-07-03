@@ -46,3 +46,7 @@
   gpgsign = true
 [github]
   username = zgeoff
+[rebase]
+	updateRefs = true
+[beads]
+	role = maintainer
