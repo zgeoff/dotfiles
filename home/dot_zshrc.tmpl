@@ -118,6 +118,13 @@ eval "$(zoxide init zsh)"
 source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+
+# pnpm
+export PNPM_HOME="$HOME/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
 {{- end }}
 
 ssh-add -l >/dev/null 2>&1 || ssh-add ~/.ssh/id

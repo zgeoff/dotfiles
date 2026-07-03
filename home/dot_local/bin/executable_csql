@@ -1,0 +1,103 @@
+#!/bin/sh
+
+# csql — fzf picker for cloud-sql-proxy.
+# Lists Cloud SQL instances in the active (or chosen) GCP project, lets you
+# pick one with fzf, and runs cloud-sql-proxy against it. Extra args after `--`
+# pass through to cloud-sql-proxy.
+
+set -eu
+
+usage() {
+  cat <<'EOF'
+Usage: csql [options] [-- proxy-args...]
+
+Options:
+  -p, --project <id>   GCP project to list instances from (skips the picker)
+  -A, --active         use gcloud's active project instead of fzf-picking one
+  -P, --pick-project   fzf-pick the project first (default)
+  -L, --port <port>    local port to bind (passes --port to cloud-sql-proxy)
+  -i, --iam            enable --auto-iam-authn
+      --private-ip     connect via private IP
+  -h, --help           show this help
+
+Anything after `--` is passed straight through to cloud-sql-proxy.
+
+Examples:
+  csql                              # pick project, then instance, default port
+  csql -L 5433                      # pick project + instance, bind on localhost:5433
+  csql -A                           # use active project, just pick an instance
+  csql -p my-proj -i                # specific project, IAM auth
+  csql -- --debug-logs              # passthrough flags
+EOF
+}
+
+PROJECT=""
+PICK_PROJECT=1
+PORT=""
+IAM=0
+PRIVATE_IP=0
+PASSTHROUGH=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -p|--project) PROJECT="${2:-}"; shift 2 ;;
+    -A|--active) PICK_PROJECT=0; shift ;;
+    -P|--pick-project) PICK_PROJECT=1; shift ;;
+    -L|--port) PORT="${2:-}"; shift 2 ;;
+    -i|--iam) IAM=1; shift ;;
+    --private-ip) PRIVATE_IP=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; PASSTHROUGH="$*"; break ;;
+    *) printf 'csql: unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+command -v gcloud >/dev/null 2>&1 || { printf 'csql: gcloud not found in PATH\n' >&2; exit 127; }
+command -v cloud-sql-proxy >/dev/null 2>&1 || { printf 'csql: cloud-sql-proxy not found in PATH\n' >&2; exit 127; }
+command -v fzf >/dev/null 2>&1 || { printf 'csql: fzf not found in PATH\n' >&2; exit 127; }
+
+if [ "$PICK_PROJECT" -eq 1 ] && [ -z "$PROJECT" ]; then
+  PROJECT="$(
+    gcloud projects list --format='value(projectId,name)' 2>/dev/null \
+      | column -t -s "$(printf '\t')" \
+      | fzf --prompt='GCP project > ' --height=40% --reverse \
+      | awk '{print $1}'
+  )"
+  [ -z "$PROJECT" ] && { printf 'csql: no project selected\n' >&2; exit 1; }
+fi
+
+if [ -z "$PROJECT" ]; then
+  PROJECT="$(gcloud config get-value project 2>/dev/null || true)"
+fi
+[ -z "$PROJECT" ] && { printf 'csql: no project set; use -p <id> or drop -A to pick one\n' >&2; exit 1; }
+
+# Format: name, engine, region, connectionName — TSV for column alignment.
+INSTANCES="$(
+  gcloud sql instances list \
+    --project="$PROJECT" \
+    --format='value(name,databaseVersion,region,connectionName)' \
+    2>/dev/null
+)"
+[ -z "$INSTANCES" ] && { printf 'csql: no Cloud SQL instances in project %s\n' "$PROJECT" >&2; exit 1; }
+
+PICK="$(
+  printf '%s\n' "$INSTANCES" \
+    | column -t -s "$(printf '\t')" \
+    | fzf --prompt="Cloud SQL [$PROJECT] > " --height=40% --reverse
+)"
+[ -z "$PICK" ] && { printf 'csql: nothing selected\n' >&2; exit 1; }
+
+# Last column is the connection name (project:region:instance).
+CONN="$(printf '%s' "$PICK" | awk '{print $NF}')"
+NAME="$(printf '%s' "$PICK" | awk '{print $1}')"
+ENGINE="$(printf '%s' "$PICK" | awk '{print $2}')"
+
+set -- "$CONN"
+[ -n "$PORT" ] && set -- "$@" --port "$PORT"
+[ "$IAM" -eq 1 ] && set -- "$@" --auto-iam-authn
+[ "$PRIVATE_IP" -eq 1 ] && set -- "$@" --private-ip
+# shellcheck disable=SC2086
+[ -n "$PASSTHROUGH" ] && set -- "$@" $PASSTHROUGH
+
+printf 'csql: %s (%s) → cloud-sql-proxy %s\n' "$NAME" "$ENGINE" "$*" >&2
+exec cloud-sql-proxy "$@"

@@ -23,12 +23,15 @@ cask 'raycast'
 # core software
 brew 'bat'
 brew 'btop'
+brew 'chezmoi'
+brew 'gnupg'
 brew 'eza'
 brew 'delta'
 brew 'doggo'
 brew 'fastfetch'
 brew 'fd'
 brew 'fzf'
+cask 'ghostty'
 cask 'kitty'
 brew 'pinentry-mac'
 brew 'procs'
@@ -63,6 +66,31 @@ cask 'arc'
 
 # password managers
 cask '1password'
+
+# work: cloud & infra
+brew 'awscli'
+brew 'aws-sam-cli'
+brew 'aws-vault'
+cask 'session-manager-plugin'
+cask 'gcloud-cli'
+brew 'cloud-sql-proxy'
+brew 'docker'
+brew 'kubernetes-cli'
+brew 'k9s'
+brew 'int128/kubelogin/kubelogin'
+brew 'pulumi'
+brew 'infisical/get-cli/infisical'
+
+# work: dev
+brew 'shopify/shopify/shopify-cli'
+brew 'postgresql@16'
+brew 'lazygit'
+cask 'tableplus'
+cask 'bruno'
+
+# work: apps
+cask 'slack'
+cask 'caffeine'
 
 # misc
 cask 'obsidian'

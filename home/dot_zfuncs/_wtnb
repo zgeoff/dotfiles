@@ -1,0 +1,32 @@
+#compdef wtnb
+
+# Completion for the `wtnb` worktree helper:
+#   wtnb <branch> [--pointer <ref>] [--files <f1,f2,...>]
+
+_wtnb() {
+  _arguments -C \
+    '--pointer[start point for a new branch (branch, tag, or commit)]:ref:__wtnb_refs' \
+    '--files[comma-separated files to move into the worktree]:files:_sequence _files' \
+    '(-h --help)'{-h,--help}'[show help]' \
+    '1:branch name:__wtnb_local_branches' \
+    && return 0
+}
+
+# any ref is a valid start point: local heads, remotes, tags
+__wtnb_refs() {
+  local -a refs
+  refs=(${(f)"$(git for-each-ref --format='%(refname:short)' \
+    refs/heads refs/remotes refs/tags 2>/dev/null)"})
+  _describe -t refs 'git ref' refs
+}
+
+# the positional arg is usually a new branch name; offer existing local
+# heads as suggestions (worktree-for-existing-branch case) without restricting
+__wtnb_local_branches() {
+  local -a branches
+  branches=(${(f)"$(git for-each-ref --format='%(refname:short)' \
+    refs/heads 2>/dev/null)"})
+  _describe -t branches 'branch' branches
+}
+
+_wtnb "$@"

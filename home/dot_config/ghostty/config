@@ -1,0 +1,113 @@
+# Ghostty config — ported from ~/.config/kitty/kitty.conf
+# Run `ghostty +show-config --default --docs` to see every option + docs.
+# Reload in-app: cmd+shift+, (or quit/relaunch).
+
+###############################################################################
+# theme / colors
+#
+# kitty.conf ends with `include current-theme.conf` (Catppuccin Mocha), which
+# overrides the blue color scheme at the top of kitty.conf. Mocha is what you
+# actually see, and Ghostty ships it built in. `ghostty +list-themes` to browse.
+###
+theme = Catppuccin Mocha
+
+# background_opacity 0.9
+background-opacity = 0.9
+# (kitty dynamic_background_opacity has no static equivalent; opacity is
+#  adjustable at runtime via a keybind instead. background-blur is off, like kitty.)
+
+###############################################################################
+# fonts
+###
+# Operator Mono is installed; family name is exactly "Operator Mono". Its
+# regular weight resolves to the "Book" face, and bold/italic styles (incl. the
+# signature cursive italics) auto-resolve from the same family, so kitty's four
+# *_font lines collapse to one. Pin a weight with e.g. `font-style = Light`.
+# List faces: `ghostty +list-fonts | grep -i operator`
+font-family = Operator Mono
+font-size = 14
+
+# Stop Ghostty faux-bolding/italicising (the "leaking"/smeared look). Use only
+# real faces from the family.
+font-synthetic-style = false
+# Match kitty's look: it renders everything in the Medium weight (uniform
+# semi-bold, readable). Ghostty defaulted regular -> thin Book + heavy Bold,
+# giving harsh contrast. Pin everything to Medium for the same uniform feel.
+# Want real bold contrast back? set font-style-bold = Bold (and -bold-italic = Bold Italic).
+font-style = Bold
+font-style-bold = Bold
+font-style-italic = Bold Italic
+font-style-bold-italic = Bold Italic
+
+# Prompt/powerline icons (p10k/purepower): Ghostty bundles a Nerd Font and
+# auto-falls-back for symbol glyphs, so icons should render with plain Operator
+# Mono. If any show as boxes, switch the line above to:
+#   font-family = OperatorMono Nerd Font Mono
+
+# kitty symbol_map: borrow these glyphs from Fira Code to dodge Operator/Dank
+# Mono ligature issues. Same codepoint list, Ghostty syntax.
+font-codepoint-map = U+4C,U+7B,U+5B,U+7C,U+23,U+21,U+3F,U+24,U+26,U+25,U+2A,U+2B,U+3D,U+2D,U+7E,U+2E,U+5F,U+3B,U+2F,U+5D,U+7D,U+3E=Fira Code
+
+###############################################################################
+# cursor
+#
+# cursor color / cursor_text_color come from the Catppuccin theme above.
+###
+cursor-style = underline
+cursor-style-blink = true
+# (kitty cursor_blink_interval 0.5 has no equivalent — Ghostty uses the system
+#  blink rate; cursor_stop_blinking_after has no equivalent either.)
+
+###############################################################################
+# mouse
+###
+copy-on-select = false
+focus-follows-mouse = false
+mouse-hide-while-typing = true
+# kitty wheel_scroll_multiplier 5.0
+mouse-scroll-multiplier = 5
+# (kitty select_by_word_characters / rectangle_select_modifiers: no equivalent.)
+
+###############################################################################
+# window
+###
+window-padding-x = 8
+window-padding-y = 8
+# hide_window_decorations yes -> hide the macOS titlebar (traffic lights still
+# appear on hover). Use `window-decoration = none` if you want zero chrome.
+macos-titlebar-style = hidden
+# remember_window_size no
+window-save-state = never
+macos-option-as-alt = true
+# (kitty initial_window_width/height are pixels; Ghostty window-width/height are
+#  in CELLS, so 1920x1080 doesn't port directly — set cell counts if you want.)
+
+###############################################################################
+# scrollback
+###
+# kitty scrollback_lines 2000. Ghostty scrollback-limit is in BYTES (default
+# ~10MB, far more than 2000 lines). Left at default; uncomment to shrink:
+# scrollback-limit = 5000000
+# (kitty scrollback_pager / less integration: no equivalent.)
+
+###############################################################################
+# keybindings
+#
+# kitty mapped cmd+1..4 / ctrl+shift+1..4 to first..fourth_window (splits).
+# Ghostty already binds super+1..9 to goto_tab by default, so cmd+1..4 work
+# out of the box for TABS. Ghostty has no goto-split-by-index; split focus is
+# directional. Uncomment to bind directional split nav:
+# keybind = ctrl+shift+h=goto_split:left
+# keybind = ctrl+shift+l=goto_split:right
+# keybind = ctrl+shift+k=goto_split:up
+# keybind = ctrl+shift+j=goto_split:down
+
+###############################################################################
+# not ported (no Ghostty equivalent)
+#
+# - default_session (splits layout launching btop etc.): Ghostty has no session
+#   file. Closest is a shell alias/script that opens splits, or window-save-state.
+# - term xterm-kitty: Ghostty sets TERM=xterm-ghostty automatically.
+# - box_drawing_scale, adjust_line_height/column_width: see adjust-* options.
+# - enable_audio_bell, tab_bar_style, etc.: macOS tabs are native; no audio bell.
+###

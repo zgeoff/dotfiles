@@ -74,10 +74,14 @@ en() { awk '{printf "%s\\n", $0}' "$1"; }         # escapes newlines
 alias getclip="xclip -selection c -o"
 alias setclip="xclip -selection c"
 
+# zellij
+za() { zellij attach -c agents; }
+
 # cli
 alias shc="shellcheck"
 alias shfc="shfmt"
 alias wt='cd "$(wtpick)"'
+wtnb() { cd "$(command wtnb "$@")"; }
 {{ if eq .chezmoi.os "darwin" -}}
 alias wtc='cursor -n "$(wtpick)"'
 alias ca='cursor agent --model=gpt-5'

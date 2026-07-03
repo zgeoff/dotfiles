@@ -6,6 +6,8 @@ packages/**
 # terminal emulators need a display server
 .config/kitty
 .config/kitty/**
+.config/ghostty
+.config/ghostty/**
 {{ end }}
 
 {{ if ne .chezmoi.os "linux" }}
