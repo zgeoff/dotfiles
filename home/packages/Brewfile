@@ -60,7 +60,7 @@ brew 'tree-sitter-cli'
 
 # browsers
 cask 'firefox'
-cask 'firefox-developer-edition'
+cask 'firefox@developer-edition'
 cask 'google-chrome'
 cask 'arc'
 
