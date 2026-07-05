@@ -15,5 +15,11 @@ if ! command -v brew >/dev/null; then
   done
 fi
 
+# brew refuses formulae from untrusted third-party taps; listing a tap-scoped
+# formula in the Brewfile is our explicit trust decision, so trust those taps
+grep -Eo "^brew .([^']+)/[^'/]+'" "{{ .chezmoi.sourceDir }}/packages/Brewfile" \
+  | sed -E "s|^brew .||; s|/[^/]+.$||" | sort -u \
+  | while read -r tap; do brew trust "$tap" >/dev/null; done
+
 brew bundle --file "{{ .chezmoi.sourceDir }}/packages/Brewfile"
 {{ end -}}
