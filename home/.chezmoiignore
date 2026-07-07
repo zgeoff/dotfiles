@@ -25,3 +25,8 @@ packages/**
 .config/yay
 .config/yay/**
 {{ end }}
+
+{{ if not .wsl }}
+# launches the Windows-hosted Zed; meaningless outside WSL
+.local/bin/zed
+{{ end }}
