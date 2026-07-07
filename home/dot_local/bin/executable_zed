@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Launch the Windows-hosted Zed against this WSL distro. Delegates to the
+# launcher Zed ships beside zed.exe, which enables native WSL remoting
+# (zed.exe --wsl user@distro), so plain Linux paths work and language servers
+# run inside the distro. Exists so `zed` keeps working when Windows PATH
+# interop is disabled or ordered after ~/.local/bin.
+# Deployed only on WSL via .chezmoiignore.
+
+set -eu
+
+zed() {
+  launcher=$(find /mnt/c/Users/*/AppData/Local/Programs/Zed/bin \
+    -maxdepth 1 -iname zed -type f -print -quit 2>/dev/null)
+
+  if [ -z "$launcher" ]; then
+    echo 'zed: no Windows Zed launcher under /mnt/c/Users/*/AppData/Local/Programs/Zed/bin' >&2
+    exit 1
+  fi
+
+  exec "$launcher" "$@"
+}
+
+zed "$@"
