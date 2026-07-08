@@ -1067,20 +1067,37 @@ do
 
   -- In the review file panel, `<cr>` opens a file's diff but always moves
   -- focus into the diff window (Layout:set_current_file has no stay-put
-  -- option). `o` opens the diff and keeps focus in the panel, so j/k
-  -- browsing isn't interrupted. Uses octo internals (undocumented API);
-  -- if an octo update breaks it, it fails loud on keypress, not silently.
+  -- option). Instead: the diff auto-peeks when the cursor rests on an entry
+  -- (debounced, so holding j doesn't load every file it passes), and `o`
+  -- peeks explicitly. Uses octo internals (undocumented API); if an octo
+  -- update breaks it, it fails loud on use, not silently.
   vim.api.nvim_create_autocmd('FileType', {
     pattern = 'octo_panel',
     callback = function(ev)
-      vim.keymap.set('n', 'o', function()
+      if vim.b[ev.buf].octo_auto_peek then return end
+      vim.b[ev.buf].octo_auto_peek = true
+
+      local function peek()
         local layout = require('octo.reviews').get_current_layout()
         if layout and layout.file_panel:is_open() then
           local file = layout.file_panel:get_file_at_cursor()
-          if file then layout:set_current_file(file) end
-          layout.file_panel:focus(true)
+          if file and file ~= layout:get_current_file() then
+            layout:set_current_file(file)
+            layout.file_panel:focus(true)
+          end
         end
-      end, { buffer = ev.buf, desc = 'Open diff, stay in panel' })
+      end
+
+      vim.keymap.set('n', 'o', peek, { buffer = ev.buf, desc = 'Open diff, stay in panel' })
+
+      local timer
+      vim.api.nvim_create_autocmd('CursorMoved', {
+        buffer = ev.buf,
+        callback = function()
+          if timer then timer:stop() end
+          timer = vim.defer_fn(peek, 150)
+        end,
+      })
     end,
   })
 end
