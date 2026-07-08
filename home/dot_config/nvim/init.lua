@@ -1064,6 +1064,25 @@ do
   }
   vim.keymap.set('n', '<leader>op', '<cmd>Octo pr list<CR>', { desc = '[O]cto [P]R list' })
   vim.keymap.set('n', '<leader>or', '<cmd>Octo review<CR>', { desc = '[O]cto [R]eview PR' })
+
+  -- In the review file panel, `<cr>` opens a file's diff but always moves
+  -- focus into the diff window (Layout:set_current_file has no stay-put
+  -- option). `o` opens the diff and keeps focus in the panel, so j/k
+  -- browsing isn't interrupted. Uses octo internals (undocumented API);
+  -- if an octo update breaks it, it fails loud on keypress, not silently.
+  vim.api.nvim_create_autocmd('FileType', {
+    pattern = 'octo_panel',
+    callback = function(ev)
+      vim.keymap.set('n', 'o', function()
+        local layout = require('octo.reviews').get_current_layout()
+        if layout and layout.file_panel:is_open() then
+          local file = layout.file_panel:get_file_at_cursor()
+          if file then layout:set_current_file(file) end
+          layout.file_panel:focus(true)
+        end
+      end, { buffer = ev.buf, desc = 'Open diff, stay in panel' })
+    end,
+  })
 end
 
 -- ============================================================
