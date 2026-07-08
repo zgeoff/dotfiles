@@ -1,0 +1,365 @@
+#!/usr/bin/env bun
+/**
+ * prv — local PR review with seen-tracking.
+ *
+ * Usage:
+ *   prv <owner/repo> <pr-number>     fetch diff + launch fzf UI
+ *   prv <owner/repo> <pr-number> --cached   skip refetch, use cached diff
+ *
+ * picker keys:
+ *   enter   full-terminal review screen (see below)
+ *   ctrl-s  toggle seen/unseen (stores per-file patch hash)
+ *   ctrl-u  show unseen + changed only
+ *   ctrl-a  show all files
+ *   ctrl-r  refetch diff from GitHub, reflag changed files
+ *   ctrl-o  open file's patch in hunk
+ *
+ * review screen keys:
+ *   s  mark seen, back to picker      m  mark seen, next file
+ *   .  next file      ,  prev file    u  unmark
+ *   q/esc  back to picker             j/k/space/b/g/G  scroll
+ *
+ * Markers:  ·  unseen    ✓ seen    Δ seen before, patch changed since
+ *
+ * Store: ~/.local/share/pr-review/state.json  (repo#pr → file → patch hash)
+ * Cache: ~/.cache/pr-review/<repo>__<pr>/
+ */
+
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+import { createHash } from "node:crypto";
+
+const STORE_PATH = join(homedir(), ".local/share/pr-review/state.json");
+const CACHE_ROOT = join(homedir(), ".cache/pr-review");
+
+type FileEntry = { path: string; hash: string; add: number; del: number; patchFile: string };
+type Index = { repo: string; pr: number; files: FileEntry[] };
+type Store = Record<string, Record<string, { hash: string; seenAt: string }>>;
+
+const sha = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 16);
+
+// Hash only patch content: drop blob ids and hunk line offsets so a rebase
+// that doesn't change the file's actual diff doesn't reflag it.
+const patchHash = (patch: string) =>
+  sha(
+    patch
+      .split("\n")
+      .filter((l) => !l.startsWith("index "))
+      .map((l) => (l.startsWith("@@") ? "@@" : l))
+      .join("\n"),
+  );
+
+function loadStore(): Store {
+  try {
+    return JSON.parse(readFileSync(STORE_PATH, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveStore(store: Store) {
+  mkdirSync(join(homedir(), ".local/share/pr-review"), { recursive: true });
+  writeFileSync(STORE_PATH, JSON.stringify(store, null, 2));
+}
+
+const cacheDir = (repo: string, pr: number) =>
+  join(CACHE_ROOT, `${repo.replace("/", "__")}__${pr}`);
+
+const storeKey = (repo: string, pr: number) => `${repo}#${pr}`;
+
+function loadIndex(dir: string): Index {
+  return JSON.parse(readFileSync(join(dir, "index.json"), "utf8"));
+}
+
+function filePathFromDiffHeader(header: string): string {
+  // 'diff --git a/x b/y' — take the b-side; handles simple quoted paths
+  const m = header.match(/^diff --git (?:"a\/(.+?)"|a\/(\S+)) (?:"b\/(.+?)"|b\/(\S+))/);
+  if (!m) return header.slice(11);
+  return m[3] ?? m[4] ?? m[1] ?? m[2] ?? "";
+}
+
+async function fetchDiff(repo: string, pr: number) {
+  const proc = Bun.spawn(["gh", "pr", "diff", String(pr), "--repo", repo], {
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+  const diff = await new Response(proc.stdout).text();
+  if ((await proc.exited) !== 0) {
+    console.error("gh pr diff failed");
+    process.exit(1);
+  }
+
+  const dir = cacheDir(repo, pr);
+  mkdirSync(join(dir, "patches"), { recursive: true });
+
+  const files: FileEntry[] = [];
+  const chunks = diff.split(/^(?=diff --git )/m).filter((c) => c.startsWith("diff --git"));
+  for (const chunk of chunks) {
+    const path = filePathFromDiffHeader(chunk.split("\n", 1)[0]);
+    let add = 0;
+    let del = 0;
+    for (const line of chunk.split("\n")) {
+      if (line.startsWith("+") && !line.startsWith("+++")) add++;
+      else if (line.startsWith("-") && !line.startsWith("---")) del++;
+    }
+    const patchFile = join(dir, "patches", `${sha(path)}.patch`);
+    writeFileSync(patchFile, chunk);
+    files.push({ path, hash: patchHash(chunk), add, del, patchFile });
+  }
+
+  writeFileSync(join(dir, "index.json"), JSON.stringify({ repo, pr, files } satisfies Index));
+  return files.length;
+}
+
+type Status = "unseen" | "seen" | "changed";
+
+function statusOf(entry: FileEntry, seen: Record<string, { hash: string }>): Status {
+  const s = seen[entry.path];
+  if (!s) return "unseen";
+  return s.hash === entry.hash ? "seen" : "changed";
+}
+
+const MARKER: Record<Status, string> = { unseen: "·", seen: "✓", changed: "Δ" };
+
+function listText(repo: string, pr: number, unseenOnly: boolean): string {
+  const index = loadIndex(cacheDir(repo, pr));
+  const seen = loadStore()[storeKey(repo, pr)] ?? {};
+  const out: string[] = [];
+  for (const f of index.files) {
+    const st = statusOf(f, seen);
+    if (unseenOnly && st === "seen") continue;
+    out.push(`${MARKER[st]}\t${f.path}\t+${f.add} -${f.del}`);
+  }
+  return out.join("\n") + (out.length ? "\n" : "");
+}
+
+function cmdList(repo: string, pr: number, unseenOnly: boolean) {
+  process.stdout.write(listText(repo, pr, unseenOnly));
+}
+
+function cmdHeader(repo: string, pr: number) {
+  const index = loadIndex(cacheDir(repo, pr));
+  const seen = loadStore()[storeKey(repo, pr)] ?? {};
+  const counts = { unseen: 0, seen: 0, changed: 0 };
+  for (const f of index.files) counts[statusOf(f, seen)]++;
+  process.stdout.write(
+    `${repo}#${pr} — ${counts.seen}/${index.files.length} seen` +
+      (counts.changed ? `, ${counts.changed} changed since review` : "") +
+      `\nenter review · ctrl-s seen · ctrl-u unseen-only · ctrl-a all · ctrl-r refetch · ctrl-o hunk\n`,
+  );
+}
+
+function setSeen(repo: string, pr: number, path: string, hash: string) {
+  const store = loadStore();
+  const key = storeKey(repo, pr);
+  store[key] ??= {};
+  store[key][path] = { hash, seenAt: new Date().toISOString() };
+  saveStore(store);
+}
+
+function clearSeen(repo: string, pr: number, path: string) {
+  const store = loadStore();
+  delete store[storeKey(repo, pr)]?.[path];
+  saveStore(store);
+}
+
+function cmdToggle(repo: string, pr: number, path: string) {
+  const index = loadIndex(cacheDir(repo, pr));
+  const entry = index.files.find((f) => f.path === path);
+  if (!entry) return;
+  const store = loadStore();
+  const key = storeKey(repo, pr);
+  store[key] ??= {};
+  const current = store[key][path];
+  if (current && current.hash === entry.hash) {
+    delete store[key][path];
+  } else {
+    store[key][path] = { hash: entry.hash, seenAt: new Date().toISOString() };
+  }
+  saveStore(store);
+}
+
+function patchFileFor(repo: string, pr: number, path: string): string | null {
+  const entry = loadIndex(cacheDir(repo, pr)).files.find((f) => f.path === path);
+  return entry?.patchFile ?? null;
+}
+
+async function cmdShow(repo: string, pr: number, path: string, opts: { pager: boolean; viewer: "delta" | "hunk" }) {
+  const patchFile = patchFileFor(repo, pr, path);
+  if (!patchFile) return;
+  if (opts.viewer === "hunk") {
+    const proc = Bun.spawn(["hunk", "patch", patchFile], { stdio: ["inherit", "inherit", "inherit"] });
+    await proc.exited;
+    return;
+  }
+  const width = process.env.FZF_PREVIEW_COLUMNS ?? process.env.COLUMNS ?? "120";
+  const args = ["delta", `--paging=${opts.pager ? "always" : "never"}`, `--width=${width}`];
+  const proc = Bun.spawn(args, {
+    stdio: [Bun.file(patchFile), "inherit", "inherit"],
+  });
+  await proc.exited;
+}
+
+/**
+ * Full-terminal review screen: delta-rendered patch inside fzf-as-pager.
+ * Keys: s mark seen + back to picker · m mark seen + next file ·
+ *       . / , next / prev file · u unmark · q/esc back to picker.
+ * Loops over files without returning to the picker until the user exits.
+ */
+async function cmdView(repo: string, pr: number, startPath: string) {
+  const index = loadIndex(cacheDir(repo, pr));
+  let i = index.files.findIndex((f) => f.path === startPath);
+  if (i < 0) return;
+
+  const cols = process.stdout.columns || Number(process.env.COLUMNS) || 120;
+
+  while (true) {
+    const file = index.files[i];
+    const delta = Bun.spawn(["delta", "--paging=never", `--width=${cols - 3}`], {
+      stdio: [Bun.file(file.patchFile), "pipe", "inherit"],
+    });
+    const rendered = await new Response(delta.stdout).text();
+    await delta.exited;
+
+    const seen = loadStore()[storeKey(repo, pr)] ?? {};
+    const st = statusOf(file, seen);
+    const header =
+      `[${MARKER[st]}] ${file.path}  (${i + 1}/${index.files.length})  +${file.add} -${file.del}\n` +
+      `s seen+back · m seen+next · ./, next/prev · u unmark · q back`;
+
+    const pager = Bun.spawn(
+      [
+        "fzf",
+        "--ansi",
+        "--no-input",
+        "--no-sort",
+        "--layout=reverse",
+        "--info=hidden",
+        "--no-scrollbar",
+        `--header=${header}`,
+        "--bind",
+        "enter:ignore,q:abort,esc:abort",
+        "--bind",
+        "s:become(echo MARK),m:become(echo MARK_NEXT),u:become(echo UNMARK)",
+        "--bind",
+        ".:become(echo NEXT)",
+        "--bind",
+        ",:become(echo PREV)",
+        "--bind",
+        "j:down,k:up,d:half-page-down,ctrl-d:half-page-down,ctrl-u:half-page-up,g:first",
+        "--bind",
+        "G:last,space:page-down,b:page-up",
+      ],
+      { stdio: [Buffer.from(rendered), "pipe", "inherit"] },
+    );
+    const action = (await new Response(pager.stdout).text()).trim();
+    await pager.exited;
+
+    switch (action) {
+      case "MARK":
+        setSeen(repo, pr, file.path, file.hash);
+        return;
+      case "MARK_NEXT":
+        setSeen(repo, pr, file.path, file.hash);
+        if (i + 1 >= index.files.length) return;
+        i++;
+        break;
+      case "UNMARK":
+        clearSeen(repo, pr, file.path);
+        break;
+      case "NEXT":
+        i = Math.min(i + 1, index.files.length - 1);
+        break;
+      case "PREV":
+        i = Math.max(i - 1, 0);
+        break;
+      default:
+        return; // q / esc / ctrl-c
+    }
+  }
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+
+  // internal subcommands used by fzf binds
+  if (["list", "header", "toggle", "preview", "show", "view", "hunk", "fetch"].includes(argv[0])) {
+    const [cmd, repo, prStr, ...rest] = argv;
+    const pr = Number(prStr);
+    switch (cmd) {
+      case "list":
+        return cmdList(repo, pr, rest.includes("--unseen"));
+      case "header":
+        return cmdHeader(repo, pr);
+      case "toggle":
+        return cmdToggle(repo, pr, rest[0]);
+      case "preview":
+        return cmdShow(repo, pr, rest[0], { pager: false, viewer: "delta" });
+      case "show":
+        return cmdShow(repo, pr, rest[0], { pager: true, viewer: "delta" });
+      case "view":
+        return cmdView(repo, pr, rest[0]);
+      case "hunk":
+        return cmdShow(repo, pr, rest[0], { pager: true, viewer: "hunk" });
+      case "fetch":
+        await fetchDiff(repo, pr);
+        return;
+    }
+  }
+
+  // main entry: prv owner/repo 569 [--cached]
+  const [repo, prStr] = argv;
+  const pr = Number(prStr);
+  if (!repo?.includes("/") || !Number.isFinite(pr)) {
+    console.error("usage: prv <owner/repo> <pr-number> [--cached]");
+    process.exit(1);
+  }
+
+  if (!argv.includes("--cached") || !existsSync(join(cacheDir(repo, pr), "index.json"))) {
+    console.error(`fetching diff for ${repo}#${pr}…`);
+    const n = await fetchDiff(repo, pr);
+    console.error(`${n} files.`);
+  }
+
+  const self = Bun.main;
+  const base = `bun ${JSON.stringify(self)}`;
+  const call = (cmd: string, extra = "") => `${base} ${cmd} ${repo} ${pr} ${extra}`.trim();
+
+  const fzf = Bun.spawn(
+    [
+      "fzf",
+      "--ansi",
+      "--delimiter=\t",
+      "--with-nth=1,2,3",
+      "--nth=2",
+      "--layout=reverse",
+      "--info=inline",
+      `--header-lines=0`,
+      `--header=${""}`,
+      "--preview",
+      `${call("preview")} {2}`,
+      "--preview-window=right,65%,border-left",
+      "--bind",
+      `start:transform-header(${call("header")})`,
+      "--bind",
+      `enter:execute(${call("view")} {2})+reload(${call("list")})+transform-header(${call("header")})`,
+      "--bind",
+      `ctrl-s:execute-silent(${call("toggle")} {2})+reload(${call("list")})+transform-header(${call("header")})+down`,
+      "--bind",
+      `ctrl-u:reload(${call("list", "--unseen")})+transform-header(${call("header")})`,
+      "--bind",
+      `ctrl-a:reload(${call("list")})+transform-header(${call("header")})`,
+      "--bind",
+      `ctrl-r:execute-silent(${call("fetch")})+reload(${call("list")})+transform-header(${call("header")})`,
+      "--bind",
+      `ctrl-o:execute(${call("hunk")} {2})`,
+    ],
+    {
+      stdio: [Buffer.from(listText(repo, pr, false)), "inherit", "inherit"],
+    },
+  );
+  await fzf.exited;
+}
+
+main();
