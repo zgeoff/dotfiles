@@ -372,6 +372,7 @@ do
       { '<leader>s', group = '[S]earch', mode = { 'n', 'v' } },
       { '<leader>t', group = '[T]oggle' },
       { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } }, -- Enable gitsigns recommended keymaps first
+      { '<leader>o', group = '[O]cto PRs' },
       { 'gr', group = 'LSP Actions', mode = { 'n' } },
       { 'gs', group = '[S]urround', mode = { 'n', 'v' } },
     },
@@ -1038,6 +1039,28 @@ do
       end
     end,
   })
+end
+
+-- ============================================================
+-- SECTION 9b: GITHUB PR REVIEW
+-- octo.nvim — PR diffs, inline comments, reviews via gh
+-- ============================================================
+do
+  -- Octo drives the GitHub PR lifecycle from inside Neovim through the `gh`
+  -- CLI (must be authenticated — check with `gh auth status`): browse and
+  -- checkout PRs, review diffs file-by-file, leave inline comments and
+  -- suggestions, mark files viewed, and submit the review.
+  --
+  -- Entry points: `:Octo pr list`, `:Octo review` on a checked-out PR branch,
+  -- or `:Octo` alone for the command picker. In-review mappings live under
+  -- <localleader> — see `:help octo-config-mappings`.
+  vim.pack.add { gh 'pwntester/octo.nvim' }
+  require('octo').setup {
+    picker = 'telescope',
+    enable_builtin = true, -- bare `:Octo` opens the command picker
+  }
+  vim.keymap.set('n', '<leader>op', '<cmd>Octo pr list<CR>', { desc = '[O]cto [P]R list' })
+  vim.keymap.set('n', '<leader>or', '<cmd>Octo review<CR>', { desc = '[O]cto [R]eview PR' })
 end
 
 -- ============================================================
