@@ -98,8 +98,11 @@ do
   vim.g.mapleader = ' '
   vim.g.maplocalleader = ' '
 
-  -- Set to true if you have a Nerd Font installed and selected in the terminal
-  vim.g.have_nerd_font = false
+  -- Set to true if you have a Nerd Font installed and selected in the terminal.
+  -- True here: kitty runs OperatorMono Nerd Font and ghostty falls back to its
+  -- bundled Nerd Font for glyphs Operator Mono lacks. This also gates the
+  -- mini.icons nvim-web-devicons mock that octo.nvim's file panel requires.
+  vim.g.have_nerd_font = true
 
   -- [[ Setting options ]]
   --  See `:help vim.o`
