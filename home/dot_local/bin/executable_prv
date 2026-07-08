@@ -14,10 +14,11 @@
  *   ctrl-r  refetch diff from GitHub, reflag changed files
  *   ctrl-o  open file's patch in hunk
  *
- * review screen keys:
+ * review screen keys (nvim terminal-buffer pager; all vim motions work):
  *   s  mark seen, back to picker      m  mark seen, next file
  *   .  next file      ,  prev file    u  unmark
- *   q/esc  back to picker             j/k/space/b/g/G  scroll
+ *   q  back to picker                 /, n/N, gg/G, ctrl-d/u, counts, marks
+ *   (falls back to an fzf pager with j/k/space/b/g/G if nvim is missing)
  *
  * Markers:  ·  unseen    ✓ seen    Δ seen before, patch changed since
  *
@@ -25,7 +26,7 @@
  * Cache: ~/.cache/pr-review/<repo>__<pr>/
  */
 
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
@@ -202,9 +203,86 @@ async function cmdShow(repo: string, pr: number, path: string, opts: { pager: bo
 }
 
 /**
- * Full-terminal review screen: delta-rendered patch inside fzf-as-pager.
+ * Vim review pager: delta's ANSI output rendered in an nvim terminal buffer,
+ * so every vim motion works (/, n/N, counts, marks, ctrl-d/u, gg/G).
+ * Action keys are buffer-local nnoremaps that write a verdict file and quit.
+ */
+async function nvimPager(dir: string, rendered: string, statusline: string): Promise<string> {
+  const ansiFile = join(dir, "render.ansi");
+  const verdictFile = join(dir, "verdict");
+  const scriptFile = join(dir, "view.vim");
+  writeFileSync(ansiFile, rendered);
+  try {
+    unlinkSync(verdictFile);
+  } catch {}
+
+  const vimq = (s: string) => `'${s.replace(/'/g, "''")}'`;
+  const act = (key: string, verdict: string) =>
+    `nnoremap <silent> ${key} :call writefile([${vimq(verdict)}], ${vimq(verdictFile)})<Bar>qa!<CR>`;
+  writeFileSync(
+    scriptFile,
+    [
+      "set termguicolors laststatus=2 shortmess+=I scrollback=100000",
+      `let &statusline = ${vimq(statusline.replace(/%/g, "%%"))}`,
+      `exe 'terminal cat ' .. fnameescape(${vimq(ansiFile)})`,
+      "normal! gg",
+      act("s", "MARK"),
+      act("m", "MARK_NEXT"),
+      act(".", "NEXT"),
+      act(",", "PREV"),
+      act("u", "UNMARK"),
+      "nnoremap <silent> q :qa!<CR>",
+    ].join("\n") + "\n",
+  );
+
+  const nvim = Bun.spawn(["nvim", "--clean", "-S", scriptFile], {
+    stdio: ["inherit", "inherit", "inherit"],
+  });
+  await nvim.exited;
+  try {
+    return readFileSync(verdictFile, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Fallback pager when nvim is unavailable: fzf in --no-input mode. */
+async function fzfPager(rendered: string, header: string): Promise<string> {
+  const pager = Bun.spawn(
+    [
+      "fzf",
+      "--ansi",
+      "--no-input",
+      "--no-sort",
+      "--layout=reverse",
+      "--info=hidden",
+      "--no-scrollbar",
+      `--header=${header}`,
+      "--bind",
+      "enter:ignore,q:abort,esc:abort",
+      "--bind",
+      "s:become(echo MARK),m:become(echo MARK_NEXT),u:become(echo UNMARK)",
+      "--bind",
+      ".:become(echo NEXT)",
+      "--bind",
+      ",:become(echo PREV)",
+      "--bind",
+      "j:down,k:up,d:half-page-down,ctrl-d:half-page-down,ctrl-u:half-page-up,g:first",
+      "--bind",
+      "G:last,space:page-down,b:page-up",
+    ],
+    { stdio: [Buffer.from(rendered), "pipe", "inherit"] },
+  );
+  const action = (await new Response(pager.stdout).text()).trim();
+  await pager.exited;
+  return action;
+}
+
+/**
+ * Full-terminal review screen. Uses the nvim terminal-buffer pager when nvim
+ * is installed (full vim motions), else falls back to fzf-as-pager.
  * Keys: s mark seen + back to picker · m mark seen + next file ·
- *       . / , next / prev file · u unmark · q/esc back to picker.
+ *       . / , next / prev file · u unmark · q back to picker.
  * Loops over files without returning to the picker until the user exits.
  */
 async function cmdView(repo: string, pr: number, startPath: string) {
@@ -214,9 +292,11 @@ async function cmdView(repo: string, pr: number, startPath: string) {
 
   const cols = process.stdout.columns || Number(process.env.COLUMNS) || 120;
 
+  const useNvim = Bun.which("nvim") != null;
+
   while (true) {
     const file = index.files[i];
-    const delta = Bun.spawn(["delta", "--paging=never", `--width=${cols - 3}`], {
+    const delta = Bun.spawn(["delta", "--paging=never", `--width=${useNvim ? cols : cols - 3}`], {
       stdio: [Bun.file(file.patchFile), "pipe", "inherit"],
     });
     const rendered = await new Response(delta.stdout).text();
@@ -224,37 +304,12 @@ async function cmdView(repo: string, pr: number, startPath: string) {
 
     const seen = loadStore()[storeKey(repo, pr)] ?? {};
     const st = statusOf(file, seen);
-    const header =
-      `[${MARKER[st]}] ${file.path}  (${i + 1}/${index.files.length})  +${file.add} -${file.del}\n` +
-      `s seen+back · m seen+next · ./, next/prev · u unmark · q back`;
+    const title = `[${MARKER[st]}] ${file.path}  (${i + 1}/${index.files.length})  +${file.add} -${file.del}`;
+    const keysHint = "s seen+back · m seen+next · ./, next/prev · u unmark · q back";
 
-    const pager = Bun.spawn(
-      [
-        "fzf",
-        "--ansi",
-        "--no-input",
-        "--no-sort",
-        "--layout=reverse",
-        "--info=hidden",
-        "--no-scrollbar",
-        `--header=${header}`,
-        "--bind",
-        "enter:ignore,q:abort,esc:abort",
-        "--bind",
-        "s:become(echo MARK),m:become(echo MARK_NEXT),u:become(echo UNMARK)",
-        "--bind",
-        ".:become(echo NEXT)",
-        "--bind",
-        ",:become(echo PREV)",
-        "--bind",
-        "j:down,k:up,d:half-page-down,ctrl-d:half-page-down,ctrl-u:half-page-up,g:first",
-        "--bind",
-        "G:last,space:page-down,b:page-up",
-      ],
-      { stdio: [Buffer.from(rendered), "pipe", "inherit"] },
-    );
-    const action = (await new Response(pager.stdout).text()).trim();
-    await pager.exited;
+    const action = useNvim
+      ? await nvimPager(cacheDir(repo, pr), rendered, `${title}   ${keysHint}`)
+      : await fzfPager(rendered, `${title}\n${keysHint}`);
 
     switch (action) {
       case "MARK":
