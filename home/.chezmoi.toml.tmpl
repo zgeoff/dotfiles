@@ -1,5 +1,6 @@
 {{- $email := promptStringOnce . "email" "Git email" "me@geoffwhatley.com" -}}
 {{- $gui := promptBoolOnce . "gui" "Has a GUI/desktop session" -}}
+{{- $personal := promptBoolOnce . "personal" "Personal machine (holds personal credentials)" -}}
 
 {{- /* detect WSL via the kernel release string (on darwin .chezmoi.kernel
        exists but has no osrelease key, so check for the key itself) */ -}}
@@ -23,6 +24,7 @@ encryption = "age"
 [data]
     email = {{ $email | quote }}
     gui = {{ $gui }}
+    personal = {{ $personal }}
     wsl = {{ $wsl }}
     arch = {{ $arch }}
 
