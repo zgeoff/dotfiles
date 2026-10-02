@@ -1,0 +1,69 @@
+#!/bin/sh
+
+# Mint a scoped 1Password service-account token for Claude Code and write it to
+# the `env.OP_SERVICE_ACCOUNT_TOKEN` of the matching settings file. Each profile
+# gets only the vaults it needs; project settings override the global one.
+#
+#   op-mint <profile>     # global | vers | cloud
+#   op-mint --list
+
+set -eu
+
+profile_vaults() {
+  case "$1" in
+    global) echo "--vault zgeoff:read_items,write_items" ;;
+    vers) echo "--vault vers:read_items,write_items --vault vers-ci:read_items" ;;
+    cloud) echo "--vault cloud:read_items,write_items" ;;
+    *) return 1 ;;
+  esac
+}
+
+profile_settings() {
+  case "$1" in
+    global) echo "$HOME/.claude/settings.json" ;;
+    *) echo "$HOME/projects/$1/.claude/settings.local.json" ;;
+  esac
+}
+
+op_mint() {
+  if [ "${1:-}" = "--list" ]; then
+    for p in global vers cloud; do
+      printf '%-8s %s\n         -> %s\n' "$p" "$(profile_vaults "$p")" "$(profile_settings "$p")"
+    done
+    return
+  fi
+
+  profile="${1:?usage: op-mint <profile> (op-mint --list)}"
+  vaults="$(profile_vaults "$profile")" || { echo "op-mint: unknown profile '$profile'" >&2; exit 2; }
+  settings="$(profile_settings "$profile")"
+
+  # A project token must never land in a tracked file.
+  if [ "$profile" != global ]; then
+    repo="$(dirname "$(dirname "$settings")")"
+    [ -d "$repo/.git" ] || { echo "op-mint: $repo is not a git repo" >&2; exit 1; }
+    mkdir -p "$(dirname "$settings")"
+    git -C "$repo" check-ignore -q "$settings" || {
+      echo "op-mint: $settings is not gitignored; add .claude/settings.local.json to $repo/.gitignore" >&2
+      exit 1
+    }
+  fi
+
+  # Mint with the human account: op-win reaches the Windows app from WSL.
+  if command -v op-win >/dev/null 2>&1; then op_bin=op-win; else op_bin=op; fi
+  name="claude-$profile-$(date +%Y%m%d)"
+  # shellcheck disable=SC2086 # $vaults is a list of flags
+  token="$(env -u OP_SERVICE_ACCOUNT_TOKEN "$op_bin" service-account create "$name" \
+    --expires-in=7d $vaults --format=json | tr -d '\r' | jq -r .token)"
+  [ -n "$token" ] && [ "$token" != null ] || { echo "op-mint: mint failed" >&2; exit 1; }
+
+  [ -f "$settings" ] || echo '{}' > "$settings"
+  tmp="$settings.tmp.$$"
+  (umask 077 && jq --arg t "$token" '.env.OP_SERVICE_ACCOUNT_TOKEN = $t' "$settings" > "$tmp")
+  mv "$tmp" "$settings"
+  chmod 600 "$settings"
+
+  echo "op-mint: minted $name -> $settings (takes effect next session)"
+  echo "op-mint: prune older claude-$profile-* accounts in the 1Password web UI"
+}
+
+op_mint "$@"
