@@ -17,12 +17,12 @@ Run every call with `run_in_background`. Expect about 40 s to 2 min for Codex an
 | Codex review, branch | `codex review --base <ref> < /dev/null` |
 | Codex diagnosis or question | `codex exec -s read-only -o <out.md> "<packet>" < /dev/null` |
 | Codex implementation | `codex exec -s workspace-write -C <worktree> -o <out.md> "<packet>" < /dev/null` |
-| Grok dissent or alternate cause | `grok -p "<packet>" --permission-mode plan --output-format plain --disable-web-search < /dev/null > <out.md>` |
+| Grok dissent or alternate cause | `grok -p "<packet>" --permission-mode plan --tools read_file,grep,list_dir --deny 'mcp__*' --no-subagents --output-format plain --disable-web-search < /dev/null > <out.md>` |
 
 - Always redirect stdin from `/dev/null`. Without it, a background `codex exec` waits on stdin forever.
 - `grok -p` and `--prompt-file` cannot be combined. Pass the packet inline: `-p "$(cat packet.md)"`.
 - Outside a git repo, add `--skip-git-repo-check` to `codex exec`.
-- `--permission-mode plan` keeps Grok read-only. Never give Grok write access.
+- Grok stays read-only through the tool allowlist, not plan mode alone. Plan mode does not inspect shell commands, and its subagents can edit. `--sandbox read-only` would add a kernel boundary, but bwrap fails to start under WSL. Never give Grok write access.
 - For a Codex implementation, create the worktree first. Merge its diff in the main thread.
 
 ## Prompt packet

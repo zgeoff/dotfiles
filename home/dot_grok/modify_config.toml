@@ -4,7 +4,7 @@
 # [compat.claude] agents = false: rules come from ~/.grok/rules/, and
 # ~/.claude/CLAUDE.md carries Claude-only delegation rules.
 awk '
-  /^\[/ { skip = ($0 ~ /^\[(memory|memory_v2|compat\.claude)\]$/) }
+  /^\[/ { skip = ($0 ~ /^\[\[?(memory|memory_v2|compat\.claude)(\.[^]]*)?\]\]?[[:space:]]*(#.*)?$/) }
   !skip
 ' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
 cat <<'TOML'
