@@ -25,9 +25,10 @@ CYAN=$(c 45); BLUE=$(c 39); GREEN=$(c 71); RED=$(c 203)
 YELLOW=$(c 214); GRAY=$(c 244); DIM=$(c 240); PINK=$(c 213); MAG=$(c 170)
 
 # --- extract fields (jq, tolerant of absent/null) ---
-# One field per line (mapfile preserves empty lines; bash `read` would collapse
-# empty tab-separated fields since tab is IFS whitespace).
-mapfile -t F < <(
+# One field per line, read line by line so empty fields survive (one tab-split
+# `read` would collapse them, since tab is IFS whitespace). No mapfile: macOS ships bash 3.2.
+F=()
+while IFS= read -r line; do F+=("$line"); done < <(
   jq -r '
     [ .model.display_name // "?"
     , .effort.level // ""
