@@ -1,0 +1,89 @@
+#!/bin/sh
+
+# Onboard a zgeoff repo for coding agents: give the zgeoff-agent machine user
+# Write access, and apply the standard "main protection" ruleset. Safe to rerun.
+#
+#   agent-onboard <repo> [--review] [--checks a,b]
+#
+#   --review    require 1 approving review (Geoff reviews the agent's PRs)
+#   --checks    required status checks; default: the GitHub Actions checks
+#               that passed on the last merged PR
+#
+# Grants run as Geoff (his gh login in ~/.config/gh/hosts.yml), because the
+# agent identity cannot grant access or edit rulesets.
+
+set -eu
+
+owner=zgeoff
+bot=zgeoff-agent
+vault=zgeoff
+
+gh_admin() { env -u GH_TOKEN -u GITHUB_TOKEN gh "$@"; }
+
+gh_bot() {
+  if [ -z "${bot_token:-}" ]; then
+    [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] ||
+      OP_SERVICE_ACCOUNT_TOKEN=$(jq -r '.env.OP_SERVICE_ACCOUNT_TOKEN // empty' "$HOME/.claude/settings.json")
+    bot_token=$(OP_SERVICE_ACCOUNT_TOKEN=$OP_SERVICE_ACCOUNT_TOKEN op read "op://$vault/$bot/token")
+  fi
+  GH_TOKEN=$bot_token GITHUB_TOKEN='' gh "$@"
+}
+
+default_checks() {
+  sha=$(gh_admin pr list -R "$1" --state merged -L 1 --json headRefOid -q '.[0].headRefOid')
+  [ -n "$sha" ] || return 0
+  gh_admin api "repos/$1/commits/$sha/check-runs?per_page=100" \
+    -q '[.check_runs[] | select(.app.slug == "github-actions" and .conclusion == "success") | .name] | unique | join(",")'
+}
+
+agent_onboard() {
+  repo="${1:?usage: agent-onboard <repo> [--review] [--checks a,b]}"
+  shift
+  case "$repo" in */*) ;; *) repo="$owner/$repo" ;; esac
+  approvals=0
+  checks=
+  checks_set=
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --review) approvals=1 ;;
+      --checks) checks="${2:?--checks needs a value}"; checks_set=1; shift ;;
+      *) echo "agent-onboard: unknown option '$1'" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  [ -n "$checks_set" ] || checks=$(default_checks "$repo")
+
+  # 1. Write access for the bot, accepted from its side.
+  gh_admin api -X PUT "repos/$repo/collaborators/$bot" -f permission=push --silent
+  for id in $(gh_bot api user/repository_invitations -q ".[] | select(.repository.full_name == \"$repo\") | .id"); do
+    gh_bot api -X PATCH "user/repository_invitations/$id" --silent
+  done
+
+  # 2. The ruleset: create it, or update the existing one in place.
+  body=$(printf '%s' "$checks" | jq -R --argjson approvals "$approvals" '
+    (split(",") | map(select(length > 0)) | map({context: .})) as $checks
+    | {
+        name: "main protection", target: "branch", enforcement: "active",
+        conditions: {ref_name: {include: ["~DEFAULT_BRANCH"], exclude: []}},
+        bypass_actors: [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}],
+        rules: ([{type: "deletion"}, {type: "non_fast_forward"},
+          {type: "pull_request", parameters: {required_approving_review_count: $approvals,
+            dismiss_stale_reviews_on_push: false, require_code_owner_review: false,
+            require_last_push_approval: false, required_review_thread_resolution: false,
+            allowed_merge_methods: ["squash"]}}]
+          + (if ($checks | length) > 0 then [{type: "required_status_checks", parameters: {
+            strict_required_status_checks_policy: false, do_not_enforce_on_create: false,
+            required_status_checks: $checks}}] else [] end))
+      }')
+  id=$(gh_admin api "repos/$repo/rulesets" -q '.[] | select(.name == "main protection") | .id')
+  if [ -n "$id" ]; then
+    printf '%s' "$body" | gh_admin api -X PUT "repos/$repo/rulesets/$id" --input - --silent
+  else
+    printf '%s' "$body" | gh_admin api -X POST "repos/$repo/rulesets" --input - --silent
+  fi
+
+  role=$(gh_admin api "repos/$repo/collaborators/$bot/permission" -q .role_name)
+  echo "agent-onboard: $repo: $bot=$role, main protection: approvals=$approvals checks=${checks:-none}"
+}
+
+agent_onboard "$@"
