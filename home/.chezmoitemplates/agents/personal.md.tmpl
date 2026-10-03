@@ -12,8 +12,9 @@
   | `vers` | `vers` (rw), `vers-ci` (r) | `~/projects/vers/.claude/settings.local.json` |
   | `cloud` | `cloud` (rw) | `~/projects/cloud/.claude/settings.local.json` |
 
-  `vers-ci` holds only what the vers infra-drift CI job reads. `zgeoff` holds cross-repo items for the
-  zgeoff GitHub account, such as `repo-sync-github-app`. `cloud` holds the zgeoff/cloud infra secrets.
+  `vers-ci` holds only what the vers infra-drift CI job reads. `zgeoff` holds the items every agent
+  shares, such as `repo-sync-github-app` and the `zgeoff-agent` login, token and SSH key. `cloud` holds
+  the zgeoff/cloud infra secrets. My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
   `OP_SERVICE_ACCOUNT_TOKEN=$(jq -r .env.OP_SERVICE_ACCOUNT_TOKEN <settings file>) op …`.
@@ -24,6 +25,17 @@
 - Never echo a token.
 - Each mint makes a new `claude-<profile>-<date>` service account — prune stale ones in the
   1Password web UI occasionally.
+
+# GitHub identity
+
+- Agents act on GitHub as the machine user `zgeoff-agent`: a Write collaborator with no admin rights
+  and no ruleset bypass. `GH_TOKEN`, `GITHUB_TOKEN` and `GIT_SSH_COMMAND` in Claude's settings point at it.
+- Every zgeoff repo has the `main protection` ruleset: a direct push to `main` fails by design, so open
+  a PR. atc and vers need my approving review.
+- Never switch to my own login to get past a rule: no `env -u GH_TOKEN`, `gh auth switch`,
+  `~/.ssh/id_ed25519` or `gh pr merge --admin`. Ask me instead.
+- New repo: `agent-onboard <repo> [--review]` grants the bot access and applies the ruleset. New machine:
+  `agent-identity` writes the bot's key and token from 1Password.
 
 # Stack taste
 

@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Set up this machine so Claude Code agents act on GitHub as the zgeoff-agent
+# machine user, not as Geoff. Safe to rerun.
+#
+#   agent-identity
+#
+# - writes the bot's SSH key from 1Password to ~/.ssh/zgeoff-agent
+#   (chezmoi sets env.GIT_SSH_COMMAND to use it)
+# - writes the bot's classic token to env.GH_TOKEN and env.GITHUB_TOKEN in
+#   ~/.claude/settings.json (the shell exports Geoff's own token as GITHUB_TOKEN)
+#
+# Reads 1Password with the global service-account token (see op-mint).
+
+set -eu
+
+bot=zgeoff-agent
+vault=zgeoff
+settings="$HOME/.claude/settings.json"
+key="$HOME/.ssh/$bot"
+
+agent_identity() {
+  [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] ||
+    OP_SERVICE_ACCOUNT_TOKEN=$(jq -r '.env.OP_SERVICE_ACCOUNT_TOKEN // empty' "$settings")
+  export OP_SERVICE_ACCOUNT_TOKEN
+
+  (umask 077 && op read "op://$vault/$bot ssh/private key?ssh-format=openssh" > "$key.tmp.$$")
+  mv "$key.tmp.$$" "$key"
+  op read "op://$vault/$bot ssh/public key" > "$key.pub"
+
+  token=$(op read "op://$vault/$bot/token")
+  tmp="$settings.tmp.$$"
+  (umask 077 && jq --arg t "$token" '.env.GH_TOKEN = $t | .env.GITHUB_TOKEN = $t' "$settings" > "$tmp")
+  mv "$tmp" "$settings"
+  chmod 600 "$settings"
+
+  login=$(GH_TOKEN=$token GITHUB_TOKEN='' gh api user -q .login)
+  ssh_hello=$(ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -T git@github.com 2>&1 | head -1 || true)
+  echo "agent-identity: gh as $login; ssh: $ssh_hello"
+  echo "agent-identity: takes effect in new Claude sessions"
+}
+
+agent_identity "$@"
