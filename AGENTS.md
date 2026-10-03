@@ -20,8 +20,7 @@
   silently skips misses — check its "not available, skipped" stderr when a package seems absent.
 - Tools rewrite some managed files. `modify_` scripts own only some keys of `~/.claude/settings.json`,
   `~/.codex/config.toml`, and `~/.grok/config.toml`, and leave the rest (tokens, trust, MCP paths) to the
-  machine. `mise use -g` edits the live `~/.config/mise/config.toml`; copy the change into the
-  `.tmpl` (inside the `personal` block if it is personal-only) rather than `chezmoi re-add`.
+  machine. After `mise use -g`, run `chezmoi re-add ~/.config/mise/config.toml`.
 - Verify with `chezmoi diff --source <worktree>` (renders templates against real machine data)
   and `zsh -n` on rendered shell files. `chezmoi apply` happens after merge, by the user.
 - Never run sudo-requiring commands from the agent shell — there is no TTY for the password

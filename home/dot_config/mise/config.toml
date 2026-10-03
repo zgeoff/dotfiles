@@ -13,9 +13,5 @@ ruby = "4.0.1"
 "pipx:poetry" = "latest"
 "pipx:shell-gpt" = "latest"
 gitleaks = "8.30.1"
-{{- if and (hasKey . "personal") .personal }}
-
-# personal machines only
 rust = "stable"
 "cargo:tokei" = "15.0.0"
-{{- end }}

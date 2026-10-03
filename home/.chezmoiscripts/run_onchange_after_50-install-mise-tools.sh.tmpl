@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# mise config hash: {{ includeTemplate "dot_config/mise/config.toml.tmpl" . | sha256sum }}
+# mise config hash: {{ include "dot_config/mise/config.toml" | sha256sum }}
 
 set -eu
 
