@@ -1,4 +1,5 @@
 #!/bin/sh
+set -eu
 # Grok writes its own keys (marketplace, installer) into config.toml, so chezmoi
 # owns only the tables below: drop any existing copy of them, then append ours.
 # [compat.claude] agents = false: rules come from ~/.grok/rules/, and
@@ -6,7 +7,7 @@
 awk '
   /^\[/ { skip = ($0 ~ /^\[\[?(memory|memory_v2|compat\.claude)(\.[^]]*)?\]\]?[[:space:]]*(#.*)?$/) }
   !skip
-' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+' | awk '{ line[NR] = $0 } NF { last = NR } END { for (i = 1; i <= last; i++) print line[i] }'
 cat <<'TOML'
 
 [memory]

@@ -18,6 +18,9 @@
 - `home/packages/` (Yayfile, Brewfile) is consumed by `home/.chezmoiscripts/`; package sync
   re-runs when a manifest changes. The Yayfile sync intersects with available packages and
   silently skips misses — check its "not available, skipped" stderr when a package seems absent.
+- Tools rewrite some managed files. `modify_` scripts own only some keys of `~/.claude/settings.json`,
+  `~/.codex/config.toml`, and `~/.grok/config.toml`, and leave the rest (tokens, trust, MCP paths) to the
+  machine. After `mise use -g`, run `chezmoi re-add ~/.config/mise/config.toml`.
 - Verify with `chezmoi diff --source <worktree>` (renders templates against real machine data)
   and `zsh -n` on rendered shell files. `chezmoi apply` happens after merge, by the user.
 - Never run sudo-requiring commands from the agent shell — there is no TTY for the password
