@@ -9,7 +9,7 @@ Use the CLIs directly. The plugin wrappers are uninstalled on purpose: their age
 
 ## Commands
 
-Run every call with `run_in_background`. Expect about 40 s to 2 min for Codex and 10 s to 90 s for Grok. Write output to the scratchpad.
+Run every call with `run_in_background`. Expect about 40 s to 2 min for a Codex question and 3 to 9 min for a Codex review. Grok runs from 10 s to more than an hour and often returns nothing, so wrap every Grok call in `timeout 600`. Write output to the scratchpad.
 
 | Job | Command |
 |---|---|
@@ -17,7 +17,7 @@ Run every call with `run_in_background`. Expect about 40 s to 2 min for Codex an
 | Codex review, branch | `codex review --base <ref> < /dev/null` |
 | Codex diagnosis or question | `codex exec -s read-only -o <out.md> "<packet>" < /dev/null` |
 | Codex implementation | `codex exec -s workspace-write -C <worktree> -o <out.md> "<packet>" < /dev/null` |
-| Grok dissent or alternate cause | `grok -p "<packet>" --permission-mode plan --tools read_file,grep,list_dir --deny 'mcp__*' --no-subagents --output-format plain --disable-web-search < /dev/null > <out.md>` |
+| Grok dissent or alternate cause | `timeout 600 grok -p "<packet>" --permission-mode plan --tools read_file,grep,list_dir --deny 'mcp__*' --no-subagents --output-format plain --disable-web-search < /dev/null > <out.md>` |
 
 - Always redirect stdin from `/dev/null`. Without it, a background `codex exec` waits on stdin forever.
 - `grok -p` and `--prompt-file` cannot be combined. Pass the packet inline: `-p "$(cat packet.md)"`.
@@ -51,3 +51,4 @@ Ask for the return shape:
 - Reproduce a finding before you act on it. Drop nits and drive-by refactors.
 - Relay results to Geoff in plain language. Say which model said what.
 - A timeout or an empty run on an optional call is a skip. On a required review, report it.
+- A Grok call never blocks a merge. On a timeout or an empty run, write "Grok timed out" on the PR and continue.
