@@ -3,11 +3,15 @@
 # Onboard a zgeoff repo for coding agents: give the zgeoff-agent machine user
 # Write access, and apply the standard "main protection" ruleset. Safe to rerun.
 #
-#   agent-onboard <repo> [--review] [--checks a,b]
+#   agent-onboard <repo> [--review | --no-review] [--checks a,b]
 #
-#   --review    require 1 approving review (Geoff reviews the agent's PRs)
-#   --checks    required status checks; default: the GitHub Actions checks
-#               that passed on the last merged PR
+#   --review     require 1 approving review (Geoff reviews the agent's PRs)
+#   --no-review  require 0 approving reviews
+#   --checks     required status checks
+#
+# A new ruleset gets 0 approvals, an admin bypass, and the GitHub Actions
+# checks that passed on the last merged PR. An existing ruleset keeps its
+# approvals, bypass list and checks; only the flags above change them.
 #
 # Grants run as Geoff (his gh login in ~/.config/gh/hosts.yml), because the
 # agent identity cannot grant access or edit rulesets.
@@ -37,21 +41,21 @@ default_checks() {
 }
 
 agent_onboard() {
-  repo="${1:?usage: agent-onboard <repo> [--review] [--checks a,b]}"
+  repo="${1:?usage: agent-onboard <repo> [--review | --no-review] [--checks a,b]}"
   shift
   case "$repo" in */*) ;; *) repo="$owner/$repo" ;; esac
-  approvals=0
+  approvals=
   checks=
   checks_set=
   while [ $# -gt 0 ]; do
     case "$1" in
       --review) approvals=1 ;;
+      --no-review) approvals=0 ;;
       --checks) checks="${2:?--checks needs a value}"; checks_set=1; shift ;;
       *) echo "agent-onboard: unknown option '$1'" >&2; exit 2 ;;
     esac
     shift
   done
-  [ -n "$checks_set" ] || checks=$(default_checks "$repo")
 
   # 1. Write access for the bot, accepted from its side.
   gh_admin api -X PUT "repos/$repo/collaborators/$bot" -f permission=push --silent
@@ -59,13 +63,29 @@ agent_onboard() {
     gh_bot api -X PATCH "user/repository_invitations/$id" --silent
   done
 
-  # 2. The ruleset: create it, or update the existing one in place.
-  body=$(printf '%s' "$checks" | jq -R --argjson approvals "$approvals" '
+  # 2. The ruleset: create it, or update the existing one in place and keep
+  # whatever the flags do not name.
+  id=$(gh_admin api "repos/$repo/rulesets" -q '.[] | select(.name == "main protection") | .id')
+  existing='{}'
+  [ -z "$id" ] || existing=$(gh_admin api "repos/$repo/rulesets/$id")
+  if [ -n "$id" ]; then
+    old_approvals=$(printf '%s' "$existing" | jq '[.rules[] | select(.type == "pull_request") | .parameters.required_approving_review_count][0] // 0')
+    [ -n "$approvals" ] || approvals=$old_approvals
+    [ "$approvals" -ge "$old_approvals" ] ||
+      echo "agent-onboard: $repo: lowering required approvals from $old_approvals to $approvals" >&2
+    [ -n "$checks_set" ] || checks=$(printf '%s' "$existing" |
+      jq -r '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | join(",")')
+  else
+    [ -n "$approvals" ] || approvals=0
+    [ -n "$checks_set" ] || checks=$(default_checks "$repo")
+  fi
+  body=$(printf '%s' "$checks" | jq -R --argjson approvals "$approvals" --argjson existing "$existing" '
     (split(",") | map(select(length > 0)) | map({context: .})) as $checks
     | {
         name: "main protection", target: "branch", enforcement: "active",
         conditions: {ref_name: {include: ["~DEFAULT_BRANCH"], exclude: []}},
-        bypass_actors: [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}],
+        bypass_actors: ($existing.bypass_actors
+          // [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}]),
         rules: ([{type: "deletion"}, {type: "non_fast_forward"},
           {type: "pull_request", parameters: {required_approving_review_count: $approvals,
             dismiss_stale_reviews_on_push: false, require_code_owner_review: false,
@@ -75,7 +95,6 @@ agent_onboard() {
             strict_required_status_checks_policy: false, do_not_enforce_on_create: false,
             required_status_checks: $checks}}] else [] end))
       }')
-  id=$(gh_admin api "repos/$repo/rulesets" -q '.[] | select(.name == "main protection") | .id')
   if [ -n "$id" ]; then
     printf '%s' "$body" | gh_admin api -X PUT "repos/$repo/rulesets/$id" --input - --silent
   else
@@ -83,7 +102,8 @@ agent_onboard() {
   fi
 
   role=$(gh_admin api "repos/$repo/collaborators/$bot/permission" -q .role_name)
-  echo "agent-onboard: $repo: $bot=$role, main protection: approvals=$approvals checks=${checks:-none}"
+  bypass=$(printf '%s' "$body" | jq '.bypass_actors | length')
+  echo "agent-onboard: $repo: $bot=$role, main protection: approvals=$approvals bypass_actors=$bypass checks=${checks:-none}"
 }
 
 agent_onboard "$@"
