@@ -61,11 +61,11 @@ add_seg() { [ -n "$out" ] && out+="    ${DIM}${SEP}${R}    "; out+="$1"; }
 # --- folder + git branch + dirty state ---
 dir=$(basename "$cwd" 2>/dev/null)
 branch="$wt_branch"
-[ -z "$branch" ] && branch=$(git -C "$cwd" branch --show-current 2>/dev/null)
+[ -z "$branch" ] && branch=$(git --no-optional-locks -C "$cwd" branch --show-current 2>/dev/null)
 seg="${GRAY}${G_FOLDER}${R} ${BLUE}${dir}${R}"
 if [ -n "$branch" ]; then
   dirty=""
-  [ -n "$(git -C "$cwd" status --porcelain 2>/dev/null)" ] && dirty=" ${RED}${DIRTY}${R}"
+  [ -n "$(git --no-optional-locks -C "$cwd" status --porcelain 2>/dev/null)" ] && dirty=" ${RED}${DIRTY}${R}"
   bcol=$GREEN; [ -n "$dirty" ] && bcol=$YELLOW
   seg+="   ${bcol}${G_BRANCH}  ${branch}${R}${dirty}"
 fi
@@ -130,4 +130,4 @@ vis_len() { local s; s=$(printf '%s' "$1" | sed $'s/\033\\[[0-9;]*m//g'); printf
 cols=${COLUMNS:-120}
 pad=$(( (cols - 4 - $(vis_len "$out")) / 2 ))
 [ "$pad" -lt 0 ] && pad=0
-printf '%*s%b' "$pad" '' "$out"
+printf '%*s%s' "$pad" '' "$out"

@@ -43,4 +43,10 @@ printf '%s' "$current" | jq --indent 2 --argjson owned '
     }
   }
 {{- end }}
-}' '. * $owned'
+}' '. * $owned
+{{- if not (and (hasKey . "personal") .personal) }}
+  # drop the personal-only keys a previous personal render left behind
+  | del(.advisorModel)
+  | del(.enabledPlugins["codex-image@codex-image-in-cc"])
+  | del(.extraKnownMarketplaces["codex-image-in-cc"])
+{{- end }}'

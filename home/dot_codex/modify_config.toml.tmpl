@@ -47,14 +47,28 @@ screen_reader_detection_done = true
 TOML
 
 # Keep every table chezmoi does not own: drop the root section (everything
-# before the first header) and the owned tables. Lines inside a ''' string
-# never count as headers, so developer_instructions cannot confuse the match.
+# before the first header) and the owned tables, which chezmoi owns whole.
+# Lines inside a ''' or """ string never count as headers.
 echo
-awk -v q="'''" '
-  !ml && /^\[/ {
+awk -v sq="'''" -v dq='"""' '
+  !ml && /^[ \t]*\[/ {
     started = 1
-    skip = ($0 ~ /^\[(sandbox_workspace_write|features|agents|tui)\][[:space:]]*(#.*)?$/)
+    skip = ($0 ~ /^[ \t]*\[[ \t]*(sandbox_workspace_write|features|agents|tui)[ \t]*\][ \t]*(#.*)?$/)
   }
   started && !skip { print }
-  { if (gsub(q, q) % 2 == 1) ml = !ml }
+  {
+    line = $0
+    while (1) {
+      if (!ml) {
+        i = index(line, sq); j = index(line, dq)
+        if (!i && !j) break
+        if (i && (!j || i < j)) { ml = sq; line = substr(line, i + 3) }
+        else { ml = dq; line = substr(line, j + 3) }
+      } else {
+        k = index(line, ml)
+        if (!k) break
+        line = substr(line, k + 3); ml = ""
+      }
+    }
+  }
 ' | sed -e '/./,$!d'
