@@ -34,4 +34,7 @@ packages/**
 {{ if not (and (hasKey . "personal") .personal) }}
 # mints tokens against the personal 1Password account; personal machines only
 .local/bin/op-mint
+# Codex/Grok delegation sends code to OpenAI/xAI; personal machines only
+.claude/skills/delegate
+.claude/skills/delegate/**
 {{ end }}

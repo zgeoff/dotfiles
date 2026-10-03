@@ -1,0 +1,6 @@
+{{- /* Rendered from .chezmoitemplates/agents/; edit the pieces there. Grok loads ~/.grok/rules/*.md in every folder, trusted or not. */ -}}
+{{ template "agents/core.md" . }}
+{{- if and (hasKey . "personal") .personal }}
+{{ template "agents/personal.md.tmpl" . }}
+{{- end }}
+{{- template "agents/work.md.tmpl" . }}
