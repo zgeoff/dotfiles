@@ -1,0 +1,19 @@
+{{- /*
+  Work-only rule pieces, rendered on machines where `personal` is false.
+  Plain:     .chezmoitemplates/agents/work.md      (anything safe in a public repo)
+  Encrypted: .chezmoitemplates/agents/work.md.age  (`chezmoi encrypt` output; everything else)
+  Both are optional; a missing file renders nothing.
+*/ -}}
+{{- if not (and (hasKey . "personal") .personal) -}}
+{{-   $dir := joinPath .chezmoi.sourceDir ".chezmoitemplates/agents" -}}
+{{-   $plain := joinPath $dir "work.md" -}}
+{{-   $secret := joinPath $dir "work.md.age" -}}
+{{-   if stat $plain }}
+
+{{ include $plain | trim }}
+{{-   end -}}
+{{-   if stat $secret }}
+
+{{ include $secret | decrypt | trim }}
+{{-   end -}}
+{{- end -}}

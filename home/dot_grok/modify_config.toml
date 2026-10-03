@@ -1,0 +1,23 @@
+#!/bin/sh
+# Grok writes its own keys (marketplace, installer) into config.toml, so chezmoi
+# owns only the tables below: drop any existing copy of them, then append ours.
+# [compat.claude] agents = false: rules come from ~/.grok/rules/, and
+# ~/.claude/CLAUDE.md carries Claude-only delegation rules.
+awk '
+  /^\[/ { skip = ($0 ~ /^\[(memory|memory_v2|compat\.claude)\]$/) }
+  !skip
+' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+cat <<'TOML'
+
+[memory]
+enabled = false
+
+[memory_v2]
+enabled = false
+capture_enabled = false
+automatic_dream_enabled = false
+file_writes_enabled = false
+
+[compat.claude]
+agents = false
+TOML

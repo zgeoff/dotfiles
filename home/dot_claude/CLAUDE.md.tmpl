@@ -1,0 +1,7 @@
+{{- /* Rendered from .chezmoitemplates/agents/; edit the pieces there, not ~/.claude/CLAUDE.md. */ -}}
+{{ template "agents/core.md" . }}
+{{- if and (hasKey . "personal") .personal }}
+{{ template "agents/personal.md.tmpl" . }}
+{{ template "agents/delegation.md" . }}
+{{- end }}
+{{- template "agents/work.md.tmpl" . }}
