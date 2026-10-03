@@ -1,7 +1,5 @@
 .DS_Store
 Session.vim
-libs/*
-!libs/.gitkeep
 node_modules
 .undodir/
 

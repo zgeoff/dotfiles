@@ -1,0 +1,60 @@
+#!/bin/sh
+# chezmoi owns the root keys and the [sandbox_workspace_write], [features],
+# [agents], and [tui] tables below. Every other table stays as Codex or the
+# machine wrote it: [projects.*] trust, [hooks.state.*] hashes, [mcp_servers.*]
+# (machine-specific paths), and [tui.model_availability_nux].
+set -eu
+cat <<'TOML'
+model_context_window = 600000
+model_auto_compact_token_limit = 500000
+
+approvals_reviewer = "auto_review"
+# Codex CLI config — managed by chezmoi (dotfiles: home/dot_codex/modify_config.toml.tmpl).
+
+# model: left unset so Codex picks its current recommended model.
+model_reasoning_effort = "high"   # Claude effortLevel = high
+personality = "pragmatic"         # closest built-in to STE Direct; the full style is in developer_instructions
+
+# Permissions: Claude skipAutoPermissionPrompt + autoMode  ->  sandboxed, no prompts except rule hits.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# Output style: STE Direct, rendered from ~/.claude/output-styles/ste-direct.md
+developer_instructions = '''
+{{ regexReplaceAll `(?s)\A---\n.*?\n---\n\s*` (include "dot_claude/output-styles/ste-direct.md") "" | trim }}
+'''
+
+[sandbox_workspace_write]
+network_access = true             # op, gh, flyctl, neon, package installs
+
+[features]
+memories = false                  # Memory: OFF (see ~/.codex/AGENTS.md)
+hooks = true
+multi_agent = true
+
+[agents]
+default_subagent_reasoning_effort = "medium"
+
+[tui]
+alternate_screen = "always"       # Claude tui = fullscreen
+vim_mode_default = true           # Claude editorMode = vim
+notifications = true              # Claude agentPushNotifEnabled
+notification_condition = "unfocused"
+# Mirrors ~/.claude/statusline.sh: dir · branch · +/- · PR · tokens/ctx% · 5h/7d · model·effort
+status_line = ["current-dir", "git-branch", "branch-changes", "pull-request-number", "used-tokens", "context-used", "five-hour-limit", "weekly-limit", "model-with-reasoning"]
+terminal_title = ["spinner", "project", "branch"]
+screen_reader_detection_done = true
+TOML
+
+# Keep every table chezmoi does not own: drop the root section (everything
+# before the first header) and the owned tables. Lines inside a ''' string
+# never count as headers, so developer_instructions cannot confuse the match.
+echo
+awk -v q="'''" '
+  !ml && /^\[/ {
+    started = 1
+    skip = ($0 ~ /^\[(sandbox_workspace_write|features|agents|tui)\][[:space:]]*(#.*)?$/)
+  }
+  started && !skip { print }
+  { if (gsub(q, q) % 2 == 1) ml = !ml }
+' | sed -e '/./,$!d'

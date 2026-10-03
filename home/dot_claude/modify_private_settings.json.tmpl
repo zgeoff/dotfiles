@@ -1,0 +1,46 @@
+#!/bin/sh
+# chezmoi owns the keys below and deep-merges them over the live file. Every
+# other key stays as Claude Code or op-mint wrote it: env.OP_SERVICE_ACCOUNT_TOKEN
+# (rotated weekly by op-mint), permissions, and the per-machine autoMode block.
+# Removing a key here does not remove it from the live file.
+set -eu
+current=$(cat)
+[ -n "$current" ] || current='{}'
+printf '%s' "$current" | jq --indent 2 --argjson owned '
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "includeCoAuthoredBy": false,
+  "model": "opus[1m]",
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"{{ .chezmoi.homeDir }}/.claude/statusline.sh\"",
+    "padding": 2
+  },
+  "outputStyle": "STE Direct",
+  "feedbackDrafts": "off",
+  "effortLevel": "high",
+  "autoCompactWindow": 500000,
+  "tui": "fullscreen",
+  "editorMode": "vim",
+  "skipWorkflowUsageWarning": true,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true
+{{- if and (hasKey . "personal") .personal }},
+  "advisorModel": "fable",
+  "enabledPlugins": {
+    "codex-image@codex-image-in-cc": true
+  },
+  "extraKnownMarketplaces": {
+    "codex-image-in-cc": {
+      "source": { "source": "github", "repo": "KingGyuSuh/codex-image-in-cc" }
+    }
+  }
+{{- end }}
+}' '. * $owned'
