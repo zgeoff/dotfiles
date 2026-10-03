@@ -49,8 +49,8 @@ TOML
 # Keep every table chezmoi does not own: drop the root section (everything
 # before the first header) and the owned tables, which chezmoi owns whole.
 # Lines inside a ''' or """ string never count as headers.
-echo
-awk -v sq="'''" -v dq='"""' '
+input=$(cat)
+out=$(printf '%s\n' "$input" | awk -v sq="'''" -v dq='"""' '
   !ml && /^[ \t]*\[/ {
     started = 1
     skip = ($0 ~ /^[ \t]*\[[ \t]*(sandbox_workspace_write|features|agents|tui)[ \t]*\][ \t]*(#.*)?$/)
@@ -71,4 +71,19 @@ awk -v sq="'''" -v dq='"""' '
       }
     }
   }
-' | sed -e '/./,$!d'
+')
+
+# Fail closed: every unowned header in the input must survive. If the string
+# tracker ever misreads the input, chezmoi aborts instead of dropping tables.
+printf '%s\n' "$input" \
+  | grep -E '^[[:space:]]*\[' \
+  | grep -vE '^[[:space:]]*\[[[:space:]]*(sandbox_workspace_write|features|agents|tui)[[:space:]]*\][[:space:]]*(#.*)?$' \
+  | while IFS= read -r header; do
+      printf '%s\n' "$out" | grep -qxF -- "$header" || {
+        echo "codex config.toml: would drop table $header; refusing to write" >&2
+        exit 1
+      }
+    done
+
+echo
+printf '%s\n' "$out" | awk 'NF { started = 1 } started'
