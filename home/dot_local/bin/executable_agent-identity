@@ -24,6 +24,7 @@ agent_identity() {
     OP_SERVICE_ACCOUNT_TOKEN=$(jq -r '.env.OP_SERVICE_ACCOUNT_TOKEN // empty' "$settings")
   export OP_SERVICE_ACCOUNT_TOKEN
 
+  trap 'rm -f "$key.tmp.$$" "$settings.tmp.$$"' EXIT
   (umask 077 && op read "op://$vault/$bot ssh/private key?ssh-format=openssh" > "$key.tmp.$$")
   mv "$key.tmp.$$" "$key"
   op read "op://$vault/$bot ssh/public key" > "$key.pub"
