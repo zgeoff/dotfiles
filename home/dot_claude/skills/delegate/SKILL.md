@@ -51,4 +51,4 @@ Ask for the return shape:
 - Reproduce a finding before you act on it. Drop nits and drive-by refactors.
 - Relay results to Geoff in plain language. Say which model said what.
 - A timeout or an empty run on an optional call is a skip. On a required review, report it.
-- A Grok call never blocks a merge. On a timeout or an empty run, write "Grok timed out" on the PR and continue.
+- A Grok call never blocks a merge. When the timeout fires, write "Grok timed out" on the PR. When the run ends with no output, write "Grok returned no output". Then continue.
