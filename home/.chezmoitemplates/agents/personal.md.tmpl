@@ -1,4 +1,4 @@
-{{- /* Private rules live in personal.md.age (`chezmoi encrypt`); this file is public. */ -}}
+{{- /* Private rules live in personal.md.age and assistant.md.age (`chezmoi encrypt`); this file is public. */ -}}
 {{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/personal.md.age" | include | decrypt | trim }}
 
 # 1Password (scoped tokens per repo)
@@ -25,6 +25,8 @@
 - Never echo a token.
 - Each mint makes a new `claude-<profile>-<date>` service account — prune stale ones in the
   1Password web UI occasionally.
+
+{{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/assistant.md.age" | include | decrypt | trim }}
 
 # GitHub identity
 
