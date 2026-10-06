@@ -217,16 +217,16 @@ const CLASSIFY = `Classify each finding:
 
 const opusReviewPrompt = `You are reviewing an unpushed feature branch before it becomes a PR. Repo root is the current directory; the branch lives in the worktree at ${worktree}. Read AGENTS.md first and load the skills it names for code and tests; their conventions are binding, and convention violations that tooling cannot catch are in scope.
 
-Review the full diff (\`git -C ${worktree} diff ${base}...HEAD\`) and read surrounding source where the diff alone is ambiguous. The plan this branch implements:
+Review the full diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) and read surrounding source where the diff alone is ambiguous. The plan this branch implements:
 
 ${plan}
 
 ${CLASSIFY}
 Do not modify any files. No praise, no restating the diff.`;
 
-const codexReviewPrompt = `Run a Codex review of the feature branch in the worktree at ${worktree} and return its findings. Do not review the code yourself and do not modify any files.
+const codexReviewPrompt = `Run a Codex review of the feature branch in the worktree at ${worktree} and return its findings. First run \`git -C ${worktree} fetch origin\` so origin/${base} is current. Do not review the code yourself and do not modify any files.
 
-1. From inside the worktree, run: \`timeout ${CODEX_TIMEOUT_SECONDS} codex review --base ${base} < /dev/null > codex-review.out 2>&1\`, writing the output file to a scratch location outside the worktree. Run it in the background and wait for it; it takes 3 to 9 minutes. Stdin must come from /dev/null, or codex waits on it forever.
+1. From inside the worktree, run: \`timeout ${CODEX_TIMEOUT_SECONDS} codex review --base origin/${base} < /dev/null > codex-review.out 2>&1\`, writing the output file to a scratch location outside the worktree. Run it in the background and wait for it; it takes 3 to 9 minutes. Stdin must come from /dev/null, or codex waits on it forever.
 2. If \`codex\` is not installed, exits non-zero, hits the timeout, or prints no review, return ran=false with the reason and an empty findings list.
 3. Otherwise return ran=true and map each Codex finding into the findings list, keeping its file and line.
 
@@ -310,7 +310,7 @@ const grokRun = runGrok
   ? agent(
       `Ask Grok for dissent on the feature branch in the worktree at ${worktree}. Do not review the code yourself and do not modify any files.
 
-1. Write the diff to a scratch file outside the worktree: \`git -C ${worktree} diff ${base}...HEAD > grok-diff.patch\`.
+1. Write the diff to a scratch file outside the worktree: \`git -C ${worktree} diff origin/${base}...HEAD > grok-diff.patch\`.
 2. Run Grok read-only, in the background, with stdin from /dev/null:
    \`timeout ${GROK_TIMEOUT_SECONDS} grok -p "$(cat packet.md)" --permission-mode plan --tools read_file,grep,list_dir --deny 'mcp__*' --no-subagents --output-format plain --disable-web-search < /dev/null > grok.out\`
    where packet.md asks: "Read this diff (path to grok-diff.patch) in the repo at ${worktree}. Give a concrete input, sequence, or user action that causes data loss, an auth bypass, or a money error. Zero is a valid answer." Run it from inside the worktree.

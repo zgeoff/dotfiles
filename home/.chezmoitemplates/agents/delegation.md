@@ -4,6 +4,7 @@
 - **Advisor**: name the decision in each call. Before work: "Which assumption could invalidate this plan?" Before done: "Which acceptance condition lacks evidence?" Also use it to break a tie that no test can settle.
 - **Codex** is a peer. Use it for review gates, diagnosis, and bounded implementations. **Grok** is a cold reader with a different prior. Use it only for read-only dissent. Give each model a different question; never send both the same prompt.
 - Load the `delegate` skill before any Codex or Grok call. It holds the commands, the prompt packet, and the gotchas.
+- Medium or larger work runs through the `build-feature` workflow: anything that needs a written plan, adds behaviour, or touches more than a few files. Agree the plan first, then load the `build-feature` skill and run the workflow. Small fixes and doc changes don't need it.
 
 Triggers:
 
