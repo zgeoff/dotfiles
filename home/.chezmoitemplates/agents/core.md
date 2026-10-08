@@ -11,3 +11,10 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 - Do not add attribution lines (Co-authored-by, "Generated with", session URLs) to commit messages or PR descriptions.
 - Verify framework capability claims against current docs — my landscape knowledge can outrun your cutoff.
 - Clean up after yourself without being asked. When work lands, remove its worktrees, local and remote branches, dev instances, test containers, images and volumes, and leftover processes. Check for unpushed or uncommitted work first, and keep anything that is not landed.
+
+# Coordination and handoffs
+
+- Before reporting a dependency as blocked, check its current status if the authoritative source is available. If it is unavailable, say what you could not verify.
+- When reporting a bug's cause, distinguish a suspected cause from one supported by a reproducer or direct evidence. Diagnosis may continue without certainty.
+- Completion reports should name the relevant evidence: tests run, PR/commit, release, or live check. Only claim the stages actually completed; not every task requires every stage.
+- When work is blocked, record the blocker and next step once. Continue other work already within scope when possible. Do not treat a temporary blocker as completion or expand scope merely to stay busy.

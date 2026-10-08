@@ -1,8 +1,7 @@
 #!/bin/sh
 # chezmoi owns the keys below and deep-merges them over the live file. Every
 # other key stays as Claude Code or a script wrote it: env.OP_SERVICE_ACCOUNT_TOKEN
-# (rotated weekly by op-mint), env.GH_TOKEN and env.GITHUB_TOKEN (agent-identity),
-# and permissions. On a personal machine, chezmoi owns autoMode in full: edit
+# (rotated weekly by op-mint) and permissions. On a personal machine, chezmoi owns autoMode in full: edit
 # .chezmoitemplates/claude/automode.json.age with `chezmoi decrypt`/`chezmoi encrypt`,
 # not the live file (an /auto-mode-setup run there is overwritten on the next apply).
 # Removing a key here does not remove it from the live file.
@@ -21,9 +20,6 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-{{- if and (hasKey . "personal") .personal }},
-    "GIT_SSH_COMMAND": "ssh -i {{ .chezmoi.homeDir }}/.ssh/zgeoff-agent -o IdentitiesOnly=yes"
-{{- end }}
   },
   "attribution": {
     "commit": "",
@@ -59,10 +55,12 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {{- end }}
 }' '. * $owned
   | if $automode != null then .autoMode = $automode else . end
+  # agents use the saved gh login and the default git SSH key, so drop the
+  # machine-user token and key override that agent-identity or an earlier render wrote
+  | del(.env.GH_TOKEN, .env.GITHUB_TOKEN, .env.GIT_SSH_COMMAND)
 {{- if not (and (hasKey . "personal") .personal) }}
   # drop the personal-only keys a previous personal render left behind
   | del(.advisorModel)
-  | del(.env.GIT_SSH_COMMAND)
   | del(.enabledPlugins["codex-image@codex-image-in-cc"])
   | del(.extraKnownMarketplaces["codex-image-in-cc"])
 {{- end }}'

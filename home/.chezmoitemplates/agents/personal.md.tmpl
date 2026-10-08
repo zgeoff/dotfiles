@@ -13,7 +13,7 @@
   | `cloud` | `cloud` (rw) | `~/projects/cloud/.claude/settings.local.json` |
 
   `vers-ci` holds only what the vers infra-drift CI job reads. `zgeoff` holds the items every agent
-  shares, such as `repo-sync-github-app` and the `zgeoff-agent` login, token and SSH key. `cloud` holds
+  shares, such as `repo-sync-github-app`. `cloud` holds
   the zgeoff/cloud infra secrets. My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
@@ -28,16 +28,21 @@
 
 {{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/assistant.md.age" | include | decrypt | trim }}
 
-# GitHub identity
+# GitHub
 
-- Agents act on GitHub as the machine user `zgeoff-agent`: a Write collaborator with no admin rights
-  and no ruleset bypass. `GH_TOKEN`, `GITHUB_TOKEN` and `GIT_SSH_COMMAND` in Claude's settings point at it.
-- Every zgeoff repo has the `main protection` ruleset: a direct push to `main` fails by design, so open
-  a PR. atc and vers need my approving review.
-- Never switch to my own login to get past a rule: no `env -u GH_TOKEN`, `gh auth switch`,
-  `~/.ssh/id_ed25519` or `gh pr merge --admin`. Ask me instead.
-- New repo: `agent-onboard <repo> [--review]` grants the bot access and applies the ruleset. New machine:
-  `agent-identity` writes the bot's key and token from 1Password.
+- Agents act on GitHub with my own `zgeoff` login and keys.
+- Open a PR rather than pushing to `main`, and never use `gh pr merge --admin` or any other ruleset
+  bypass.
+
+# Working on Linear tasks
+
+When working on a Linear task, include its issue ID in the PR description with an explicit relationship:
+
+- Fixes GEO-123: merging satisfies the task’s completion criteria.
+- Contributes to GEO-123: delivers part of the task; work remains.
+- Related to GEO-123: context only; no status changes.
+
+Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, deployment or acceptance work remains.
 
 # Stack taste
 
