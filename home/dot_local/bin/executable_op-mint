@@ -4,7 +4,7 @@
 # the `env.OP_SERVICE_ACCOUNT_TOKEN` of the matching settings file. Each profile
 # gets only the vaults it needs; project settings override the global one.
 #
-#   op-mint <profile>     # global | vers | cloud
+#   op-mint <profile>     # global | vers | cloud | nixie
 #   op-mint --list
 
 set -eu
@@ -14,6 +14,7 @@ profile_vaults() {
     global) echo "--vault zgeoff:read_items,write_items" ;;
     vers) echo "--vault vers:read_items,write_items --vault vers-ci:read_items" ;;
     cloud) echo "--vault cloud:read_items,write_items" ;;
+    nixie) echo "--vault nixie:read_items,write_items" ;;
     *) return 1 ;;
   esac
 }
@@ -21,13 +22,15 @@ profile_vaults() {
 profile_settings() {
   case "$1" in
     global) echo "$HOME/.claude/settings.json" ;;
+    # The nixie repo still lives at ~/projects/assistant until it is renamed.
+    nixie) echo "$HOME/projects/assistant/.claude/settings.local.json" ;;
     *) echo "$HOME/projects/$1/.claude/settings.local.json" ;;
   esac
 }
 
 op_mint() {
   if [ "${1:-}" = "--list" ]; then
-    for p in global vers cloud; do
+    for p in global vers cloud nixie; do
       printf '%-8s %s\n         -> %s\n' "$p" "$(profile_vaults "$p")" "$(profile_settings "$p")"
     done
     return
