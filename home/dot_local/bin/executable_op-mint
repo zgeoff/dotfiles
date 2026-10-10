@@ -22,8 +22,6 @@ profile_vaults() {
 profile_settings() {
   case "$1" in
     global) echo "$HOME/.claude/settings.json" ;;
-    # The nixie repo still lives at ~/projects/assistant until it is renamed.
-    nixie) echo "$HOME/projects/assistant/.claude/settings.local.json" ;;
     *) echo "$HOME/projects/$1/.claude/settings.local.json" ;;
   esac
 }
