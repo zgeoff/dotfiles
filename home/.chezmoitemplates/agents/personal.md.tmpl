@@ -3,7 +3,8 @@
 
 # Credentials
 
-Check where you run first: `test -n "$OP_CONNECT_HOST" && echo imp || echo local`.
+Check where you run first: `test -n "$OP_CONNECT_HOST" && echo imp || echo local`. In both places, never
+echo a token or a secret value.
 
 ## Local PC (1Password, scoped tokens per repo)
 
@@ -27,7 +28,6 @@ Check where you run first: `test -n "$OP_CONNECT_HOST" && echo imp || echo local
   `~/.local/bin/op-mint`; `op-mint --list` shows the profiles). Don't ask me to sign in the Linux CLI;
   `op-mint` mints through `op-win`, which reaches my Windows 1Password app; approving may need a tap.
   A new profile or vault means editing `op-mint`, not minting by hand.
-- Never echo a token.
 - Each mint makes a new `claude-<profile>-<date>` service account — prune stale ones in the
   1Password web UI occasionally.
 
