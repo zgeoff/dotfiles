@@ -1,7 +1,11 @@
 {{- /* Private rules live in personal.md.age and assistant.md.age (`chezmoi encrypt`); this file is public. */ -}}
 {{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/personal.md.age" | include | decrypt | trim }}
 
-# 1Password (scoped tokens per repo)
+# Credentials
+
+Check where you run first: `test -n "$OP_CONNECT_HOST" && echo imp || echo local`.
+
+## Local PC (1Password, scoped tokens per repo)
 
 - Use the Linux `op` CLI with a service-account token, scoped per profile to its own vaults. A repo's
   `.claude/settings.local.json` overrides the global one:
@@ -26,6 +30,15 @@
 - Never echo a token.
 - Each mint makes a new `claude-<profile>-<date>` service account — prune stale ones in the
   1Password web UI occasionally.
+
+## Cloud (imp)
+
+- No `op-mint`, `op-win` or service-account token exists here. Don't look for one.
+- `op read op://imp/<item>/<field>` works through 1Password Connect, for the `imp` vault only.
+- Brokered APIs need no key in the guest: the host adds the credential on the way out. Today that
+  covers GitHub and the model gateways; call them directly.
+- If a secret you need isn't reachable, report the gap. Never ask me to paste a secret into the
+  session.
 
 {{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/assistant.md.age" | include | decrypt | trim }}
 
