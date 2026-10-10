@@ -11,10 +11,11 @@
   | `global` | `zgeoff` (rw) | `~/.claude/settings.json` |
   | `vers` | `vers` (rw), `vers-ci` (r) | `~/projects/vers/.claude/settings.local.json` |
   | `cloud` | `cloud` (rw) | `~/projects/cloud/.claude/settings.local.json` |
+  | `imp` | `imp-e2e` (rw) | `~/projects/imp/.claude/settings.local.json` |
 
   `vers-ci` holds only what the vers infra-drift CI job reads. `zgeoff` holds the items every agent
   shares, such as `repo-sync-github-app`. `cloud` holds
-  the zgeoff/cloud infra secrets. My personal vaults are reachable only through `op-win`, with my approval.
+  the zgeoff/cloud infra secrets. `imp-e2e` holds imp's e2e tailnet OAuth client. My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
   `OP_SERVICE_ACCOUNT_TOKEN=$(jq -r .env.OP_SERVICE_ACCOUNT_TOKEN <settings file>) op …`.
