@@ -48,13 +48,13 @@ op_mint() {
   if [ "$profile" != global ] && [ "$profile" != orchestrator ]; then
     repo="$(dirname "$(dirname "$settings")")"
     [ -d "$repo/.git" ] || { echo "op-mint: $repo is not a git repo" >&2; exit 1; }
-    mkdir -p "$(dirname "$settings")"
     git -C "$repo" check-ignore -q "$settings" || {
       echo "op-mint: $settings is not gitignored; add .claude/settings.local.json to $repo/.gitignore" >&2
       exit 1
     }
   fi
 
+  mkdir -p "$(dirname "$settings")"
   # Mint with the human account: op-win reaches the Windows app from WSL.
   if command -v op-win >/dev/null 2>&1; then op_bin=op-win; else op_bin=op; fi
   name="claude-$profile-$(date +%Y%m%d)"
