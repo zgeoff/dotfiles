@@ -208,6 +208,9 @@ async function reset(args) {
   if (unknown.length > 0) {
     fail(`reset: unknown argument ${unknown[0]}\nusage: nixie reset [--confirm]`);
   }
+  if (confirm && args.includes('--dry-run')) {
+    fail('reset: pick one of --confirm and --dry-run\nusage: nixie reset [--confirm]');
+  }
 
   const config = loadConfig();
   const packagePath = join(config.cloudDir, 'package.json');
