@@ -1,0 +1,283 @@
+#!/usr/bin/env bun
+
+// nixie: small helpers for the nixie deployment (enrol a device, check it, read its log, reset it).
+// The host, domain, namespace and cloud checkout come from ~/.config/nixie/cli.toml
+// (or $NIXIE_CLI_CONFIG); `nixie help` says how to create it.
+//
+// Add a command: one entry in `commands` below, with a summary and an async run(args).
+
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const home = homedir();
+const configPath = process.env.NIXIE_CLI_CONFIG || join(home, '.config/nixie/cli.toml');
+const examplePath = join(home, '.config/nixie/cli.example.toml');
+
+const useColour = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code) => (text) => (useColour ? `\x1b[${code}m${text}\x1b[0m` : text);
+const green = paint('32');
+const red = paint('31');
+const yellow = paint('33');
+const dim = paint('2');
+const bold = paint('1');
+
+class Failure extends Error {}
+
+const fail = (message) => {
+  throw new Failure(message);
+};
+
+// ---------------------------------------------------------------------------------------- config
+
+const requiredKeys = ['host', 'domain', 'namespace', 'cloud_dir'];
+
+function loadConfig() {
+  if (!existsSync(configPath)) {
+    fail(
+      [
+        `no config at ${configPath}`,
+        '',
+        'create it from the example, then fill in the placeholders:',
+        `  mkdir -p ${join(home, '.config/nixie')}`,
+        `  cp ${examplePath} ${configPath}`,
+        '',
+        'keys: host (ssh destination), domain (nixie web name), namespace (k8s namespace),',
+        '      cloud_dir (checkout with the nixie:reset script); optional pod, container',
+      ].join('\n'),
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = Bun.TOML.parse(readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    fail(`cannot parse ${configPath}: ${error.message}`);
+  }
+
+  const missing = requiredKeys.filter((key) => typeof parsed[key] !== 'string' || parsed[key] === '');
+  if (missing.length > 0) {
+    fail(`${configPath} is missing ${missing.join(', ')} (see ${examplePath})`);
+  }
+
+  return {
+    host: parsed.host,
+    domain: parsed.domain,
+    namespace: parsed.namespace,
+    cloudDir: parsed.cloud_dir.replace(/^~(?=\/|$)/, home),
+    pod: parsed.pod || 'nixie-0',
+    container: parsed.container || 'nixie',
+  };
+}
+
+// ---------------------------------------------------------------------------------------- remote
+
+// ssh joins its arguments into one remote shell line, so every value goes in single quotes
+const shq = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
+
+const kubectl = (config, ...args) =>
+  ['k3s', 'kubectl', '-n', shq(config.namespace), ...args].join(' ');
+
+const podExec = (config, ...args) =>
+  kubectl(config, 'exec', shq(config.pod), '-c', shq(config.container), '--', ...args);
+
+// runs one remote line and returns its output
+async function capture(config, line) {
+  const proc = Bun.spawn(['ssh', config.host, line], {
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { stdout, stderr, exitCode };
+}
+
+// runs one remote line on this terminal and returns its exit code
+async function attach(config, line, { tty = false } = {}) {
+  const proc = Bun.spawn(['ssh', ...(tty ? ['-t'] : []), config.host, line], {
+    stdio: ['inherit', 'inherit', 'inherit'],
+  });
+  return proc.exited;
+}
+
+// ---------------------------------------------------------------------------------------- enrol
+
+// enrol-code prints the code, then "The code works once, until <ISO time>."
+export function parseEnrolment(stdout) {
+  const lines = stdout.trim().split('\n');
+  const code = lines[0]?.trim();
+  const iso = stdout.match(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/)?.[0];
+  const expiresAt = iso ? new Date(iso) : undefined;
+  return code ? { code, expiresAt } : undefined;
+}
+
+async function copyToClipboard(text) {
+  if (!Bun.which('clip')) {
+    return false;
+  }
+  try {
+    const proc = Bun.spawn(['clip'], { stdin: new Blob([text]), stdout: 'ignore', stderr: 'ignore' });
+    return (await proc.exited) === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function enrol() {
+  const config = loadConfig();
+  const result = await capture(config, podExec(config, 'bun', '/app/main.js', 'enrol-code'));
+  if (result.exitCode !== 0) {
+    fail(`enrol-code failed (exit ${result.exitCode}): ${result.stderr.trim()}`);
+  }
+
+  const enrolment = parseEnrolment(result.stdout);
+  if (!enrolment) {
+    fail(`enrol-code printed no code:\n${result.stdout}`);
+  }
+
+  const copied = await copyToClipboard(enrolment.code);
+  console.log(`  ${bold(enrolment.code)}${copied ? dim('  (copied)') : ''}`);
+  console.log(`  open   https://${config.domain}`);
+  if (enrolment.expiresAt) {
+    const minutes = Math.round((enrolment.expiresAt - Date.now()) / 60_000);
+    console.log(`  until  ${enrolment.expiresAt.toLocaleString()} ${dim(`(${minutes} min, works once)`)}`);
+  } else {
+    console.log(dim(result.stdout.trim().split('\n').slice(1).join('\n')));
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------------------- status
+
+// fetched inside the pod, where the server answers on loopback
+const readyScript =
+  'const r = await fetch("http://127.0.0.1:8080/health/ready"); console.log(JSON.stringify({ status: r.status, body: await r.text() }))';
+
+async function status() {
+  const config = loadConfig();
+  const result = await capture(config, podExec(config, 'bun', '-e', shq(readyScript)));
+  if (result.exitCode !== 0) {
+    console.log(`${red('✗')} pod      ${result.stderr.trim() || `exec failed (exit ${result.exitCode})`}`);
+    return 1;
+  }
+
+  let report;
+  try {
+    const { body } = JSON.parse(result.stdout.trim().split('\n').at(-1));
+    report = JSON.parse(body);
+  } catch {
+    fail(`unexpected readiness output:\n${result.stdout}`);
+  }
+
+  const parts = Object.entries(report.parts ?? {});
+  const width = Math.max(0, ...parts.map(([name]) => name.length));
+  for (const [name, part] of parts) {
+    const mark = part.isReady ? green('✓') : red('✗');
+    const reason = part.reason ? `  ${yellow(part.reason)}` : '';
+    console.log(`${mark} ${name.padEnd(width)}  ${part.isReady ? green('ready') : red('unready')}${reason}`);
+  }
+  console.log(dim(`nixie is ${report.status}`));
+  return report.status === 'ready' ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------------------- logs
+
+async function logs(args) {
+  const follow = args.includes('-f') || args.includes('--follow');
+  const unknown = args.filter((arg) => !['-f', '--follow'].includes(arg));
+  if (unknown.length > 0) {
+    fail(`logs: unknown argument ${unknown[0]}\nusage: nixie logs [-f]`);
+  }
+
+  const config = loadConfig();
+  const line = kubectl(config, 'logs', shq(config.pod), '-c', shq(config.container), ...(follow ? ['-f'] : []));
+  // a remote tty makes Ctrl-C stop kubectl on the host too
+  return attach(config, line, { tty: follow && process.stdin.isTTY });
+}
+
+// ---------------------------------------------------------------------------------------- reset
+
+// The reset lives in the cloud checkout; this only picks the flag and asks before --confirm.
+async function reset(args) {
+  const confirm = args.includes('--confirm');
+  const unknown = args.filter((arg) => !['--confirm', '--dry-run'].includes(arg));
+  if (unknown.length > 0) {
+    fail(`reset: unknown argument ${unknown[0]}\nusage: nixie reset [--confirm]`);
+  }
+  if (confirm && args.includes('--dry-run')) {
+    fail('reset: pick one of --confirm and --dry-run\nusage: nixie reset [--confirm]');
+  }
+
+  const config = loadConfig();
+  const packagePath = join(config.cloudDir, 'package.json');
+  if (!existsSync(packagePath)) {
+    fail(`no package.json in cloud_dir ${config.cloudDir}`);
+  }
+  if (!JSON.parse(readFileSync(packagePath, 'utf8')).scripts?.['nixie:reset']) {
+    fail(`${config.cloudDir} has no nixie:reset script; pull its main branch`);
+  }
+
+  if (confirm) {
+    if (!process.stdin.isTTY) {
+      fail('reset: --confirm needs a terminal to type "reset" in; nothing changed');
+    }
+    console.log(red('this deletes all of nixie\'s data and signs out every device; it cannot be undone'));
+    const answer = prompt('type "reset" to go on:');
+    if (answer?.trim() !== 'reset') {
+      fail('reset: not confirmed; nothing changed');
+    }
+  }
+
+  const proc = Bun.spawn(['bun', 'run', 'nixie:reset', confirm ? '--confirm' : '--dry-run'], {
+    cwd: config.cloudDir,
+    stdio: ['inherit', 'inherit', 'inherit'],
+  });
+  return proc.exited;
+}
+
+// ---------------------------------------------------------------------------------------- help
+
+function help() {
+  const width = Math.max(...Object.values(commands).map((command) => command.usage.length));
+  console.log(`${bold('✿ nixie')} ${dim('· little helpers for the nixie deployment')}\n`);
+  for (const command of Object.values(commands)) {
+    console.log(`  nixie ${command.usage.padEnd(width)}  ${command.summary}`);
+  }
+  console.log(`\n${dim(`config: ${configPath}${existsSync(configPath) ? '' : ' (missing: run any command to see how to create it)'}`)}`);
+  return 0;
+}
+
+const commands = {
+  enrol: { usage: 'enrol', summary: 'mint an enrolment code and copy it to the clipboard', run: enrol },
+  status: { usage: 'status', summary: 'show each readiness part', run: status },
+  logs: { usage: 'logs [-f]', summary: "print nixie's pod log; -f follows it", run: logs },
+  reset: { usage: 'reset [--confirm]', summary: 'dry-run the factory reset; --confirm runs it', run: reset },
+  help: { usage: 'help', summary: 'show this list', run: help },
+};
+
+async function main(argv) {
+  const [name = 'help', ...args] = argv;
+  const command = commands[name] ?? (['-h', '--help'].includes(name) ? commands.help : undefined);
+  if (!command) {
+    console.error(`nixie: unknown command ${name}\n`);
+    help();
+    return 2;
+  }
+  try {
+    return await command.run(args);
+  } catch (error) {
+    if (error instanceof Failure) {
+      console.error(`${red('nixie:')} ${error.message}`);
+      return 1;
+    }
+    throw error;
+  }
+}
+
+if (import.meta.main) {
+  process.exitCode = await main(process.argv.slice(2));
+}

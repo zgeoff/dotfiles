@@ -1,0 +1,18 @@
+# Example config for the `nixie` CLI. Copy it to ~/.config/nixie/cli.toml and fill in the
+# placeholders; cli.toml stays local and out of this repo.
+
+# ssh destination of the k3s host that runs nixie
+host = "root@<host>"
+
+# the name nixie's web app answers on, without https://
+domain = "<nixie domain>"
+
+# the Kubernetes namespace nixie runs in
+namespace = "<namespace>"
+
+# the infrastructure checkout whose `bun run nixie:reset` does the factory reset
+cloud_dir = "~/projects/<cloud checkout>"
+
+# optional: the pod and container, if they differ from these defaults
+# pod = "nixie-0"
+# container = "nixie"
