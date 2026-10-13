@@ -239,6 +239,133 @@ async function reset(args) {
   return proc.exited;
 }
 
+// ---------------------------------------------------------------------------------------- memory
+
+// The pod's memory-* host commands answer through nixie's control socket and print one JSON line.
+// The proposed text is printed here, to this terminal only; nothing logs it.
+async function runMemoryCommand(config, ...args) {
+  const result = await capture(config, podExec(config, 'bun', '/app/main.js', ...args.map(shq)));
+  const lastLine = result.stdout.trim().split('\n').at(-1) ?? '';
+  if (result.exitCode !== 0) {
+    fail(`${args[0]} failed (exit ${result.exitCode}): ${readFailure(lastLine) ?? result.stderr.trim()}`);
+  }
+  try {
+    return JSON.parse(lastLine);
+  } catch {
+    fail(`${args[0]} printed no JSON:\n${result.stdout}`);
+  }
+}
+
+// a failed host command logs command.failed with the server's reason
+function readFailure(line) {
+  try {
+    return JSON.parse(line).message;
+  } catch {
+    return line || undefined;
+  }
+}
+
+export function formatAge(fromISO, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - new Date(fromISO)) / 60_000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  return `${minutes}m`;
+}
+
+export function formatKind(proposal) {
+  const target = proposal.targetVersion === null ? 'new item' : `v${proposal.targetVersion}`;
+  return `${proposal.operation} ${target}${proposal.isPinned ? ' (pinned)' : ''}`;
+}
+
+export function formatProposal(proposal, now = Date.now()) {
+  const lines = [
+    `${bold(proposal.proposalID)}`,
+    `  kind    ${formatKind(proposal)}`,
+    `  reason  ${proposal.reason}`,
+    `  age     ${formatAge(proposal.createdAt, now)} ${dim(`(lapses in ${formatAge(new Date(now).toISOString(), Date.parse(proposal.lapseAt))})`)}`,
+    `  source  ${proposal.origin}, ${proposal.source}`,
+    ...proposal.text.split('\n').map((line, index) => `  ${index === 0 ? 'text   ' : '       '} ${line}`),
+  ];
+  if (proposal.quote !== null) {
+    lines.push(...proposal.quote.split('\n').map((line, index) => `  ${index === 0 ? 'quote  ' : '       '} ${dim(line)}`));
+  }
+  return lines.join('\n');
+}
+
+// an ID or a unique prefix of one, as pending prints it
+export function findProposal(pending, id) {
+  const matches = pending.filter((proposal) => proposal.proposalID.startsWith(id));
+  if (matches.length === 0) {
+    fail(`no pending memory proposal ${id}; run nixie memory pending`);
+  }
+  if (matches.length > 1) {
+    fail(`${id} matches ${matches.length} pending proposals; give more of the ID`);
+  }
+  return matches[0];
+}
+
+async function memoryPending(config) {
+  const pending = await runMemoryCommand(config, 'memory-pending');
+  if (pending.length === 0) {
+    console.log(dim('no memory proposal waits for an answer'));
+    return 0;
+  }
+  console.log(pending.map((proposal) => formatProposal(proposal)).join('\n\n'));
+  console.log(dim(`\n${pending.length} pending; answer with nixie memory approve|reject <id>`));
+  return 0;
+}
+
+// The answer binds to the action hash of the proposal shown here, so a proposal that changed since
+// this listing refuses it and nothing applies.
+async function memoryAnswer(config, answer, args) {
+  const yes = args.includes('-y') || args.includes('--yes');
+  const ids = args.filter((arg) => !['-y', '--yes'].includes(arg));
+  if (ids.length !== 1) {
+    fail(`usage: nixie memory ${answer} <id> [--yes]`);
+  }
+
+  const pending = await runMemoryCommand(config, 'memory-pending');
+  const proposal = findProposal(pending, ids[0]);
+  console.log(formatProposal(proposal));
+  if (!yes) {
+    if (!process.stdin.isTTY) {
+      fail(`memory ${answer}: needs a terminal to confirm, or --yes; nothing changed`);
+    }
+    const reply = prompt(`\n${answer} this proposal? [y/N]`);
+    if (!['y', 'yes'].includes(reply?.trim().toLowerCase())) {
+      fail(`memory ${answer}: not confirmed; nothing changed`);
+    }
+  }
+
+  const result = await runMemoryCommand(
+    config,
+    `memory-${answer}`,
+    proposal.proposalID,
+    '--hash',
+    proposal.actionHash,
+  );
+  const outcome = answer === 'approve' ? `approved as ${result.itemID} v${result.version}` : 'rejected';
+  console.log(`${green('✓')} ${outcome}`);
+  return 0;
+}
+
+async function memory(args) {
+  const [sub, ...rest] = args;
+  const usage = 'usage: nixie memory pending | approve <id> [--yes] | reject <id> [--yes]';
+  if (sub === 'pending') {
+    if (rest.length > 0) {
+      fail(`memory pending: unknown argument ${rest[0]}\n${usage}`);
+    }
+    return memoryPending(loadConfig());
+  }
+  if (sub === 'approve' || sub === 'reject') {
+    return memoryAnswer(loadConfig(), sub, rest);
+  }
+  fail(sub === undefined ? usage : `memory: unknown subcommand ${sub}\n${usage}`);
+}
+
 // ---------------------------------------------------------------------------------------- help
 
 function help() {
@@ -255,6 +382,11 @@ const commands = {
   enrol: { usage: 'enrol', summary: 'mint an enrolment code and copy it to the clipboard', run: enrol },
   status: { usage: 'status', summary: 'show each readiness part', run: status },
   logs: { usage: 'logs [-f]', summary: "print nixie's pod log; -f follows it", run: logs },
+  memory: {
+    usage: 'memory pending|approve|reject',
+    summary: 'list pending memory proposals, or approve or reject one by id',
+    run: memory,
+  },
   reset: { usage: 'reset [--confirm]', summary: 'dry-run the factory reset; --confirm runs it', run: reset },
   help: { usage: 'help', summary: 'show this list', run: help },
 };
