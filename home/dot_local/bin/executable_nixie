@@ -279,24 +279,41 @@ export function formatKind(proposal) {
   return `${proposal.operation} ${target}${proposal.isPinned ? ' (pinned)' : ''}`;
 }
 
-export function formatProposal(proposal, now = Date.now()) {
-  const lines = [
-    `${bold(proposal.proposalID)}`,
-    `  kind    ${formatKind(proposal)}`,
-    `  reason  ${proposal.reason}`,
-    `  age     ${formatAge(proposal.createdAt, now)} ${dim(`(lapses in ${formatAge(new Date(now).toISOString(), Date.parse(proposal.lapseAt))})`)}`,
-    `  source  ${proposal.origin}, ${proposal.source}`,
-    ...proposal.text.split('\n').map((line, index) => `  ${index === 0 ? 'text   ' : '       '} ${line}`),
-  ];
-  if (proposal.quote !== null) {
-    lines.push(...proposal.quote.split('\n').map((line, index) => `  ${index === 0 ? 'quote  ' : '       '} ${dim(line)}`));
-  }
-  return lines.join('\n');
+// Proposal text can come from untrusted content, so a control character prints escaped: an escape
+// sequence must not redraw the text the confirmation shows. Newlines stay.
+export function escapeControls(value) {
+  return String(value).replace(
+    /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g,
+    (char) => `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`,
+  );
 }
 
-// an ID or a unique prefix of one, as pending prints it
-export function findProposal(pending, id) {
-  const matches = pending.filter((proposal) => proposal.proposalID.startsWith(id));
+export function formatProposal(proposal, now = Date.now()) {
+  const lapsesIn = formatAge(new Date(now).toISOString(), Date.parse(proposal.lapseAt));
+  const block = (label, value, style = (line) => line) =>
+    escapeControls(value)
+      .split('\n')
+      .map((line, index) => `  ${index === 0 ? label.padEnd(7) : '       '} ${style(line)}`);
+  return [
+    `${bold(escapeControls(proposal.proposalID))}`,
+    `  kind    ${escapeControls(formatKind(proposal))}`,
+    `  reason  ${escapeControls(proposal.reason)}`,
+    `  age     ${formatAge(proposal.createdAt, now)} ${dim(`(lapses in ${lapsesIn})`)}`,
+    `  source  ${escapeControls(`${proposal.origin}, ${proposal.source}`)}`,
+    ...block('text', proposal.text),
+    ...(proposal.quote === null ? [] : block('quote', proposal.quote, dim)),
+  ].join('\n');
+}
+
+// An ID, or with a confirmation a unique prefix of at least 8 characters. --yes takes the full ID,
+// because a prefix could match a proposal that arrived after the listing the user read.
+export function findProposal(pending, id, { exact = false } = {}) {
+  if (exact ? id.length < 36 : id.length < 8) {
+    fail(exact ? '--yes takes the full proposal ID' : 'give at least 8 characters of the proposal ID');
+  }
+  const matches = pending.filter((proposal) =>
+    exact ? proposal.proposalID === id : proposal.proposalID.startsWith(id),
+  );
   if (matches.length === 0) {
     fail(`no pending memory proposal ${id}; run nixie memory pending`);
   }
@@ -327,7 +344,7 @@ async function memoryAnswer(config, answer, args) {
   }
 
   const pending = await runMemoryCommand(config, 'memory-pending');
-  const proposal = findProposal(pending, ids[0]);
+  const proposal = findProposal(pending, ids[0], { exact: yes });
   console.log(formatProposal(proposal));
   if (!yes) {
     if (!process.stdin.isTTY) {
