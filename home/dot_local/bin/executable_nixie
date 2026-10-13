@@ -434,11 +434,15 @@ export function formatItem(item) {
   return [`${bold(escapeControls(item.itemID))} ${escapeControls(item.state)}`, ...versions].join('\n');
 }
 
-// <itemID> or <itemID>@<version>; an item ID is the full ID that `memory show` prints
-export function parseItemTarget(target) {
+// <itemID> or <itemID>@<version>; an item ID is the full ID that `memory show` prints. show, pin
+// and unpin act on the item and not a version, so they take no version.
+export function parseItemTarget(target, { takesVersion = true } = {}) {
   const match = /^([0-9a-f-]{36})(?:@([1-9]\d*))?$/.exec(target ?? '');
   if (!match) {
-    fail('give the full item ID, or <item ID>@<version>');
+    fail(takesVersion ? 'give the full item ID, or <item ID>@<version>' : 'give the full item ID');
+  }
+  if (!takesVersion && match[2] !== undefined) {
+    fail('this command acts on the item, not a version: give the item ID alone');
   }
   return { itemID: match[1], version: match[2] === undefined ? undefined : Number(match[2]) };
 }
@@ -448,7 +452,7 @@ async function memoryShow(config, args) {
   if (positionals.length !== 1) {
     fail('usage: nixie memory show <item ID>');
   }
-  const { itemID } = parseItemTarget(positionals[0]);
+  const { itemID } = parseItemTarget(positionals[0], { takesVersion: false });
   console.log(formatItem(await runMemoryCommand(config, 'memory-show', itemID)));
   return 0;
 }
@@ -491,7 +495,7 @@ async function memoryPin(config, isPinned, args) {
   if (positionals.length !== 1) {
     fail(`usage: nixie memory ${isPinned ? 'pin' : 'unpin'} <item ID>`);
   }
-  const { itemID } = parseItemTarget(positionals[0]);
+  const { itemID } = parseItemTarget(positionals[0], { takesVersion: false });
   await runMemoryCommand(config, `memory-${isPinned ? 'pin' : 'unpin'}`, itemID);
   console.log(`${green('✓')} ${isPinned ? 'pinned' : 'unpinned'} ${itemID}`);
   return 0;
