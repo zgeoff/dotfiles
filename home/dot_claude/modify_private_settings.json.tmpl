@@ -41,7 +41,8 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
   "editorMode": "vim",
   "skipWorkflowUsageWarning": true,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "promptSuggestionEnabled": false
 {{- if and (hasKey . "personal") .personal }},
   "advisorModel": "fable",
   "enabledPlugins": {
