@@ -6,6 +6,8 @@ import {
   Failure,
   editInEditor,
   formatReviewSummary,
+  reviewDiffChanges,
+  reviewEverything,
   reviewProposals,
 } from '../home/dot_local/bin/executable_nixie';
 
@@ -123,6 +125,103 @@ describe('nixie memory review', () => {
 
     expect(counts).toMatchObject({ approved: 0, held: 1 });
     expect(lines.at(-1)).toContain('held: it closely matches item-9 v2');
+  });
+});
+
+// An invented change in the shape `memory-diff` prints.
+const change = (n, kind, text) => ({
+  changeID: `${String(n).repeat(8)}-1111-4000-8000-000000000000`,
+  kind,
+  inputs: [{ itemID: `item-${n}`, version: 1, text: 'Plays the oboe', isCurrent: true }],
+  text,
+  reason: 'tidier',
+  source: 'owner',
+  actionHash: `change-hash-${n}`,
+  lapseAt: '2026-01-08T00:00:00.000Z',
+});
+
+// Answers the diff commands the way the server would: an approval returns one outcome per change,
+// refused for a hash in staleHashes, as a change whose item moved on is.
+function diffServer(sent, staleHashes = []) {
+  return async (...args) => {
+    sent.push(args);
+    if (args[0] !== 'memory-diff-approve') {
+      return {};
+    }
+    const [changeID, hash] = args[1].split('=');
+    return {
+      outcomes: [
+        staleHashes.includes(hash)
+          ? { changeID, status: 'refused', code: 'STALE_VERSION' }
+          : { changeID, status: 'applied', versions: [{ itemID: 'item-1', version: 2 }] },
+      ],
+    };
+  };
+}
+
+describe('nixie memory review, the weekly memory diff', () => {
+  test('approve, reject and skip each send the right command; e takes no edit and asks again', async () => {
+    const changes = [change(1, 'rewrite', 'Plays the oboe well'), change(2, 'retire', null), change(3, 'retire', null)];
+    const sent = [];
+    const lines = [];
+    const keys = ['e', 'a', 'r', 's'];
+    const counts = await reviewDiffChanges(changes, {
+      run: diffServer(sent),
+      readKey: async () => keys.shift() ?? 'q',
+      log: (line) => lines.push(line),
+    });
+
+    expect(sent).toEqual([
+      ['memory-diff-approve', `${changes[0].changeID}=change-hash-1`],
+      ['memory-diff-reject', changes[1].changeID, '--hash', 'change-hash-2'],
+    ]);
+    expect(lines.some((line) => line.includes('takes no edit'))).toBe(true);
+    expect(formatReviewSummary(counts)).toBe('approved 1, edited 0, rejected 1, skipped 1');
+  });
+
+  test('a change whose item moved on is refused, reported, and the loop goes on', async () => {
+    const changes = [change(1, 'retire', null), change(2, 'retire', null)];
+    const sent = [];
+    const lines = [];
+    const counts = await reviewDiffChanges(changes, {
+      run: diffServer(sent, ['change-hash-1']),
+      readKey: async () => 'a',
+      log: (line) => lines.push(line),
+    });
+
+    expect(sent.length).toBe(2);
+    expect(lines.some((line) => line.includes('an item moved on since the diff read it'))).toBe(true);
+    expect(counts).toMatchObject({ approved: 1, refused: 1 });
+  });
+
+  test('one review walks the proposals, then the diff, and adds the counts', async () => {
+    const sent = [];
+    const lines = [];
+    const keys = ['a', 'r'];
+    const run = async (...args) =>
+      args[0] === 'memory-approve'
+        ? (sent.push(args), { status: 'applied', itemID: 'item-1', version: 1 })
+        : diffServer(sent)(...args);
+    const counts = await reviewEverything([proposal(1, 'Prefers tea to coffee')], [change(2, 'retire', null)], {
+      run,
+      readKey: async () => keys.shift() ?? 'q',
+      editText: async () => undefined,
+      log: (line) => lines.push(line),
+    });
+
+    expect(sent.map((args) => args[0])).toEqual(['memory-approve', 'memory-diff-reject']);
+    expect(lines.filter((line) => line.includes('pending'))).toHaveLength(2);
+    expect(formatReviewSummary(counts)).toBe('approved 1, edited 0, rejected 1, skipped 0');
+  });
+
+  test('q during the proposals leaves the diff unanswered too', async () => {
+    const counts = await reviewEverything(
+      [proposal(1, 'Prefers tea to coffee')],
+      [change(2, 'retire', null), change(3, 'retire', null)],
+      { run: async () => ({}), readKey: async () => 'q', editText: async () => undefined, log: () => {} },
+    );
+
+    expect(formatReviewSummary(counts)).toBe('approved 0, edited 0, rejected 0, skipped 0; quit with 3 unanswered');
   });
 });
 

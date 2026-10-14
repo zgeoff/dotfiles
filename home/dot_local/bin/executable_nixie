@@ -628,6 +628,9 @@ async function readTerminalKey(question) {
   return ['\x03', '\x04', '\x1b'].includes(key) ? 'q' : key.toLowerCase();
 }
 
+// Reviews everything that waits for an answer in one loop and one key scheme: the pending proposals
+// first, then the changes of the weekly memory diff. A quit during the proposals leaves the diff
+// unanswered too.
 async function memoryReview(config, args) {
   if (args.length > 0) {
     fail(`memory review: unknown argument ${args[0]}\n${memoryUsage}`);
@@ -636,13 +639,15 @@ async function memoryReview(config, args) {
     fail('memory review: needs a terminal to read keys; use nixie memory approve|reject <id> --yes');
   }
   const pending = await runMemoryCommand(config, 'memory-pending');
-  if (pending.length === 0) {
-    console.log(dim('no memory proposal waits for an answer'));
+  const diff = await runMemoryCommand(config, 'memory-diff');
+  const changes = diff?.changes ?? [];
+  if (pending.length === 0 && changes.length === 0) {
+    console.log(dim('no memory proposal or diff change waits for an answer'));
     return 0;
   }
-  console.log(dim(`${pending.length} pending`));
-  const counts = await reviewProposals(pending, {
-    run: (...args) => runMemoryCommand(config, ...args),
+  const run = (...args) => runMemoryCommand(config, ...args);
+  const counts = await reviewEverything(pending, changes, {
+    run,
     readKey: readTerminalKey,
     editText: (text) => editInEditor(text),
   });
@@ -650,10 +655,196 @@ async function memoryReview(config, args) {
   return counts.refused > 0 ? 1 : 0;
 }
 
+// The proposals, then the diff's changes, each under its heading, with the counts of both added.
+export async function reviewEverything(pending, changes, { run, readKey, editText, log = console.log }) {
+  let proposals = null;
+  if (pending.length > 0) {
+    log(bold(`memory proposals · ${pending.length} pending`));
+    proposals = await reviewProposals(pending, { run, readKey, editText, log });
+    if (proposals.unanswered > 0) {
+      return { ...proposals, unanswered: proposals.unanswered + changes.length };
+    }
+  }
+  if (changes.length === 0) {
+    return proposals;
+  }
+  log(`${proposals === null ? '' : '\n'}${bold(`memory diff · ${changes.length} pending`)}`);
+  return addCounts(proposals, await reviewDiffChanges(changes, { run, readKey, log }));
+}
+
+function addCounts(first, second) {
+  if (first === null || second === null) {
+    return first ?? second;
+  }
+  return Object.fromEntries(Object.keys(first).map((name) => [name, first[name] + second[name]]));
+}
+
+// Each answer binds to the action hash of the change shown and is its own approval, so a change
+// that moved on applies nothing, prints why, and the loop goes on. A change from the diff takes no
+// edit: e says so and asks again.
+export async function reviewDiffChanges(changes, { run, readKey, log = console.log }) {
+  const answer = async (action, change) => {
+    if (action === 'skip') {
+      log(dim('skipped'));
+      return 'skipped';
+    }
+    if (action === 'edit') {
+      log(yellow('a change from the diff takes no edit; approve, reject or skip it'));
+      return 'again';
+    }
+    if (action === 'reject') {
+      await run('memory-diff-reject', change.changeID, '--hash', change.actionHash);
+      log(`${green('✓')} rejected; nothing changed in memory`);
+      return 'rejected';
+    }
+    const result = await run('memory-diff-approve', `${change.changeID}=${change.actionHash}`);
+    const [outcome] = result.outcomes;
+    log(formatChangeOutcome(outcome));
+    return outcome.status === 'applied' ? 'approved' : 'refused';
+  };
+
+  return reviewLoop(changes, { show: (change) => formatChange(change, null), answer, readKey, log });
+}
+
+// ---------------------------------------------------------------------------------- memory diff
+
+// What `memory diff` prints of one change: its number, when given, and its kind, each item it read with that
+// version's text, the text it writes, and why. An item that moved on since prints as stale, and an
+// approval of its change fails.
+export function formatChange(change, index, now = Date.now()) {
+  const lapsesIn = formatAge(new Date(now).toISOString(), Date.parse(change.lapseAt));
+  const label = { merge: 'merge', rewrite: 'from', retire: 'retire' }[change.kind] ?? 'item';
+  const inputs = change.inputs.flatMap((input) => {
+    const [first, ...more] = formatBlock(label, input.text ?? '(unreadable)');
+    const ref = dim(escapeControls(`${input.itemID}@${input.version}`));
+    const stale = input.isCurrent ? '' : ` ${yellow('(stale: the item moved on)')}`;
+    return [`${first}  ${ref}${stale}`, ...more];
+  });
+  const into = change.kind === 'merge' ? 'into' : 'to';
+  return [
+    `${bold(`${index === null ? '' : `${index + 1}. `}${escapeControls(change.kind)}`)} ${dim(escapeControls(change.changeID))}`,
+    ...inputs,
+    ...(change.text === null ? [] : formatBlock(into, change.text, bold)),
+    ...formatBlock('why', change.reason, dim),
+    `  source  ${escapeControls(change.source)} ${dim(`(lapses in ${lapsesIn})`)}`,
+  ].join('\n');
+}
+
+export function formatDiff(diff, now = Date.now()) {
+  const heading = `${bold('memory diff')} ${dim(
+    escapeControls(`${diff.diffID}, proposed ${diff.createdAt} by ${diff.model ?? 'no model'}`),
+  )}`;
+  return [heading, ...diff.changes.map((change, index) => formatChange(change, index, now))].join('\n\n');
+}
+
+// A change ID, or with a confirmation a unique prefix of at least 8 characters; --yes takes the
+// full ID, as for a proposal.
+export function findChange(diff, id, { exact = false } = {}) {
+  if (exact ? id.length < 36 : id.length < 8) {
+    fail(exact ? '--yes takes the full change ID' : 'give at least 8 characters of the change ID');
+  }
+  const matches = diff.changes.filter((change) =>
+    exact ? change.changeID === id : change.changeID.startsWith(id),
+  );
+  if (matches.length === 0) {
+    fail(`no pending change ${id} in the memory diff; run nixie memory diff`);
+  }
+  if (matches.length > 1) {
+    fail(`${id} matches ${matches.length} pending changes; give more of the ID`);
+  }
+  return matches[0];
+}
+
+// What an approval did to each change: the versions it wrote, or the reason it applied nothing.
+export function formatChangeOutcome(outcome) {
+  if (outcome.status === 'applied') {
+    const versions = outcome.versions.map((version) => `${version.itemID} v${version.version}`);
+    return `${green('✓')} ${escapeControls(outcome.changeID)}: ${escapeControls(versions.join(', '))}`;
+  }
+  const reasons = {
+    STALE_VERSION: 'an item moved on since the diff read it',
+    WRONG_STATE: 'an item is no longer active',
+    NOT_FOUND: 'an item or the change is gone',
+    PROPOSAL_CLOSED: 'the change was already answered or lapsed',
+    PROPOSAL_HASH: 'the change differs from the one shown',
+    PINNED_CORE_FULL: 'the pinned core has no room for the new text',
+  };
+  return `${red('✗')} ${escapeControls(outcome.changeID)}: ${reasons[outcome.code] ?? escapeControls(outcome.code)}; nothing applied`;
+}
+
+async function readDiff(config) {
+  const diff = await runMemoryCommand(config, 'memory-diff');
+  if (diff === null || diff.changes.length === 0) {
+    console.log(dim('no memory diff waits for an answer'));
+    return null;
+  }
+  return diff;
+}
+
+// With no ID, an approval covers the whole diff shown; with IDs, only those changes. Each change
+// binds to the action hash shown here and is its own approval, so a change that moved on applies
+// nothing while the rest go on.
+async function memoryDiff(config, args) {
+  const [action, ...rest] = args;
+  const { yes, text, positionals } = parseMemoryArgs(rest);
+  if (text !== undefined || !['show', 'approve', 'reject'].includes(action ?? 'show')) {
+    fail(memoryUsage);
+  }
+  const diff = await readDiff(config);
+  if (diff === null) {
+    return action === undefined || action === 'show' ? 0 : 1;
+  }
+  if (action === undefined || action === 'show') {
+    console.log(formatDiff(diff));
+    console.log(dim(`\n${diff.changes.length} pending; answer with nixie memory review, or nixie memory diff approve|reject`));
+    return 0;
+  }
+  return action === 'approve'
+    ? memoryDiffApprove(config, diff, positionals, yes)
+    : memoryDiffReject(config, diff, positionals, yes);
+}
+
+async function memoryDiffApprove(config, diff, ids, yes) {
+  const changes = ids.length === 0 ? diff.changes : ids.map((id) => findChange(diff, id, { exact: yes }));
+  if (new Set(changes).size !== changes.length) {
+    fail('memory diff approve: a change is named twice');
+  }
+  console.log(
+    changes.map((change) => formatChange(change, diff.changes.indexOf(change))).join('\n\n'),
+  );
+  const question =
+    ids.length === 0
+      ? `approve the whole diff, all ${changes.length} changes?`
+      : `approve ${changes.length === 1 ? 'this change' : `these ${changes.length} changes`}?`;
+  confirm(question, 'memory diff approve', yes);
+
+  const result = await runMemoryCommand(
+    config,
+    'memory-diff-approve',
+    ...changes.map((change) => `${change.changeID}=${change.actionHash}`),
+  );
+  console.log(result.outcomes.map((outcome) => formatChangeOutcome(outcome)).join('\n'));
+  return result.outcomes.every((outcome) => outcome.status === 'applied') ? 0 : 1;
+}
+
+async function memoryDiffReject(config, diff, ids, yes) {
+  if (ids.length !== 1) {
+    fail('usage: nixie memory diff reject <change id> [--yes]');
+  }
+  const change = findChange(diff, ids[0], { exact: yes });
+  console.log(formatChange(change, diff.changes.indexOf(change)));
+  confirm('reject this change?', 'memory diff reject', yes);
+
+  await runMemoryCommand(config, 'memory-diff-reject', change.changeID, '--hash', change.actionHash);
+  console.log(`${green('✓')} rejected; nothing changed in memory`);
+  return 0;
+}
+
 const memoryUsage = [
   'usage: nixie memory pending | review | approve <id> [--text <edited text>] [--yes] | reject <id> [--yes]',
   '       nixie memory show <item ID> | edit <item ID>[@<version>] --text <new text> [--yes]',
   '       nixie memory retire|restore <item ID>[@<version>] [--yes] | pin|unpin <item ID>',
+  '       nixie memory diff [show] | diff approve [<change id>...] [--yes] | diff reject <change id> [--yes]',
 ].join('\n');
 
 async function memory(args) {
@@ -683,6 +874,9 @@ async function memory(args) {
     console.log(memoryUsage);
     return 0;
   }
+  if (sub === 'diff') {
+    return memoryDiff(loadConfig(), rest);
+  }
   fail(sub === undefined ? memoryUsage : `memory: unknown subcommand ${sub}\n${memoryUsage}`);
 }
 
@@ -704,7 +898,7 @@ const commands = {
   logs: { usage: 'logs [-f]', summary: "print nixie's pod log; -f follows it", run: logs },
   memory: {
     usage: 'memory <subcommand>',
-    summary: 'review or answer memory proposals; show, edit, retire, restore or pin an item',
+    summary: 'review or answer memory proposals and the weekly memory diff; show, edit, retire, restore or pin an item',
     run: memory,
   },
   reset: { usage: 'reset [--confirm]', summary: 'dry-run the factory reset; --confirm runs it', run: reset },
