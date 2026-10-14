@@ -6,8 +6,8 @@
 //
 // Add a command: one entry in `commands` below, with a summary and an async run(args).
 
-import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const home = homedir();
@@ -22,7 +22,7 @@ const yellow = paint('33');
 const dim = paint('2');
 const bold = paint('1');
 
-class Failure extends Error {}
+export class Failure extends Error {}
 
 const fail = (message) => {
   throw new Failure(message);
@@ -501,8 +501,157 @@ async function memoryPin(config, isPinned, args) {
   return 0;
 }
 
+// -------------------------------------------------------------------------------- memory review
+
+// One key scheme for every review loop. A key press answers the entry shown, so it asks nothing more.
+export const reviewKeys = { a: 'approve', r: 'reject', e: 'edit', s: 'skip', q: 'quit' };
+const reviewQuestion = '[a]pprove  [r]eject  [e]dit and approve  [s]kip  [q]uit';
+
+// Shows each entry and reads one key until the key is in reviewKeys. answer(action, entry) does
+// the work and returns the outcome to count, or 'again' to ask about the same entry once more. A
+// Failure in one answer prints as refused and the loop goes on to the next entry.
+export async function reviewLoop(entries, { show, answer, readKey, log = console.log }) {
+  const counts = { approved: 0, edited: 0, rejected: 0, skipped: 0, refused: 0, held: 0, unanswered: 0 };
+  for (const [index, entry] of entries.entries()) {
+    log(`\n${dim(`${index + 1}/${entries.length}`)} ${show(entry)}`);
+    let outcome = 'again';
+    while (outcome === 'again') {
+      const action = reviewKeys[await readKey(reviewQuestion)];
+      if (action === undefined) {
+        log(dim('press a, r, e, s or q'));
+        continue;
+      }
+      if (action === 'quit') {
+        counts.unanswered = entries.length - index;
+        return counts;
+      }
+      try {
+        outcome = await answer(action, entry);
+      } catch (error) {
+        if (!(error instanceof Failure)) {
+          throw error;
+        }
+        log(`${red('✗')} refused: ${error.message}`);
+        outcome = 'refused';
+      }
+    }
+    counts[outcome] += 1;
+  }
+  return counts;
+}
+
+export function formatReviewSummary(counts) {
+  const parts = ['approved', 'edited', 'rejected', 'skipped'].map((name) => `${name} ${counts[name]}`);
+  for (const name of ['refused', 'held']) {
+    if (counts[name] > 0) parts.push(`${name} ${counts[name]}`);
+  }
+  const left = counts.unanswered > 0 ? `; quit with ${counts.unanswered} unanswered` : '';
+  return `${parts.join(', ')}${left}`;
+}
+
+// Each answer binds to the action hash of the proposal shown, as `approve` and `reject` do, so a
+// proposal that changed since the listing refuses it and the loop moves on. An edit that leaves
+// the text as it was approves the proposal as it is; a blank edit or a failed editor sends nothing.
+export async function reviewProposals(pending, { run, readKey, editText, log = console.log }) {
+  const send = async (proposal, text) => {
+    const result = await run(
+      'memory-approve',
+      proposal.proposalID,
+      '--hash',
+      proposal.actionHash,
+      ...(text === undefined ? [] : [`--text=${text}`]),
+    );
+    const isHeld = result.status === 'close_match';
+    log(`${isHeld ? yellow('!') : green('✓')} ${formatAnswerOutcome('approve', result)}`);
+    return isHeld ? 'held' : text === undefined ? 'approved' : 'edited';
+  };
+
+  const answer = async (action, proposal) => {
+    if (action === 'skip') {
+      log(dim('skipped'));
+      return 'skipped';
+    }
+    if (action === 'reject') {
+      await run('memory-reject', proposal.proposalID, '--hash', proposal.actionHash);
+      log(`${green('✓')} rejected`);
+      return 'rejected';
+    }
+    if (action === 'approve') {
+      return send(proposal);
+    }
+    const text = await editText(proposal.text);
+    if (text === undefined || text.trim() === '') {
+      log(yellow('edit cancelled: the editor failed or saved blank text; nothing sent'));
+      return 'again';
+    }
+    if (text === proposal.text.trimEnd()) {
+      return send(proposal);
+    }
+    log(formatBlock('yours', text, bold).join('\n'));
+    return send(proposal, text);
+  };
+
+  return reviewLoop(pending, { show: (proposal) => formatProposal(proposal), answer, readKey, log });
+}
+
+// Opens the text in the editor, as git does: $EDITOR may carry its own arguments. Returns the
+// saved text without trailing whitespace, or undefined when the editor exits non-zero. The file
+// sits in a private temporary folder and goes away after.
+export async function editInEditor(text, editor = process.env.EDITOR || 'vi') {
+  const folder = mkdtempSync(join(tmpdir(), 'nixie-review-'));
+  const file = join(folder, 'proposal.txt');
+  try {
+    writeFileSync(file, `${text}\n`, { mode: 0o600 });
+    const proc = Bun.spawn(['sh', '-c', `${editor} "$1"`, 'sh', file], {
+      stdio: ['inherit', 'inherit', 'inherit'],
+    });
+    if ((await proc.exited) !== 0) {
+      return undefined;
+    }
+    return readFileSync(file, 'utf8').trimEnd();
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+}
+
+// One key press, without Enter. Ctrl-C, Ctrl-D and Escape quit, because raw mode turns off the
+// signal that Ctrl-C sends.
+async function readTerminalKey(question) {
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdout.write(`${question} `);
+  const chunk = await new Promise((resolve) => process.stdin.once('data', resolve));
+  process.stdin.setRawMode(false);
+  process.stdin.pause();
+  const key = chunk.toString('utf8');
+  process.stdout.write(`${/^[ -~]$/.test(key) ? key : ''}\n`);
+  return ['\x03', '\x04', '\x1b'].includes(key) ? 'q' : key.toLowerCase();
+}
+
+async function memoryReview(config, args) {
+  if (args.length > 0) {
+    fail(`memory review: unknown argument ${args[0]}\n${memoryUsage}`);
+  }
+  if (!process.stdin.isTTY) {
+    fail('memory review: needs a terminal to read keys; use nixie memory approve|reject <id> --yes');
+  }
+  const pending = await runMemoryCommand(config, 'memory-pending');
+  if (pending.length === 0) {
+    console.log(dim('no memory proposal waits for an answer'));
+    return 0;
+  }
+  console.log(dim(`${pending.length} pending`));
+  const counts = await reviewProposals(pending, {
+    run: (...args) => runMemoryCommand(config, ...args),
+    readKey: readTerminalKey,
+    editText: (text) => editInEditor(text),
+  });
+  console.log(`\n${formatReviewSummary(counts)}`);
+  return counts.refused > 0 ? 1 : 0;
+}
+
 const memoryUsage = [
-  'usage: nixie memory pending | approve <id> [--text <edited text>] [--yes] | reject <id> [--yes]',
+  'usage: nixie memory pending | review | approve <id> [--text <edited text>] [--yes] | reject <id> [--yes]',
   '       nixie memory show <item ID> | edit <item ID>[@<version>] --text <new text> [--yes]',
   '       nixie memory retire|restore <item ID>[@<version>] [--yes] | pin|unpin <item ID>',
 ].join('\n');
@@ -515,6 +664,9 @@ async function memory(args) {
     }
     return memoryPending(loadConfig());
   }
+  if (sub === 'review') {
+    return memoryReview(loadConfig(), rest);
+  }
   if (sub === 'approve' || sub === 'reject') {
     return memoryAnswer(loadConfig(), sub, rest);
   }
@@ -526,6 +678,10 @@ async function memory(args) {
   }
   if (sub === 'pin' || sub === 'unpin') {
     return memoryPin(loadConfig(), sub === 'pin', rest);
+  }
+  if (['-h', '--help', 'help'].includes(sub)) {
+    console.log(memoryUsage);
+    return 0;
   }
   fail(sub === undefined ? memoryUsage : `memory: unknown subcommand ${sub}\n${memoryUsage}`);
 }
@@ -548,7 +704,7 @@ const commands = {
   logs: { usage: 'logs [-f]', summary: "print nixie's pod log; -f follows it", run: logs },
   memory: {
     usage: 'memory <subcommand>',
-    summary: 'answer memory proposals; show, edit, retire, restore or pin an item',
+    summary: 'review or answer memory proposals; show, edit, retire, restore or pin an item',
     run: memory,
   },
   reset: { usage: 'reset [--confirm]', summary: 'dry-run the factory reset; --confirm runs it', run: reset },
