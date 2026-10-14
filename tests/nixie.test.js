@@ -125,3 +125,13 @@ describe('nixie memory review', () => {
     expect(lines.at(-1)).toContain('held: it closely matches item-9 v2');
   });
 });
+
+describe('nixie memory --help', () => {
+  for (const flag of ['--help', '-h']) {
+    test(`${flag} prints the usage and exits 0`, () => {
+      const proc = Bun.spawnSync(['bun', join(import.meta.dir, '../home/dot_local/bin/executable_nixie'), 'memory', flag]);
+      expect(proc.exitCode).toBe(0);
+      expect(proc.stdout.toString()).toStartWith('usage: nixie memory pending | review');
+    });
+  }
+});
