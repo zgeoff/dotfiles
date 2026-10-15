@@ -7,6 +7,7 @@ import {
   answerProposal,
   editInEditor,
   formatReviewSummary,
+  parseMemoryArgs,
   reviewDiffChanges,
   reviewEverything,
   reviewProposals,
@@ -260,6 +261,20 @@ describe('nixie memory reject', () => {
     const sent = await answer('reject', pending, [pending[0].proposalID, '--yes']);
 
     expect(sent.at(-1)).toEqual(['memory-reject', pending[0].proposalID, '--hash', 'hash-1']);
+  });
+
+  test('an option after --reason is a missing reason, and nothing is sent', async () => {
+    const pending = [proposal(1, 'Prefers tabs.')];
+
+    expect(answer('reject', pending, [pending[0].proposalID, '--reason', '--yes'])).rejects.toThrow(
+      '--reason takes the reason',
+    );
+  });
+
+  test('a command other than a proposal answer refuses --reason as an unknown option', () => {
+    expect(() => parseMemoryArgs(['item-1', '--text', 'Plays the cello', '--reason=why'])).toThrow(
+      'unknown option --reason=why',
+    );
   });
 
   test('a blank reason, or a reason on an approval, is refused and sends nothing', async () => {

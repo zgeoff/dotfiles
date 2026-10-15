@@ -336,9 +336,9 @@ async function memoryPending(config) {
   return 0;
 }
 
-// -y/--yes, --text <text> and --reason <why> (or --text=, --reason=) anywhere; every other argument
-// is positional
-export function parseMemoryArgs(args) {
+// -y/--yes, --text <text> and, for a proposal's answer, --reason <why> (or --text=, --reason=)
+// anywhere; every other argument is positional
+export function parseMemoryArgs(args, { takesReason = false } = {}) {
   const parsed = { yes: false, text: undefined, reason: undefined, positionals: [] };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -351,12 +351,13 @@ export function parseMemoryArgs(args) {
       parsed.text = args[(index += 1)];
     } else if (arg.startsWith('--text=')) {
       parsed.text = arg.slice('--text='.length);
-    } else if (arg === '--reason') {
-      if (index + 1 >= args.length) {
+    } else if (takesReason && arg === '--reason') {
+      // an option after --reason is a missing reason; --reason=<why> takes one that starts with -
+      if (index + 1 >= args.length || args[index + 1].startsWith('-')) {
         fail('--reason takes the reason');
       }
       parsed.reason = args[(index += 1)];
-    } else if (arg.startsWith('--reason=')) {
+    } else if (takesReason && arg.startsWith('--reason=')) {
       parsed.reason = arg.slice('--reason='.length);
     } else if (arg.startsWith('-') && arg !== '-') {
       fail(`unknown option ${arg}`);
@@ -395,7 +396,7 @@ async function memoryAnswer(config, answer, args) {
 // this listing refuses it and nothing applies. --text approves the proposal with your own text;
 // --reason tells nixie why you reject it, and the conversation reads it in its next turn.
 export async function answerProposal(answer, args, { run, log = console.log }) {
-  const { yes, text, reason, positionals } = parseMemoryArgs(args);
+  const { yes, text, reason, positionals } = parseMemoryArgs(args, { takesReason: true });
   const misplaced = answer === 'reject' ? text : reason;
   if (positionals.length !== 1 || misplaced !== undefined) {
     fail(
