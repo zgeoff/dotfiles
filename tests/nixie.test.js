@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   Failure,
+  answerProposal,
   editInEditor,
   formatReviewSummary,
+  parseMemoryArgs,
   reviewDiffChanges,
   reviewEverything,
   reviewProposals,
@@ -222,6 +224,68 @@ describe('nixie memory review, the weekly memory diff', () => {
     );
 
     expect(formatReviewSummary(counts)).toBe('approved 0, edited 0, rejected 0, skipped 0; quit with 3 unanswered');
+  });
+});
+
+describe('nixie memory reject', () => {
+  // Answers one proposal with --yes, recording each host command; memory-pending lists the pending.
+  async function answer(kind, pending, args) {
+    const sent = [];
+    const run = async (...command) => {
+      sent.push(command);
+      return command[0] === 'memory-pending' ? pending : { proposalID: pending[0].proposalID };
+    };
+    await answerProposal(kind, args, { run, log: () => {} });
+    return sent;
+  }
+
+  test('--reason passes your reason through to memory-reject', async () => {
+    const pending = [proposal(1, 'Prefers tabs.')];
+    const sent = await answer('reject', pending, [pending[0].proposalID, '--reason', "wrong, it's spaces", '--yes']);
+
+    expect(sent).toEqual([
+      ['memory-pending'],
+      ['memory-reject', pending[0].proposalID, '--hash', 'hash-1', "--reason=wrong, it's spaces"],
+    ]);
+  });
+
+  test('--reason=<why> passes the reason through too', async () => {
+    const pending = [proposal(1, 'Prefers tabs.')];
+    const sent = await answer('reject', pending, [pending[0].proposalID, '--reason=only once', '--yes']);
+
+    expect(sent.at(-1)).toEqual(['memory-reject', pending[0].proposalID, '--hash', 'hash-1', '--reason=only once']);
+  });
+
+  test('a rejection with no reason sends none', async () => {
+    const pending = [proposal(1, 'Prefers tabs.')];
+    const sent = await answer('reject', pending, [pending[0].proposalID, '--yes']);
+
+    expect(sent.at(-1)).toEqual(['memory-reject', pending[0].proposalID, '--hash', 'hash-1']);
+  });
+
+  test('an option after --reason is a missing reason, and nothing is sent', async () => {
+    const pending = [proposal(1, 'Prefers tabs.')];
+
+    expect(answer('reject', pending, [pending[0].proposalID, '--reason', '--yes'])).rejects.toThrow(
+      '--reason takes the reason',
+    );
+  });
+
+  test('a command other than a proposal answer refuses --reason as an unknown option', () => {
+    expect(() => parseMemoryArgs(['item-1', '--text', 'Plays the cello', '--reason=why'])).toThrow(
+      'unknown option --reason=why',
+    );
+  });
+
+  test('a blank reason, or a reason on an approval, is refused and sends nothing', async () => {
+    const pending = [proposal(1, 'Prefers tabs.')];
+
+    expect(answer('reject', pending, [pending[0].proposalID, '--reason', '  ', '--yes'])).rejects.toThrow(
+      '--reason takes the reason',
+    );
+    expect(answer('approve', pending, [pending[0].proposalID, '--reason', 'looks right', '--yes'])).rejects.toThrow(
+      'usage: nixie memory approve',
+    );
   });
 });
 
