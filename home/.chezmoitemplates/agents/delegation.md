@@ -15,6 +15,6 @@ Triggers:
 5. One approach to an unfamiliar API: check current docs, then ask Grok for alternate approaches.
 6. When I name a model, use it. This overrides every rule here.
 
-Merging: evidence, not votes. Drop nits. On disagreement, write the discriminating test. Do not re-prompt for a preferred answer. One review round per diff, plus one re-check only when the round found a must-fix. After the re-check, fix each finding in code the PR changed in the same PR, whatever its size. The reviewer then checks only that fix: fixed or not fixed, with no new findings. That ends the review. File a follow-up issue only for a finding in code the PR didn't touch, or one that needs my design choice. Fix a security defect before merge, as before. Report a timeout on a required review; do not skip it silently.
+Merging: evidence, not votes. Drop nits. On disagreement, write the discriminating test. Do not re-prompt for a preferred answer. After the re-check, fix each finding in code the PR changed in the same PR, whatever its size. The reviewer then checks only that fix: fixed or not fixed, with no new findings. That ends the review. File a follow-up issue only for a finding in code the PR didn't touch, or one that needs my design choice. Fix a security defect before merge, as before. Report a timeout on a required review; do not skip it silently.
 
 Images: `codex-image` for raster images. Code for icons, SVG, layout, and diagrams.
