@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex (or Opus) reviews the diff, a PR opens once clean, haiku watches CI, with bounded fix loops at each gate',
   whenToUse:
-    'After a feature plan has been agreed interactively. Load the build-feature skill first; it documents the args. Pass args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus", grok?: boolean }. A run cannot pause for conversation, so bake every decision into the plan. Returns the PR URL on success, or a failure report with the branch left in place.',
+    'After a feature plan has been agreed interactively. Load the build-feature skill first; it documents the args. Pass args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus" }. A run cannot pause for conversation, so bake every decision into the plan. Returns the PR URL on success, or a failure report with the branch left in place.',
   phases: [
     {
       title: 'Implement',
@@ -12,7 +12,7 @@ export const meta = {
     },
     {
       title: 'Review',
-      detail: 'Codex (Opus fallback) reviews the diff; sonnet fixes blocking findings (max 2 rounds); optional Grok dissent',
+      detail: 'Codex (Opus fallback) reviews the diff; sonnet fixes blocking findings (max 2 rounds)',
     },
     {
       title: 'Open PR',
@@ -29,20 +29,18 @@ export const meta = {
 const MAX_FIX_ROUNDS = 2;
 // codex review takes 3 to 9 minutes; past this, fall back to Opus.
 const CODEX_TIMEOUT_SECONDS = 900;
-const GROK_TIMEOUT_SECONDS = 600;
 
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
 
 if (!parsedArgs || !parsedArgs.plan || !parsedArgs.branch) {
   throw new Error(
-    'build-feature requires args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus", grok?: boolean }',
+    'build-feature requires args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus" }',
   );
 }
 
 const { plan, branch, issue, prNumber, verifyCommands } = parsedArgs;
 const base = parsedArgs.base || 'main';
 const reviewer = parsedArgs.review || 'codex';
-const runGrok = parsedArgs.grok === true;
 
 if (reviewer !== 'codex' && reviewer !== 'opus') {
   throw new Error(`build-feature: review must be "codex" or "opus", got ${JSON.stringify(reviewer)}`);
@@ -116,26 +114,6 @@ const CODEX_REVIEW_SCHEMA = {
     },
     failureReason: { type: 'string', description: 'Only when ran=false' },
     findings: { type: 'array', items: FINDING },
-  },
-};
-
-const GROK_SCHEMA = {
-  type: 'object',
-  required: ['outcome', 'findings'],
-  properties: {
-    outcome: { enum: ['findings', 'none', 'timed-out', 'no-output', 'unavailable'] },
-    findings: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['summary'],
-        properties: {
-          file: { type: 'string' },
-          scenario: { type: 'string', description: 'The input, sequence, or action that triggers it' },
-          summary: { type: 'string' },
-        },
-      },
-    },
   },
 };
 
@@ -282,21 +260,6 @@ if (impl.status === 'blocked') {
 log(`Implemented: ${impl.summary}`);
 
 phase('Review');
-// Grok runs beside the review and never blocks: its result only reaches the
-// PR body and the caller.
-const grokRun = runGrok
-  ? agent(
-      `Ask Grok for dissent on the feature branch in the worktree at ${worktree}. Do not review the code yourself and do not modify any files.
-
-1. Write the diff to a scratch file outside the worktree: \`git -C ${worktree} diff origin/${base}...HEAD > grok-diff.patch\`.
-2. Run Grok read-only, in the background, with stdin from /dev/null:
-   \`timeout ${GROK_TIMEOUT_SECONDS} grok -p "$(cat packet.md)" --permission-mode plan --tools read_file,grep,list_dir --deny 'mcp__*' --no-subagents --output-format plain --disable-web-search < /dev/null > grok.out\`
-   where packet.md asks: "Read this diff (path to grok-diff.patch) in the repo at ${worktree}. Give a concrete input, sequence, or user action that causes data loss, an auth bypass, or a money error. Zero is a valid answer." Run it from inside the worktree.
-3. Return outcome=findings with each concrete scenario, none when Grok answers that there are none, timed-out when the timeout fires, no-output when it ends with nothing, or unavailable when grok is not installed.`,
-      { label: 'grok', model: 'haiku', schema: GROK_SCHEMA, phase: 'Review' },
-    )
-  : null;
-
 let review = await reviewPass('review', null);
 if (!review)
   return {
@@ -365,22 +328,8 @@ if (blocking.length > 0) {
 const minorFindings = review.findings.filter((f) => f.severity === 'minor');
 log(`Review clean by ${[...reviewedBy].join(' + ')} (${minorFindings.length} minor finding(s) noted)`);
 
-const grok = grokRun ? await grokRun : null;
-if (runGrok) log(`Grok: ${grok ? grok.outcome : 'agent died'}`);
-const grokLine = !runGrok
-  ? ''
-  : !grok || grok.outcome === 'unavailable'
-    ? ' Add one line to the end of the body: "Grok: not run (unavailable)."'
-    : grok.outcome === 'timed-out'
-      ? ' Add one line to the end of the body: "Grok timed out."'
-      : grok.outcome === 'no-output'
-        ? ' Add one line to the end of the body: "Grok returned no output."'
-        : grok.outcome === 'none'
-          ? ' Add one line to the end of the body: "Grok found no data-loss, auth-bypass, or money scenario."'
-          : ` Add a short "Grok dissent" list at the end of the body with these scenarios, for the human reviewer: ${JSON.stringify(grok.findings)}`;
-
 phase('Open PR');
-const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries — following the repo's PR template if it has one: condensed description (lead ≤2 sentences, one-line bullets, ≤150 words), no narrative about review rounds or fix history${issue ? `, starting with \`Closes #${issue}\`` : ''}.${grokLine} For orientation only, the implementer summarized the work as: ${impl.summary}`;
+const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries — following the repo's PR template if it has one: condensed description (lead ≤2 sentences, one-line bullets, ≤150 words), no narrative about review rounds or fix history${issue ? `, starting with \`Closes #${issue}\`` : ''}. For orientation only, the implementer summarized the work as: ${impl.summary}`;
 const prAction = prNumber
   ? `Update the existing PR #${prNumber}: refresh its body with \`gh pr edit ${prNumber}\` and mark it ready for review with \`gh pr ready ${prNumber}\`. Return its URL and number.`
   : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`, title in Conventional Commits form${issue ? ` with the issue scope, e.g. \`feat(#${issue}): …\`` : ''}. Return the new PR's URL and number.`;
@@ -412,7 +361,6 @@ log(`${prNumber ? 'PR readied' : 'PR opened'}: ${pr.url}`);
 const reviewSummary = {
   reviewedBy: [...reviewedBy],
   minorFindings,
-  grok: grok ? { outcome: grok.outcome, findings: grok.findings } : runGrok ? { outcome: 'agent-died', findings: [] } : null,
 };
 
 phase('Watch CI');

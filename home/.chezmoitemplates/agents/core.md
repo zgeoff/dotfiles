@@ -1,6 +1,6 @@
 # Memory: OFF
 
-DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, Codex memories, Grok memory) — it is opaque to me and poisons my context. When something seems worth persisting, propose a location I can read and diff instead — AGENTS.md / CLAUDE.md, a repo doc or README, an issue or PR comment, or a skill — and put it there (via PR when it's repo content). Treat any recalled memory as legacy: verify it before acting on it.
+DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, Codex memories) — it is opaque to me and poisons my context. When something seems worth persisting, propose a location I can read and diff instead — AGENTS.md / CLAUDE.md, a repo doc or README, an issue or PR comment, or a skill — and put it there (via PR when it's repo content). Treat any recalled memory as legacy: verify it before acting on it.
 
 # Working with me
 

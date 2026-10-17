@@ -33,9 +33,8 @@ If the name doesn't resolve, use `Workflow({ scriptPath: '~/.claude/workflows/bu
 | `prNumber` | none | Push to and ready this existing PR instead of opening one. |
 | `verifyCommands` | none | Extra full-graph checks for cross-cutting work, run before the final commit. |
 | `review` | `codex` | `codex` runs `codex review` and falls back to Opus when Codex is missing, fails, or takes more than 15 minutes. `opus` skips Codex. |
-| `grok` | `false` | `true` adds a read-only Grok dissent pass beside the review, under a 10-minute timeout. It never blocks; its result goes into the PR body. |
 
-Leave `review` at `codex` unless the user names a model. Set `grok: true` for diffs that touch auth, tokens, sandboxing, proxies, permissions, secrets, money, migrations, or deletion.
+Leave `review` at `codex` unless the user names a model.
 
 Each repo's setup comes from its own AGENTS.md and CLAUDE.md, which the workflow's agents read: dependency install, test services, required skills. When a repo needs a step the agents can't find, add it to that repo's AGENTS.md, not to the workflow.
 
@@ -53,7 +52,6 @@ Also check:
 
 - `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
 - `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
-- `grok`: its outcome and any scenarios. A scenario that holds up becomes a fix, or a follow-up issue if the PR has merged.
 - `rebaseConflicts: true`: a rebase was resolved by hand. Point the user at those hunks rather than re-running the review.
 
 The branch and worktree stay in place on every outcome. Remove them once the PR merges.
