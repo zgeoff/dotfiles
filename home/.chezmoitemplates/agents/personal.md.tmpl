@@ -71,5 +71,12 @@ Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, 
 
 # Building and reviewing
 
-- Every PR gets at least one local review before hand-off: Codex first, or an Opus review agent when Codex is unavailable or times out. Answer every finding: fix it, or reply with why not.
-- One exception: an update bot's PR for a patch or security update, or for a bump of my own `@zgeoff/*` packages or the `zgeoff/tools` sync ref, merges on green CI with no local review. Minor and major bumps of other packages get the normal review.
+PRs get a different review depending on what they change:
+
+- **Any PR, by default:** at least one local review before hand-off. Codex reviews first; an Opus
+  review agent stands in when Codex is unavailable or times out. Answer every finding: fix it, or
+  reply with why not.
+- **An update bot's patch or security update:** merges on green CI, with no local review.
+- **An update bot's bump of my own packages** (`@zgeoff/*` or the `zgeoff/tools` sync ref), at any
+  version level: merges on green CI, with no local review.
+- **An update bot's minor or major bump of any other package:** the default review.
