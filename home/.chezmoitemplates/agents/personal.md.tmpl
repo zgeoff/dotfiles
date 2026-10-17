@@ -79,10 +79,11 @@ PRs get a different review depending on what they change:
 - **A diff that touches auth, secrets, money, migrations, deletion or infra permissions, or crosses
   several interacting subsystems:** the default review, and the PR does not merge until every
   finding is fixed or answered.
-- **An update bot's patch or security update:** merges on green CI, with no local review.
+- **An update bot's patch, security or minor update, or its lock-file refresh:** merges on green CI,
+  with no local review.
 - **An update bot's bump of my own packages** (`@zgeoff/*` or the `zgeoff/tools` sync ref), at any
   version level: merges on green CI, with no local review.
-- **An update bot's minor or major bump of any other package:** the default review.
+- **An update bot's major bump of any other package:** the default review.
 
 Review rounds:
 
