@@ -1,27 +1,36 @@
 # Agent Guidelines
 
-## Operations
+This repo is the chezmoi source for Geoff's Arch and macOS machines. `.chezmoiroot` points chezmoi
+at `home/`, and the repo root is a normal project.
 
-- Perform all work on a branch in a git worktree under `.worktrees/` (e.g.
-  `git worktree add .worktrees/<branch> -b <branch>`) — never commit directly on `main`.
-- Use [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages.
-- When the work is ready, open a PR against `main` using the PR template
-  (`.github/PULL_REQUEST_TEMPLATE.md`).
-- PR descriptions are condensed by default: lead paragraph ≤2 sentences, one-line bullets, ≤150
-  words. Write the short version first — do not draft long and trim.
-- After pushing, link the opened PR's URL in your response so it's one click away.
+## Layout
+
+```text
+home/                 chezmoi source state; each name maps to its target through chezmoi's
+                      prefixes and suffixes (dot_, private_, executable_, encrypted_, modify_, .tmpl)
+  .chezmoiscripts/    setup scripts that chezmoi runs on apply: packages, fonts, mise tools, shell
+  .chezmoitemplates/  agents/ holds the global agent rules, which dot_claude/CLAUDE.md.tmpl and
+                      dot_codex/AGENTS.md.tmpl render
+  packages/           Yayfile and Brewfile; never deployed, read by the package scripts
+  dot_claude/         ~/.claude: skills, agents, workflows, output styles, settings
+  dot_codex/          ~/.codex: global rules and config
+  dot_local/bin/      personal CLIs
+tests/                bun tests for the CLIs in home/dot_local/bin/; run them with `bun test`
+```
 
 ## This repo
 
-- chezmoi source state lives in `home/` (see `.chezmoiroot`); targets map via chezmoi naming
-  (`dot_`, `private_`, `executable_`, `encrypted_`, `.tmpl`). The repo root is a normal project.
-- `home/packages/` (Yayfile, Brewfile) is consumed by `home/.chezmoiscripts/`; package sync
-  re-runs when a manifest changes. The Yayfile sync intersects with available packages and
-  silently skips misses — check its "not available, skipped" stderr when a package seems absent.
-- Tools rewrite some managed files. `modify_` scripts own only some keys of `~/.claude/settings.json`
-  and `~/.codex/config.toml`, and leave the rest (tokens, trust, MCP paths) to the machine. After `mise use -g`, run `chezmoi re-add ~/.config/mise/config.toml`.
-- Verify with `chezmoi diff --source <worktree>` (renders templates against real machine data)
-  and `zsh -n` on rendered shell files. `chezmoi apply` happens after merge, by the user.
-- Never run sudo-requiring commands from the agent shell — there is no TTY for the password
-  prompt, and each failure counts toward pam_faillock (3 failures = 10-minute account lockout).
-  Hand the exact command to the user instead.
+- A package script re-runs when its manifest changes. The Yayfile sync installs only the packages
+  the repos offer and skips the rest, so check its `not available, skipped` stderr when a package
+  seems absent.
+- Tools rewrite some managed files. The `modify_` scripts own only some keys of
+  `~/.claude/settings.json` and `~/.codex/config.toml`, and leave the rest (tokens, trust, MCP
+  paths) to the machine.
+- After `mise use -g`, run `chezmoi re-add ~/.config/mise/config.toml` to bring the change back into
+  the source.
+- Check a change with `chezmoi diff --source <worktree>`, which renders templates against the real
+  machine data, and run `zsh -n` on each rendered shell file.
+- Never run `chezmoi apply`. Geoff applies a change after it merges.
+- Never run a command that needs sudo. The agent shell has no TTY for the password prompt, and each
+  failure counts toward pam_faillock, which locks the account for 10 minutes after 3 failures. Hand
+  Geoff the exact command instead.
