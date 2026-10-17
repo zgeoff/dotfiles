@@ -30,6 +30,8 @@ profile_settings() {
     global) echo "$HOME/.claude/settings.json" ;;
     # outside any repo: the orchestrator reads it inline with jq
     orchestrator) echo "$HOME/.local/share/frankie/op-settings.json" ;;
+    # the repo was renamed to impz; the profile keeps its name
+    imp) echo "$HOME/projects/impz/.claude/settings.local.json" ;;
     *) echo "$HOME/projects/$1/.claude/settings.local.json" ;;
   esac
 }
