@@ -75,7 +75,8 @@ PRs get a different review depending on what they change:
 
 - **Any PR, by default:** at least one local review before hand-off. Codex reviews first; an Opus
   review agent stands in when Codex is unavailable or times out. Answer every finding: fix it, or
-  reply with why not.
+  reply with why not. On zgeoff/tools and zgeoff/atc, noslop's check is the review. Answer every
+  finding in its thread. Don't run a Codex review there.
 - **A diff that touches auth, secrets, money, migrations, deletion or infra permissions, or crosses
   several interacting subsystems:** the default review, and the PR does not merge until every
   finding is fixed or answered.
