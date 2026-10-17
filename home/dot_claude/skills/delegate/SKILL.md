@@ -40,7 +40,7 @@ Omit the session transcript and your preferred conclusion. Never ask the model t
 Ask for the return shape:
 
 - Review: at most 3 findings, each with a location, the trigger, the consequence, and the check that falsifies it. Zero findings is a valid answer.
-- Diagnosis: the evidence, and the next check that tells the causes apart.
+- Diagnosis: the evidence, and the next check that separates the causes.
 - Implementation: the diff, the commands run and their results, and the checks that did not run.
 
 ## After the call

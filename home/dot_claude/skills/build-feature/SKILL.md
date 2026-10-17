@@ -1,11 +1,11 @@
 ---
 name: build-feature
-description: Runs the build-feature workflow, which takes an agreed plan to a reviewed, CI-green PR. Load it for medium or larger work (anything that needs a written plan, adds behaviour, or touches more than a few files) once the plan is agreed. Holds the args, the review routing, the result fields, and the gotchas.
+description: Runs the build-feature workflow, which takes an agreed plan to a reviewed, CI-green PR. Load it for medium or larger work (anything that needs a written plan, adds behaviour, or touches more than a few files) once the plan is agreed. Holds the call, the review routing, what to do with each result, and the gotchas.
 ---
 
 # Build a feature
 
-The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Sonnet implements on a worktree branch. Codex reviews the diff before the PR opens, with Opus as the fallback. The PR opens, or an existing one is readied. Haiku watches CI. Fix loops stop at 2 rounds per gate.
+The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Codex reviews the diff before the PR opens, with Opus as the fallback. Each fix loop stops after 2 rounds. [`build-feature.js`](../../workflows/build-feature.js) owns the sequence of stages and the model each one runs on.
 
 Loading this skill for agreed work is the instruction to run it. Call:
 
@@ -40,16 +40,12 @@ Each repo's setup comes from its own AGENTS.md and CLAUDE.md, which the workflow
 
 ## Result
 
-`status` is one of:
+The return statements in [`build-feature.js`](../../workflows/build-feature.js) define `status` and the fields beside it. Act on them as follows:
 
 - `ready`: the PR is open and CI is green. Hand it to the user with its link.
-- `review-blocked`: blocking findings remain after 2 fix rounds; `outstandingFindings` lists them.
-- `ci-failed`: CI is still red after 2 fix rounds; `failures` lists the checks.
-- `blocked`: an agent stopped and said why in `reason`. Fix the cause, then resume.
-- `failed`: an agent died; `stage` says where.
-
-Also check:
-
+- `review-blocked` and `ci-failed`: a gate is still failing after 2 fix rounds. `outstandingFindings` holds the open review findings, and `failures` holds the failing checks.
+- `blocked`: an agent stopped. `reason` holds its reason when it gave one; otherwise read the run's transcript. Fix the cause, then resume.
+- `failed`: an agent died, and `stage` holds the stage it died in.
 - `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
 - `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
 - `rebaseConflicts: true`: a rebase was resolved by hand. Point the user at those hunks rather than re-running the review.
