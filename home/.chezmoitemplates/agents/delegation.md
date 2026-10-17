@@ -2,18 +2,16 @@
 
 - **Anthropic subagents** stay the default for search, parallel reads, context forks, and parallel work. Nothing below replaces them.
 - **Advisor**: name the decision in each call. Before work: "Which assumption could invalidate this plan?" Before done: "Which acceptance condition lacks evidence?" Also use it to break a tie that no test can settle.
-- **Codex** is a peer. Use it for review gates, diagnosis, and bounded implementations. **Grok** is a cold reader with a different prior. Use it only for read-only dissent. Give each model a different question; never send both the same prompt.
-- Load the `delegate` skill before any Codex or Grok call. It holds the commands, the prompt packet, and the gotchas.
+- **Codex** is a peer. Use it for review gates, diagnosis, and bounded implementations.
+- Load the `delegate` skill before any Codex call. It holds the commands, the prompt packet, and the gotchas.
 - Medium or larger work runs through the `build-feature` workflow: anything that needs a written plan, adds behaviour, or touches more than a few files. Agree the plan first, then load the `build-feature` skill and run the workflow. Small fixes and doc changes don't need it.
 
 Triggers:
 
 1. The local review from Building and reviewing is the Codex review gate. When a diff touches auth, secrets, money, migrations, deletion, or infra permissions, or crosses several interacting subsystems, its findings block the merge. Opus substitutes when Codex is unavailable. Send a plan to Codex only when the plan is a security design.
-2. For those same diffs, Grok is optional: ask it for a concrete input, sequence, or user action that causes data loss, an auth bypass, or a money error. Zero is a valid answer. Run it in the background under a 10-minute timeout. Grok never blocks a merge: record a timeout or an empty run in the PR body, not as a comment, and continue. A finding that arrives after the merge gets a fix PR.
-3. After 2 fixes fail the same reproduction, pick one: Codex for a new decomposition or instrumentation plan, Grok for one alternate cause. Chain the other only if that answer also fails, then stop.
-4. A separable task with clear acceptance checks: Codex may implement it in a git worktree against a written spec. Merge the result in the main thread.
-5. One approach to an unfamiliar API: check current docs, then ask Grok for alternate approaches.
-6. When I name a model, use it. This overrides every rule here.
+2. After 2 fixes fail the same reproduction, ask Codex for a new decomposition or instrumentation plan. If that answer also fails, stop.
+3. A separable task with clear acceptance checks: Codex may implement it in a git worktree against a written spec. Merge the result in the main thread.
+4. When I name a model, use it. This overrides every rule here.
 
 Merging: evidence, not votes. Drop nits. On disagreement, write the discriminating test. Do not re-prompt for a preferred answer. One review round per diff, plus one re-check only when the round found a must-fix. After the re-check, fix each finding in code the PR changed in the same PR, whatever its size. The reviewer then checks only that fix: fixed or not fixed, with no new findings. That ends the review. File a follow-up issue only for a finding in code the PR didn't touch, or one that needs my design choice. Fix a security defect before merge, as before. Report a timeout on a required review; do not skip it silently.
 
