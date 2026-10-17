@@ -8,19 +8,18 @@ echo a token or a secret value.
 
 ## Local PC (1Password, scoped tokens per repo)
 
-- Use the Linux `op` CLI with a service-account token, scoped per profile to its own vaults. A repo's
-  `.claude/settings.local.json` overrides the global one:
-
-  | Profile | Vaults | Settings file |
-  |---|---|---|
-  | `global` | `zgeoff` (rw) | `~/.claude/settings.json` |
-  | `vers` | `vers` (rw), `vers-ci` (r) | `~/projects/vers/.claude/settings.local.json` |
-  | `cloud` | `cloud` (rw), `cloud-deploy` (rw) | `~/projects/cloud/.claude/settings.local.json` |
-  | `imp` | `imp-e2e` (rw) | `~/projects/imp/.claude/settings.local.json` |
-
-  `vers-ci` holds only what the vers infra-drift CI job reads. `zgeoff` holds the items every agent
-  shares, such as `repo-sync-github-app`. `cloud` holds
-  the zgeoff/cloud infra secrets, and `cloud-deploy` the secrets its deploy workflows read. `imp-e2e` holds imp's e2e tailnet OAuth client. My personal vaults are reachable only through `op-win`, with my approval.
+- Use the Linux `op` CLI with a service-account token that `op-mint` scopes to one profile's vaults.
+- Each repo has its own profile and its own vault, both named after the repo. The profile's token
+  lives in `~/projects/<repo>/.claude/settings.local.json`, which overrides the global
+  `~/.claude/settings.json`. `op-mint --list` gives every profile, its vaults and its settings file.
+- These profiles differ from the convention:
+  - `global` uses the `zgeoff` vault, in `~/.claude/settings.json`. `zgeoff` holds the items every
+    agent shares, such as `repo-sync-github-app`.
+  - `imp` uses the `imp-e2e` vault, which holds imp's e2e tailnet OAuth client.
+  - `vers` adds `vers-ci` (read-only), which holds only what the vers infra-drift CI job reads.
+  - `cloud` adds `cloud-deploy`, which holds the secrets cloud's deploy workflows read.
+  - `orchestrator` reads across several repos' vaults, and its settings file sits outside every repo.
+- My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
   `OP_SERVICE_ACCOUNT_TOKEN=$(jq -r .env.OP_SERVICE_ACCOUNT_TOKEN <settings file>) op …`.
@@ -45,8 +44,13 @@ echo a token or a secret value.
 # GitHub
 
 - Agents act on GitHub with my own `zgeoff` login and keys.
+- Work on a branch in a git worktree under `.worktrees/` (`git worktree add .worktrees/<branch> -b <branch>`), and never commit on `main`.
 - Open a PR rather than pushing to `main`, and never use `gh pr merge --admin` or any other ruleset
   bypass.
+- Commit messages are Conventional Commits in the imperative mood ("add X", never "added X"). A squash merge makes the PR title the commit subject, so the PR title is a Conventional Commit too.
+- Open the PR with the repo's PR template. Keep the description short: a lead of 2 sentences or fewer, one-line bullets, 150 words or fewer. Write the short version first.
+- After pushing, link the PR URL in your reply.
+- A PR is ready only when its checks are green. Watch CI with `gh pr checks <n> --watch` after each push, and report a failure with what you are doing about it.
 
 # Working on Linear tasks
 
@@ -68,4 +72,3 @@ Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, 
 # Building and reviewing
 
 - Every PR gets at least one local review before hand-off: Codex first, or an Opus review agent when Codex is unavailable or times out. Answer every finding: fix it, or reply with why not.
-- CodeRabbit: check for its review and answer its findings. If it is rate-limited, paused, or hasn't reviewed within 10 minutes of the PR opening, move on. It never blocks a PR that has a local review.
