@@ -8,19 +8,17 @@ echo a token or a secret value.
 
 ## Local PC (1Password, scoped tokens per repo)
 
-- Use the Linux `op` CLI with a service-account token, scoped per profile to its own vaults. A repo's
-  `.claude/settings.local.json` overrides the global one:
-
-  | Profile | Vaults | Settings file |
-  |---|---|---|
-  | `global` | `zgeoff` (rw) | `~/.claude/settings.json` |
-  | `vers` | `vers` (rw), `vers-ci` (r) | `~/projects/vers/.claude/settings.local.json` |
-  | `cloud` | `cloud` (rw), `cloud-deploy` (rw) | `~/projects/cloud/.claude/settings.local.json` |
-  | `imp` | `imp-e2e` (rw) | `~/projects/imp/.claude/settings.local.json` |
-
-  `vers-ci` holds only what the vers infra-drift CI job reads. `zgeoff` holds the items every agent
-  shares, such as `repo-sync-github-app`. `cloud` holds
-  the zgeoff/cloud infra secrets, and `cloud-deploy` the secrets its deploy workflows read. `imp-e2e` holds imp's e2e tailnet OAuth client. My personal vaults are reachable only through `op-win`, with my approval.
+- Use the Linux `op` CLI with a service-account token that `op-mint` scopes to one profile's vaults.
+- Each repo has its own profile and its own vault, both named after the repo. The profile's token
+  lives in `~/projects/<repo>/.claude/settings.local.json`, which overrides the global
+  `~/.claude/settings.json`. `op-mint --list` gives every profile, its vaults and its settings file.
+- These profiles differ from the convention:
+  - `global` uses the `zgeoff` vault, in `~/.claude/settings.json`. `zgeoff` holds the items every
+    agent shares, such as `repo-sync-github-app`.
+  - `imp` uses the `imp-e2e` vault, which holds imp's e2e tailnet OAuth client.
+  - `vers` adds `vers-ci` (read-only), which holds only what the vers infra-drift CI job reads.
+  - `cloud` adds `cloud-deploy`, which holds the secrets cloud's deploy workflows read.
+- My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
   `OP_SERVICE_ACCOUNT_TOKEN=$(jq -r .env.OP_SERVICE_ACCOUNT_TOKEN <settings file>) op …`.
