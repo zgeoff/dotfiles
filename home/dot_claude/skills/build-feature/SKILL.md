@@ -45,7 +45,7 @@ The return statements in [`build-feature.js`](../../workflows/build-feature.js) 
 
 - `ready`: the PR is open and CI is green. Hand it to the user with its link.
 - `review-blocked` and `ci-failed`: a gate is still failing after 2 fix rounds. `outstandingFindings` holds the open review findings, and `failures` holds the failing checks.
-- `blocked`: an agent stopped and gave its reason in `reason`. Fix the cause, then resume.
+- `blocked`: an agent stopped. `reason` holds its reason when it gave one; otherwise read the run's transcript. Fix the cause, then resume.
 - `failed`: an agent died, and `stage` holds the stage it died in.
 - `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
 - `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
