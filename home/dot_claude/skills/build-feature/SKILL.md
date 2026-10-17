@@ -5,7 +5,7 @@ description: Runs the build-feature workflow, which takes an agreed plan to a re
 
 # Build a feature
 
-The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Sonnet implements on a worktree branch. Codex reviews the diff before the PR opens, with Opus as the fallback. The PR opens, or an existing one is readied. Haiku watches CI, then checks for a CodeRabbit review. Fix loops stop at 2 rounds per gate.
+The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Sonnet implements on a worktree branch. Codex reviews the diff before the PR opens, with Opus as the fallback. The PR opens, or an existing one is readied. Haiku watches CI. Fix loops stop at 2 rounds per gate.
 
 Loading this skill for agreed work is the instruction to run it. Call:
 
@@ -54,7 +54,6 @@ Also check:
 - `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
 - `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
 - `grok`: its outcome and any scenarios. A scenario that holds up becomes a fix, or a follow-up issue if the PR has merged.
-- `coderabbit`: when `reviewed`, answer each finding. `rate-limited`, `not-reviewed`, and `not-installed` need nothing.
 - `rebaseConflicts: true`: a rebase was resolved by hand. Point the user at those hunks rather than re-running the review.
 
 The branch and worktree stay in place on every outcome. Remove them once the PR merges.

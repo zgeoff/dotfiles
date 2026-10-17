@@ -1,7 +1,7 @@
 export const meta = {
   name: 'build-feature',
   description:
-    'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex (or Opus) reviews the diff, a PR opens once clean, haiku watches CI and checks for a CodeRabbit review, with bounded fix loops at each gate',
+    'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex (or Opus) reviews the diff, a PR opens once clean, haiku watches CI, with bounded fix loops at each gate',
   whenToUse:
     'After a feature plan has been agreed interactively. Load the build-feature skill first; it documents the args. Pass args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus", grok?: boolean }. A run cannot pause for conversation, so bake every decision into the plan. Returns the PR URL on success, or a failure report with the branch left in place.',
   phases: [
@@ -20,7 +20,7 @@ export const meta = {
     },
     {
       title: 'Watch CI',
-      detail: 'haiku watches checks; sonnet fixes red CI (max 2 rounds); haiku checks for a CodeRabbit review',
+      detail: 'haiku watches checks; sonnet fixes red CI (max 2 rounds)',
       model: 'haiku',
     },
   ],
@@ -30,7 +30,6 @@ const MAX_FIX_ROUNDS = 2;
 // codex review takes 3 to 9 minutes; past this, fall back to Opus.
 const CODEX_TIMEOUT_SECONDS = 900;
 const GROK_TIMEOUT_SECONDS = 600;
-const CODERABBIT_WAIT_MINUTES = 10;
 
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
 
@@ -184,27 +183,6 @@ const CI_SCHEMA = {
             type: 'string',
             description: 'The decisive lines from the failing log',
           },
-        },
-      },
-    },
-  },
-};
-
-const CODERABBIT_SCHEMA = {
-  type: 'object',
-  required: ['outcome', 'findings'],
-  properties: {
-    outcome: { enum: ['reviewed', 'rate-limited', 'not-reviewed', 'not-installed'] },
-    findings: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['summary'],
-        properties: {
-          file: { type: 'string' },
-          line: { type: 'integer' },
-          summary: { type: 'string' },
-          url: { type: 'string' },
         },
       },
     },
@@ -512,24 +490,6 @@ For every other failure, commit the fixes (hooks must pass) and push to the exis
   if (fix.resolvedConflicts) rebaseConflicts = true;
 }
 
-// CodeRabbit is advisory: its findings go back to the caller to answer, and a
-// rate-limited or absent review never blocks.
-const coderabbit = await agent(
-  `Check PR #${pr.number} for a CodeRabbit review. Do not fix anything.
-
-Read the PR's reviews and comments (\`gh pr view ${pr.number} --json reviews,comments\` and \`gh api repos/{owner}/{repo}/pulls/${pr.number}/comments\`), looking for the coderabbitai author. If CodeRabbit has not posted yet, wait and check again, for up to ${CODERABBIT_WAIT_MINUTES} minutes after the PR opened.
-
-Return outcome=reviewed with each actionable finding (skip nits and praise), rate-limited when its comment says it is rate-limited or paused, not-reviewed when nothing arrived within ${CODERABBIT_WAIT_MINUTES} minutes, or not-installed when the repo shows no sign of CodeRabbit on this or recent PRs.`,
-  {
-    label: 'coderabbit',
-    model: 'haiku',
-    effort: 'low',
-    schema: CODERABBIT_SCHEMA,
-    phase: 'Watch CI',
-  },
-);
-log(`CodeRabbit: ${coderabbit ? coderabbit.outcome : 'check failed'}`);
-
 return {
   status: 'ready',
   pr: pr.url,
@@ -538,5 +498,4 @@ return {
   summary: impl.summary,
   rebaseConflicts,
   ...reviewSummary,
-  coderabbit: coderabbit ? coderabbit : { outcome: 'check-failed', findings: [] },
 };
