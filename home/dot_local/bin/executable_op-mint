@@ -4,7 +4,7 @@
 # the `env.OP_SERVICE_ACCOUNT_TOKEN` of the matching settings file. Each profile
 # gets only the vaults it needs; project settings override the global one.
 #
-#   op-mint <profile>     # global | vers | cloud | nixie | imp | orchestrator
+#   op-mint <profile>     # global | vers | cloud | nixie | noslop | imp | orchestrator
 #   op-mint --list
 
 set -eu
@@ -16,6 +16,7 @@ profile_vaults() {
     # cloud-deploy holds the secrets the cloud deploy workflows read
     cloud) echo "--vault cloud:read_items,write_items --vault cloud-deploy:read_items,write_items" ;;
     nixie) echo "--vault nixie:read_items,write_items" ;;
+    noslop) echo "--vault noslop:read_items,write_items" ;;
     # imp's e2e tailnet credential only; vault imp is the imps' Connect vault
     imp) echo "--vault imp-e2e:read_items,write_items" ;;
     # the orchestrator session finds and sets up credentials across the lanes' vaults
@@ -35,7 +36,7 @@ profile_settings() {
 
 op_mint() {
   if [ "${1:-}" = "--list" ]; then
-    for p in global vers cloud nixie imp orchestrator; do
+    for p in global vers cloud nixie noslop imp orchestrator; do
       printf '%-8s %s\n         -> %s\n' "$p" "$(profile_vaults "$p")" "$(profile_settings "$p")"
     done
     return
