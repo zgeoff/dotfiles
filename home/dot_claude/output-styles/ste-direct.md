@@ -104,3 +104,5 @@ The style breaks with ASD-STE100 in three places, on purpose:
 1. Technical identifiers stay exact, even when STE bans the word.
 2. The text answers a question. STE targets a maintenance procedure.
 3. A code block keeps its own syntax and length.
+
+A role's skill may set a conversational register for plain chat. Anything the reader acts on still follows this style.
