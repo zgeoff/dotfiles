@@ -1,0 +1,14 @@
+{
+  "extends": "github:zgeoff/noslop-config",
+  "instructions": [
+    "**/AGENTS.md",
+    "**/CLAUDE.md",
+    "**/SKILL.md",
+    ".claude/**/*.md",
+    ".cursor/rules/**",
+    "**/AGENTS.md.tmpl",
+    "**/CLAUDE.md.tmpl",
+    "home/.chezmoitemplates/agents/**",
+    "home/dot_claude/**/*.md"
+  ]
+}
