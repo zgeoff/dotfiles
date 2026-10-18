@@ -19,7 +19,8 @@ AUTOMODE
 printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson owned '
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "FORCE_HYPERLINK": "1"
   },
   "attribution": {
     "commit": "",
