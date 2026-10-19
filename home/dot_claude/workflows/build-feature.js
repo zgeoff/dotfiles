@@ -12,7 +12,8 @@ export const meta = {
     },
     {
       title: 'Review',
-      detail: 'Codex (Opus fallback) reviews the diff; sonnet fixes blocking findings (max 2 rounds)',
+      detail:
+        'Codex (Opus fallback) reviews the diff; sonnet fixes blocking findings (max 2 rounds), then redesigns logic a finding hit in both',
     },
     {
       title: 'Open PR',
@@ -167,6 +168,12 @@ const CI_SCHEMA = {
   },
 };
 
+/**
+ * How a fixer handles review findings, in the same words as the delivery
+ * brief, so a finding's whole class lands in one round.
+ */
+const FIX_RULES = `For each finding, re-read the rule it cites (AGENTS.md, a skill it names, or the plan), search the whole PR diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) for other breaks of that rule, and fix all of them. Hold new code, tests included, to every rule. Fix all of it in one round of commits. A round limit is never a reason to skip a fix or to leave a finding in the branch's own code for a follow-up. Change nothing the findings and their rules don't reach.`;
+
 const CLASSIFY = `Classify each finding:
 - blocking: correctness bugs, broken or missing tests for new behaviour, deviations from the plan, security problems, AGENTS.md violations that hooks/CI will not catch.
 - minor: real but non-blocking improvements. Report them; they will be surfaced to the human reviewer, not fixed here.`;
@@ -272,12 +279,19 @@ if (!review)
 const reviewedBy = new Set([review.by]);
 
 let blocking = review.findings.filter((f) => f.severity === 'blocking');
+// Fix rounds that patched each file, to spot logic patched twice.
+const patchedRounds = new Map();
 for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
   log(`Review round ${round}: ${blocking.length} blocking finding(s), dispatching fixer`);
+  for (const file of new Set(blocking.map((f) => f.file))) {
+    patchedRounds.set(file, (patchedRounds.get(file) || 0) + 1);
+  }
   const fix = await agent(
-    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix exactly these findings — no drive-by refactors:
+    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix these findings:
 ${REPO_RULES}
 ${JSON.stringify(blocking, null, 2)}
+
+${FIX_RULES}
 
 The plan the branch implements, for context:
 
@@ -314,15 +328,70 @@ Commit the fixes (hooks must pass). Do not push.`,
   blocking = review.findings.filter((f) => f.severity === 'blocking');
 }
 
+// A finding in a file that every fix round patched means patching failed on
+// that logic: redesign it once instead of patching a third time.
+const repeated = blocking.filter((f) => patchedRounds.get(f.file) >= MAX_FIX_ROUNDS);
+const redesigned = repeated.length > 0;
+if (redesigned) {
+  log(`Review: ${repeated.length} finding(s) hit logic patched in ${MAX_FIX_ROUNDS} rounds, dispatching redesign`);
+  const fix = await agent(
+    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. ${MAX_FIX_ROUNDS} fix rounds have already patched the logic these findings hit, and the findings came back. Do not patch it again. Redesign that logic so the class of problem cannot recur: re-read the plan, replace the logic and its tests, and keep inside the plan's scope.
+${REPO_RULES}
+The findings in logic patched ${MAX_FIX_ROUNDS} times:
+
+${JSON.stringify(repeated, null, 2)}
+
+All open blocking findings, which this round fixes too:
+
+${JSON.stringify(blocking, null, 2)}
+
+${FIX_RULES}
+
+The plan the branch implements, for context:
+
+${plan}
+
+Commit the redesign (hooks must pass). Do not push.`,
+    {
+      label: 'redesign-review',
+      model: 'sonnet',
+      schema: FIX_SCHEMA,
+      phase: 'Review',
+    },
+  );
+  if (!fix || fix.status === 'blocked') {
+    return {
+      status: 'blocked',
+      stage: 'review-redesign',
+      branch,
+      worktree,
+      reason: fix ? fix.blockedReason : 'redesign agent died or was skipped',
+      outstandingFindings: blocking,
+    };
+  }
+  review = await reviewPass('re-review-redesign', blocking);
+  if (!review)
+    return {
+      status: 'failed',
+      stage: 'review',
+      branch,
+      worktree,
+      reason: 're-review agent died or was skipped',
+    };
+  reviewedBy.add(review.by);
+  blocking = review.findings.filter((f) => f.severity === 'blocking');
+}
+
 if (blocking.length > 0) {
   return {
     status: 'review-blocked',
     branch,
     worktree,
-    reason: `blocking findings remain after ${MAX_FIX_ROUNDS} fix rounds`,
+    reason: `blocking findings remain after ${MAX_FIX_ROUNDS} fix rounds${redesigned ? ' and a redesign round' : ''}`,
     outstandingFindings: blocking,
     minorFindings: review.findings.filter((f) => f.severity === 'minor'),
     reviewedBy: [...reviewedBy],
+    redesigned,
   };
 }
 const minorFindings = review.findings.filter((f) => f.severity === 'minor');
@@ -361,6 +430,7 @@ log(`${prNumber ? 'PR readied' : 'PR opened'}: ${pr.url}`);
 const reviewSummary = {
   reviewedBy: [...reviewedBy],
   minorFindings,
+  redesigned,
 };
 
 phase('Watch CI');
