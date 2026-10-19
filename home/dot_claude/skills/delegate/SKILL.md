@@ -16,24 +16,21 @@ Run every call with `run_in_background`. Expect about 40 s to 2 min for a Codex 
 | Codex review, uncommitted work | `codex review --uncommitted < /dev/null` |
 | Codex review, branch | `codex review --base <ref> < /dev/null` |
 | Codex diagnosis or question | `codex exec -s read-only -o <out.md> "<packet>" < /dev/null` |
-| Codex implementation | `codex exec -s workspace-write -C <worktree> -o <out.md> "<packet>" < /dev/null` |
 
 - Always redirect stdin from `/dev/null`. Without it, a background `codex exec` waits on stdin forever.
 - Outside a git repo, add `--skip-git-repo-check` to `codex exec`.
-- For a Codex implementation, create the worktree first. Merge its diff in the main thread.
 
 ## Prompt packet
 
 Write the packet to a file, then pass it. In order:
 
-1. The question: find a bug, review for data loss, or implement this spec.
+1. The question: find a bug, or review for data loss.
 2. Constraints that must not change, including the stack rules that apply.
 3. The diff, the snapshot ref, or the file paths.
 4. The exact error text.
 5. Observed facts, kept separate from suspected causes.
 6. What was tried, and the result of each attempt.
 7. The acceptance checks.
-8. For an implementation: the shared services it must not touch (ports, databases, credentials, deploys).
 
 Omit the session transcript and your preferred conclusion. Never ask the model to confirm a diagnosis.
 
@@ -41,7 +38,6 @@ Ask for the return shape:
 
 - Review: at most 3 findings, each with a location, the trigger, the consequence, and the check that falsifies it. Zero findings is a valid answer.
 - Diagnosis: the evidence, and the next check that separates the causes.
-- Implementation: the diff, the commands run and their results, and the checks that did not run.
 
 ## After the call
 
