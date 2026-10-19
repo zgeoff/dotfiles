@@ -167,6 +167,12 @@ const CI_SCHEMA = {
   },
 };
 
+/**
+ * How a fixer handles review findings, in the same words as the delivery
+ * brief, so a finding's whole class lands in one round.
+ */
+const FIX_RULES = `For each finding, re-read the rule it cites (AGENTS.md, a skill it names, or the plan), search the whole PR diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) for other breaks of that rule, and fix all of them. Hold new code, tests included, to every rule. Fix all of it in one round of commits. A round limit is never a reason to skip a fix or to leave a finding in the branch's own code for a follow-up. Change nothing the findings and their rules don't reach.`;
+
 const CLASSIFY = `Classify each finding:
 - blocking: correctness bugs, broken or missing tests for new behaviour, deviations from the plan, security problems, AGENTS.md violations that hooks/CI will not catch.
 - minor: real but non-blocking improvements. Report them; they will be surfaced to the human reviewer, not fixed here.`;
@@ -275,9 +281,11 @@ let blocking = review.findings.filter((f) => f.severity === 'blocking');
 for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
   log(`Review round ${round}: ${blocking.length} blocking finding(s), dispatching fixer`);
   const fix = await agent(
-    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix exactly these findings — no drive-by refactors:
+    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix these findings:
 ${REPO_RULES}
 ${JSON.stringify(blocking, null, 2)}
+
+${FIX_RULES}
 
 The plan the branch implements, for context:
 

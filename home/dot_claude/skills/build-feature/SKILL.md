@@ -5,7 +5,9 @@ description: Runs the build-feature workflow, which takes an agreed plan to a re
 
 # Build a feature
 
-The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Codex reviews the diff before the PR opens, with Opus as the fallback. Each fix loop stops after 2 rounds. [`build-feature.js`](../../workflows/build-feature.js) owns the sequence of stages and the model each one runs on.
+The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Codex reviews the diff before the PR opens, with Opus as the fallback. Each fix loop stops after 2 rounds.
+
+For each finding, the review fixer re-reads the rule it cites, searches the whole PR diff for other breaks of that rule, holds new code, tests included, to every rule, and fixes all of it in one round. [`build-feature.js`](../../workflows/build-feature.js) owns the sequence of stages and the model each one runs on.
 
 Loading this skill for agreed work is the instruction to run it. Call:
 
@@ -43,7 +45,8 @@ Each repo's setup comes from its own AGENTS.md and CLAUDE.md, which the workflow
 The return statements in [`build-feature.js`](../../workflows/build-feature.js) define `status` and the fields beside it. Act on them as follows:
 
 - `ready`: the PR is open and CI is green. Hand it to the user with its link.
-- `review-blocked` and `ci-failed`: a gate is still failing after 2 fix rounds. `outstandingFindings` holds the open review findings, and `failures` holds the failing checks.
+- `review-blocked`: blocking findings remain after 2 fix rounds. `outstandingFindings` holds them. They are still in this PR's code: fix them in this PR. Never make one a follow-up because the run hit its round limit.
+- `ci-failed`: CI is still red after 2 fix rounds. `failures` holds the failing checks.
 - `blocked`: an agent stopped. `reason` holds its reason when it gave one; otherwise read the run's transcript. Fix the cause, then resume.
 - `failed`: an agent died, and `stage` holds the stage it died in.
 - `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
