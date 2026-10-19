@@ -29,10 +29,9 @@ const labelFinding = {
 
 /**
  * Runs the workflow against stub agents. `reviews` maps a review label to the
- * findings it returns; a label it doesn't name returns no findings. `patched`
- * maps a fixer label to the files it reports it changed.
+ * findings it returns; a label it doesn't name returns no findings.
  */
-async function dryRun(reviews, patched = {}) {
+async function dryRun(reviews) {
   const calls = [];
   const trace = [];
   const agent = async (prompt, opts) => {
@@ -42,8 +41,8 @@ async function dryRun(reviews, patched = {}) {
     if (opts.label.startsWith('codex-')) {
       return { ran: true, findings: reviews[opts.label.slice('codex-'.length)] || [] };
     }
-    if (opts.label.startsWith('fix-') || opts.label.startsWith('redesign-')) {
-      return { status: 'done', summary: 'Fixed.', patchedFiles: patched[opts.label] || [] };
+    if (opts.label.startsWith('fix-')) {
+      return { status: 'done', summary: 'Fixed.' };
     }
     if (opts.label === 'open-pr') {
       return { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
@@ -61,7 +60,7 @@ async function dryRun(reviews, patched = {}) {
 }
 
 describe('build-feature review loop', () => {
-  test('a finding that survives 2 patch rounds gets a redesign round', async () => {
+  test('a finding that survives 2 fix rounds ends review-blocked with no third round', async () => {
     const run = await dryRun({
       review: [quotaFinding],
       're-review-1': [quotaFinding],
@@ -75,64 +74,29 @@ describe('build-feature review loop', () => {
       'codex-re-review-1',
       'fix-review-2',
       'codex-re-review-2',
-      'redesign-review',
-      'codex-re-review-redesign',
-      'open-pr',
-      'watch-ci-1',
     ]);
-    expect(run.result).toMatchObject({ status: 'ready', redesigned: true, redesignedFindings: [quotaFinding] });
-    const redesign = run.calls.find((c) => c.label === 'redesign-review').prompt;
-    expect(redesign).toContain('Do not patch it again.');
-    expect(redesign).toContain('src/quota.ts');
-  });
-
-  test('review-blocked after the redesign round still lists the findings', async () => {
-    const run = await dryRun({
-      review: [quotaFinding],
-      're-review-1': [quotaFinding],
-      're-review-2': [quotaFinding],
-      're-review-redesign': [quotaFinding],
-    });
-    expect(run.result).toMatchObject({
-      status: 'review-blocked',
-      reason: 'blocking findings remain after 2 fix rounds and a redesign round',
-      outstandingFindings: [quotaFinding],
-      redesigned: true,
-    });
-  });
-
-  test('a finding in logic patched only once ends without a redesign', async () => {
-    const run = await dryRun({
-      review: [quotaFinding],
-      're-review-1': [labelFinding],
-      're-review-2': [labelFinding],
-    });
-    expect(run.labels).not.toContain('redesign-review');
     expect(run.result).toMatchObject({
       status: 'review-blocked',
       reason: 'blocking findings remain after 2 fix rounds',
-      redesigned: false,
+      outstandingFindings: [quotaFinding],
     });
+    expect(run.result).not.toHaveProperty('redesigned');
   });
 
-  test('a file a fixer patched beyond its findings counts toward a redesign', async () => {
-    const run = await dryRun(
-      { review: [quotaFinding], 're-review-1': [labelFinding], 're-review-2': [labelFinding] },
-      { 'fix-review-1': ['src/quota.ts', 'src/labels.ts'], 'fix-review-2': ['src/labels.ts'] },
-    );
-    expect(run.labels).toContain('redesign-review');
-    expect(run.result).toMatchObject({ redesigned: true, redesignedFindings: [labelFinding] });
+  test('a branch clean after the second fix round opens its PR', async () => {
+    const run = await dryRun({ review: [quotaFinding], 're-review-1': [labelFinding] });
+    expect(run.labels).toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'ready' });
   });
 
   test('each fixer holds the whole diff to the cited rule', async () => {
     const run = await dryRun({ review: [quotaFinding], 're-review-1': [quotaFinding], 're-review-2': [quotaFinding] });
-    for (const label of ['fix-review-1', 'fix-review-2', 'redesign-review']) {
+    for (const label of ['fix-review-1', 'fix-review-2']) {
       const prompt = run.calls.find((c) => c.label === label).prompt;
       expect(prompt).toContain('re-read the rule it cites');
       expect(prompt).toContain('search the whole PR diff');
       expect(prompt).toContain('Hold new code, tests included, to every rule.');
       expect(prompt).toContain('A round limit is never a reason to skip a fix');
-      expect(prompt).toContain('When you have patched the same logic in 2 rounds, stop patching and redesign it');
     }
   });
 });
