@@ -172,7 +172,7 @@ const CI_SCHEMA = {
  * How a fixer handles review findings, in the same words as the delivery
  * brief, so a finding's whole class lands in one round.
  */
-const FIX_RULES = `For each finding, re-read the rule it cites (AGENTS.md, a skill it names, or the plan), search the whole PR diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) for other breaks of that rule, and fix all of them. Hold new code, tests included, to every rule. Fix all of it in one round of commits. A round limit is never a reason to skip a fix or to leave a finding in the branch's own code for a follow-up. Change nothing the findings and their rules don't reach.`;
+const FIX_RULES = `For each finding, re-read the rule it cites (AGENTS.md, a skill it names, or the plan), search the whole PR diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) for other breaks of that rule, and fix all of them. Hold new code, tests included, to every rule. Fix all of it in one round of commits. When you have patched the same logic in ${MAX_FIX_ROUNDS} rounds, stop patching and redesign it on this branch. A round limit is never a reason to skip a fix or to leave a finding in the branch's own code for a follow-up. Change nothing the findings and their rules don't reach.`;
 
 const CLASSIFY = `Classify each finding:
 - blocking: correctness bugs, broken or missing tests for new behaviour, deviations from the plan, security problems, AGENTS.md violations that hooks/CI will not catch.
@@ -287,7 +287,7 @@ for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
     patchedRounds.set(file, (patchedRounds.get(file) || 0) + 1);
   }
   const fix = await agent(
-    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix these findings:
+    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. This is fix round ${round} of ${MAX_FIX_ROUNDS}. Fix these findings:
 ${REPO_RULES}
 ${JSON.stringify(blocking, null, 2)}
 
@@ -392,6 +392,7 @@ if (blocking.length > 0) {
     minorFindings: review.findings.filter((f) => f.severity === 'minor'),
     reviewedBy: [...reviewedBy],
     redesigned,
+    redesignedFindings: repeated,
   };
 }
 const minorFindings = review.findings.filter((f) => f.severity === 'minor');
@@ -431,6 +432,7 @@ const reviewSummary = {
   reviewedBy: [...reviewedBy],
   minorFindings,
   redesigned,
+  redesignedFindings: repeated,
 };
 
 phase('Watch CI');

@@ -50,7 +50,7 @@ The return statements in [`build-feature.js`](../../workflows/build-feature.js) 
 - `blocked`: an agent stopped. `reason` holds its reason when it gave one; otherwise read the run's transcript. Fix the cause, then resume.
 - `failed`: an agent died, and `stage` holds the stage it died in.
 - `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
-- `redesigned: true`: a redesign round ran. Name the logic it replaced in the hand-off.
+- `redesigned: true`: a redesign round ran. `redesignedFindings` holds the findings that triggered it; name the logic it replaced in the hand-off.
 - `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
 - `rebaseConflicts: true`: a rebase was resolved by hand. Point the user at those hunks rather than re-running the review.
 

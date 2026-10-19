@@ -79,7 +79,7 @@ describe('build-feature review loop', () => {
       'open-pr',
       'watch-ci-1',
     ]);
-    expect(run.result).toMatchObject({ status: 'ready', redesigned: true });
+    expect(run.result).toMatchObject({ status: 'ready', redesigned: true, redesignedFindings: [quotaFinding] });
     const redesign = run.calls.find((c) => c.label === 'redesign-review').prompt;
     expect(redesign).toContain('Do not patch it again.');
     expect(redesign).toContain('src/quota.ts');
@@ -122,6 +122,7 @@ describe('build-feature review loop', () => {
       expect(prompt).toContain('search the whole PR diff');
       expect(prompt).toContain('Hold new code, tests included, to every rule.');
       expect(prompt).toContain('A round limit is never a reason to skip a fix');
+      expect(prompt).toContain('When you have patched the same logic in 2 rounds, stop patching and redesign it');
     }
   });
 });
