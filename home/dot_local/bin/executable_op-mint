@@ -14,7 +14,7 @@ profile_vaults() {
     global) echo "--vault zgeoff:read_items,write_items" ;;
     vers) echo "--vault vers:read_items,write_items --vault vers-ci:read_items" ;;
     # cloud-deploy holds the secrets the cloud deploy workflows read
-    cloud) echo "--vault cloud:read_items,write_items --vault cloud-deploy:read_items,write_items" ;;
+    cloud) echo "--vault cloud:read_items,write_items --vault cloud-deploy:read_items,write_items --vault imp:read_items,write_items" ;;
     nixie) echo "--vault nixie:read_items,write_items" ;;
     noslop) echo "--vault noslop:read_items,write_items" ;;
     # imp's e2e tailnet credential only; vault imp is the imps' Connect vault
