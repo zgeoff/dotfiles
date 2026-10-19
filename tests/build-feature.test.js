@@ -29,9 +29,10 @@ const labelFinding = {
 
 /**
  * Runs the workflow against stub agents. `reviews` maps a review label to the
- * findings it returns; a label it doesn't name returns no findings.
+ * findings it returns; a label it doesn't name returns no findings. `patched`
+ * maps a fixer label to the files it reports it changed.
  */
-async function dryRun(reviews) {
+async function dryRun(reviews, patched = {}) {
   const calls = [];
   const trace = [];
   const agent = async (prompt, opts) => {
@@ -42,7 +43,7 @@ async function dryRun(reviews) {
       return { ran: true, findings: reviews[opts.label.slice('codex-'.length)] || [] };
     }
     if (opts.label.startsWith('fix-') || opts.label.startsWith('redesign-')) {
-      return { status: 'done', summary: 'Fixed.' };
+      return { status: 'done', summary: 'Fixed.', patchedFiles: patched[opts.label] || [] };
     }
     if (opts.label === 'open-pr') {
       return { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
@@ -112,6 +113,15 @@ describe('build-feature review loop', () => {
       reason: 'blocking findings remain after 2 fix rounds',
       redesigned: false,
     });
+  });
+
+  test('a file a fixer patched beyond its findings counts toward a redesign', async () => {
+    const run = await dryRun(
+      { review: [quotaFinding], 're-review-1': [labelFinding], 're-review-2': [labelFinding] },
+      { 'fix-review-1': ['src/quota.ts', 'src/labels.ts'], 'fix-review-2': ['src/labels.ts'] },
+    );
+    expect(run.labels).toContain('redesign-review');
+    expect(run.result).toMatchObject({ redesigned: true, redesignedFindings: [labelFinding] });
   });
 
   test('each fixer holds the whole diff to the cited rule', async () => {

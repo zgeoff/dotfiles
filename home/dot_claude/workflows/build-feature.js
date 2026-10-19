@@ -125,6 +125,11 @@ const FIX_SCHEMA = {
     status: { enum: ['done', 'blocked'] },
     summary: { type: 'string' },
     blockedReason: { type: 'string' },
+    patchedFiles: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Repo-relative path of every file the fix commits changed',
+    },
     resolvedConflicts: {
       type: 'boolean',
       description: 'True when the fix involved resolving merge/rebase conflicts by hand',
@@ -283,9 +288,6 @@ let blocking = review.findings.filter((f) => f.severity === 'blocking');
 const patchedRounds = new Map();
 for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
   log(`Review round ${round}: ${blocking.length} blocking finding(s), dispatching fixer`);
-  for (const file of new Set(blocking.map((f) => f.file))) {
-    patchedRounds.set(file, (patchedRounds.get(file) || 0) + 1);
-  }
   const fix = await agent(
     `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. This is fix round ${round} of ${MAX_FIX_ROUNDS}. Fix these findings:
 ${REPO_RULES}
@@ -314,6 +316,10 @@ Commit the fixes (hooks must pass). Do not push.`,
       reason: fix ? fix.blockedReason : 'fixer agent died or was skipped',
       outstandingFindings: blocking,
     };
+  }
+  // The fixer may patch files beyond the findings' own, under the class rule.
+  for (const file of new Set([...blocking.map((f) => f.file), ...(fix.patchedFiles || [])])) {
+    patchedRounds.set(file, (patchedRounds.get(file) || 0) + 1);
   }
   review = await reviewPass(`re-review-${round}`, blocking);
   if (!review)
