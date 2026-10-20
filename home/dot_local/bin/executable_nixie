@@ -1054,8 +1054,9 @@ function resolveSkillPath(folder, path) {
 // in a temporary worktree, so the checkout itself never changes. The folder holds the proposal's
 // files and nothing else, because a proposal carries the skill's complete set. editFiles(paths), if
 // given, runs on the written files before the commit, so an edit and approve lands your edit. It
-// pushes the branch, opens the PR with gh, and returns the PR's URL. The worktree goes away after,
-// and the local branch with it unless the push reached origin.
+// pushes the branch, opens the PR with gh, and returns the PR's URL. A try after one that pushed the
+// branch and then failed resumes from that branch: it writes nothing, takes the PR that is already
+// open on it, and opens one only when none is.
 export async function openSkillPullRequest(proposal, { definitionsDir, gh = 'gh', editFiles } = {}) {
   if (definitionsDir === undefined || !existsSync(join(definitionsDir, '.git'))) {
     fail('set definitions_dir in the config to a nixie-definitions checkout; nothing written');
@@ -1064,6 +1065,42 @@ export async function openSkillPullRequest(proposal, { definitionsDir, gh = 'gh'
   await git('fetch', '--quiet', 'origin');
   const base = await git('symbolic-ref', '--short', 'refs/remotes/origin/HEAD').catch(() => 'origin/main');
   const branch = `skill/${proposal.name}-${proposal.proposalID}`;
+  const verb = proposal.inForce === null ? 'add' : 'update';
+  const title = `feat(skills): ${verb} ${proposal.name}`;
+  const body = [
+    `nixie proposed this skill as ${proposal.proposalID} (skill hash ${proposal.skillHash}).`,
+    '',
+    proposal.untypedToken === null
+      ? 'The token check passed.'
+      : `The token check found an untyped ${proposal.untypedToken.kind}: ${proposal.untypedToken.raw}`,
+    ...(editFiles === undefined ? [] : ['', 'The files carry the reviewer\'s edits.']),
+  ].join('\n');
+  if ((await git('ls-remote', '--heads', 'origin', branch)) === '') {
+    await pushSkillBranch(proposal, { git, base, branch, title, body, editFiles });
+  }
+  const open = await runTool(
+    [gh, 'pr', 'list', '--head', branch, '--state', 'open', '--json', 'url', '--jq', '.[0].url // empty'],
+    definitionsDir,
+  );
+  if (open !== '') {
+    return open;
+  }
+  const output = await runTool(
+    [gh, 'pr', 'create', '--head', branch, '--base', base.replace(/^origin\//, ''), '--title', title, '--body', body],
+    definitionsDir,
+  );
+  const url = output.split('\n').findLast((line) => /^https?:\/\//.test(line));
+  if (url === undefined) {
+    fail(`gh pr create printed no URL:\n${output}`);
+  }
+  return url;
+}
+
+// Writes the files in a temporary worktree on a new branch, commits and pushes it. The worktree goes
+// away after, and the local branch with it unless the push reached origin, so a later try starts
+// clean; a local branch a crash left behind goes before the worktree takes its name.
+async function pushSkillBranch(proposal, { git, base, branch, title, body, editFiles }) {
+  await git('branch', '--quiet', '-D', branch).catch(() => undefined);
   const worktree = join(mkdtempSync(join(tmpdir(), 'nixie-skill-')), 'definitions');
   await git('worktree', 'add', '--quiet', '-b', branch, worktree, base);
   let isPushed = false;
@@ -1084,32 +1121,12 @@ export async function openSkillPullRequest(proposal, { definitionsDir, gh = 'gh'
     if ((await inWorktree('status', '--porcelain')) === '') {
       fail(`skills/${proposal.name} on ${base} already holds these files; nothing pushed`);
     }
-    const verb = proposal.inForce === null ? 'add' : 'update';
-    const title = `feat(skills): ${verb} ${proposal.name}`;
-    const body = [
-      `nixie proposed this skill as ${proposal.proposalID} (skill hash ${proposal.skillHash}).`,
-      '',
-      proposal.untypedToken === null
-        ? 'The token check passed.'
-        : `The token check found an untyped ${proposal.untypedToken.kind}: ${proposal.untypedToken.raw}`,
-      ...(editFiles === undefined ? [] : ['', 'The files carry the reviewer\'s edits.']),
-    ].join('\n');
     await inWorktree('commit', '--quiet', '-m', title, '-m', body);
     await inWorktree('push', '--quiet', '-u', 'origin', branch);
     isPushed = true;
-    const output = await runTool(
-      [gh, 'pr', 'create', '--head', branch, '--base', base.replace(/^origin\//, ''), '--title', title, '--body', body],
-      worktree,
-    );
-    const url = output.split('\n').findLast((line) => /^https?:\/\//.test(line));
-    if (url === undefined) {
-      fail(`gh pr create printed no URL:\n${output}`);
-    }
-    return url;
   } finally {
     await git('worktree', 'remove', '--force', worktree).catch(() => undefined);
     rmSync(dirname(worktree), { recursive: true, force: true });
-    // a branch that never reached origin goes too, so the next try starts clean
     if (!isPushed) {
       await git('branch', '--quiet', '-D', branch).catch(() => undefined);
     }

@@ -273,12 +273,51 @@ describe('nixie skill approve, the definitions PR', () => {
     git(checkout, 'commit', '--quiet', '-m', 'seed');
     git(checkout, 'push', '--quiet', 'origin', 'main');
     git(checkout, 'remote', 'set-head', 'origin', 'main');
+    // pr list prints the URL in open-pr when that file exists; pr create fails once while
+    // fail-create exists, and otherwise logs its arguments and prints a URL
     const ghLog = join(root, 'gh.log');
+    const openPR = join(root, 'open-pr');
+    const failCreate = join(root, 'fail-create');
     const gh = join(root, 'gh');
-    writeFileSync(gh, `#!/bin/sh\nprintf '%s\\n' "$@" > '${ghLog}'\necho https://git.example.com/owner/definitions/pull/3\n`);
+    writeFileSync(
+      gh,
+      [
+        '#!/bin/sh',
+        `if [ "$2" = list ]; then cat '${openPR}' 2>/dev/null; exit 0; fi`,
+        `if [ -f '${failCreate}' ]; then rm '${failCreate}'; echo 'HTTP 502' >&2; exit 1; fi`,
+        `printf '%s\\n' "$@" > '${ghLog}'`,
+        'echo https://git.example.com/owner/definitions/pull/3',
+        '',
+      ].join('\n'),
+    );
     chmodSync(gh, 0o755);
-    return { origin, checkout, gh, ghLog };
+    return { root, origin, checkout, gh, ghLog, openPR, failCreate };
   }
+
+  test('a try after a push whose PR failed to open resumes from the pushed branch and opens the PR', async () => {
+    const definitions = setupDefinitions('resume');
+    writeFileSync(definitions.failCreate, '');
+    const first = await openSkillPullRequest(proposal(), { definitionsDir: definitions.checkout, gh: definitions.gh }).then(
+      () => null,
+      (error) => error,
+    );
+    const url = await openSkillPullRequest(proposal(), { definitionsDir: definitions.checkout, gh: definitions.gh });
+
+    expect(first?.message).toEndWith('gh pr failed (exit 1): HTTP 502');
+    expect(url).toBe('https://git.example.com/owner/definitions/pull/3');
+    expect(git(definitions.origin, 'rev-list', '--count', 'main..skill/tide-tables-k3x9m2p7qa')).toBe('1');
+  });
+
+  test('a try whose branch already has an open PR returns that PR and opens none', async () => {
+    const definitions = setupDefinitions('reuse');
+    writeFileSync(definitions.failCreate, '');
+    await openSkillPullRequest(proposal(), { definitionsDir: definitions.checkout, gh: definitions.gh }).catch(() => undefined);
+    writeFileSync(definitions.openPR, 'https://git.example.com/owner/definitions/pull/8\n');
+    const url = await openSkillPullRequest(proposal(), { definitionsDir: definitions.checkout, gh: definitions.gh });
+
+    expect(url).toBe('https://git.example.com/owner/definitions/pull/8');
+    expect(existsSync(definitions.ghLog)).toBe(false);
+  });
 
   test("it pushes a branch whose skill folder holds exactly the proposal's files, opens the PR, and leaves the checkout alone", async () => {
     const definitions = setupDefinitions('push');
