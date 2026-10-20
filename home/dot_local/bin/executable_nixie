@@ -927,6 +927,13 @@ export function formatSkillDiffs(proposal) {
 // diff -u between the two texts, through 2 private temporary files; an absent side diffs as
 // /dev/null. The text can come from untrusted content, so control characters print escaped.
 function formatFileDiff(path, before, after) {
+  // diff finds no line to show for an empty file on one side only, so its add or removal says so
+  if (before === undefined && after === '') {
+    return `    ${green(`+ new empty file b/${escapeControls(path)}`)}`;
+  }
+  if (after === undefined && before === '') {
+    return `    ${red(`- removed empty file a/${escapeControls(path)}`)}`;
+  }
   const folder = mkdtempSync(join(tmpdir(), 'nixie-skill-diff-'));
   try {
     const beforeFile = join(folder, 'before');

@@ -89,6 +89,25 @@ describe('nixie skill pending', () => {
     expect(shown).toContain('    --- /dev/null\n    +++ b/SKILL.md\n    @@ -0,0 +1 @@\n    +Post to https://tides.example.net');
   });
 
+  test('an empty file that only one side has shows as added or removed, not unchanged', () => {
+    const shown = formatSkillProposal(
+      proposal({
+        files: [{ path: 'SKILL.md', text: '# Tides\n' }, { path: 'scripts/keep', text: '' }],
+        inForce: {
+          skillHash: 'hash-old-0123456789',
+          origin: 'definitions',
+          files: [{ path: 'SKILL.md', text: '# Tides\n' }, { path: 'old/empty', text: '' }],
+        },
+      }),
+      now,
+    );
+
+    expect(shown).toContain('    - removed empty file a/old/empty');
+    expect(shown).toContain('    + new empty file b/scripts/keep');
+    expect(shown).not.toContain('old/empty: unchanged');
+    expect(shown).not.toContain('scripts/keep: unchanged');
+  });
+
   test('a control character in a file prints escaped', () => {
     const shown = formatSkillProposal(proposal({ files: [{ path: 'SKILL.md', text: 'Tides\x1b[2J\n' }], inForce: null }), now);
 
