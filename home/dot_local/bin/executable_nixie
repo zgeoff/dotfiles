@@ -1136,13 +1136,15 @@ export async function answerSkillProposal(answer, args, { run, log = console.log
   return 0;
 }
 
-// One skill that nixie wrote and that is in force: the approval that applied it, and a conflict
-// when your definitions changed the skill after the approval.
+// One skill that nixie wrote and that is in force: the approval that applied it, the pull request
+// that exports it to your definitions repo, and a conflict when your definitions changed the skill
+// after the approval.
 export function formatWrittenSkill(skill, now = Date.now()) {
   const lines = [
     `${bold(escapeControls(skill.name))} ${dim(`approval ${skill.approvalID}`)}`,
     `  from    proposal ${escapeControls(skill.proposalID)}, approved ${formatAge(skill.approvedAt, now)} ago`,
     `  skill   ${skill.skillHash.slice(0, 12)} ${dim(skill.base === null ? '(new to your definitions)' : `(replaces ${skill.base.skillHash.slice(0, 12)})`)}`,
+    `  export  ${skill.pullRequestURL == null ? dim('no pull request yet') : escapeControls(skill.pullRequestURL)}`,
   ];
   if (skill.isConflict) {
     const change = skill.definitions === null ? 'removed it' : `changed it to ${skill.definitions.skillHash.slice(0, 12)}`;

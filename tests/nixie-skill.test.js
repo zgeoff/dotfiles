@@ -283,6 +283,7 @@ const written = (overrides = {}) => ({
   base: { skillHash: 'hash-old-0123456789', origin: 'definitions' },
   definitions: { skillHash: 'hash-edit-0123456789', origin: 'definitions' },
   isConflict: true,
+  pullRequestURL: 'https://github.test/harbour/definitions/pull/3',
   approvedAt: '2026-01-01T00:00:00.000Z',
   ...overrides,
 });
@@ -294,6 +295,7 @@ describe('nixie skill written and resolve', () => {
         'tide-tables approval 5b1e0c7a-3d9f-4e62-8a14-7c2f6b0d9e31',
         '  from    proposal k3x9m2p7qa, approved 1d 0h ago',
         '  skill   hash-new-012 (replaces hash-old-012)',
+        '  export  https://github.test/harbour/definitions/pull/3',
         '  conflict your definitions changed it to hash-edit-01 after the approval',
         '  keep one: nixie skill resolve 5b1e0c7a-3d9f-4e62-8a14-7c2f6b0d9e31 --keep nixie|definitions',
       ].join('\n'),
@@ -305,6 +307,12 @@ describe('nixie skill written and resolve', () => {
 
     expect(shown).toContain('(new to your definitions)');
     expect(shown).not.toContain('conflict');
+  });
+
+  test('a skill whose export opened no pull request yet says so', () => {
+    const shown = formatWrittenSkill(written({ pullRequestURL: null }), now);
+
+    expect(shown).toContain('  export  no pull request yet');
   });
 
   test('resolve sends the side to keep for the approval', async () => {
