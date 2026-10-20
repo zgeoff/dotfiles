@@ -7,6 +7,7 @@ import {
   answerSkillProposal,
   formatReviewSummary,
   formatSkillProposal,
+  makeOpenPullRequest,
   openSkillPullRequest,
   reviewSkillProposals,
 } from '../home/dot_local/bin/executable_nixie';
@@ -354,6 +355,31 @@ describe('nixie skill approve, the definitions PR', () => {
     });
 
     expect(git(definitions.origin, 'show', 'skill/tide-tables-k3x9m2p7qa:skills/tide-tables/ports.md')).toBe('Port list, edited');
+  });
+
+  test('the e key opens the written files in the editor, and the pushed commit holds the edit', async () => {
+    const definitions = setupDefinitions('review-edit');
+    const editor = join(definitions.root, 'editor.sh');
+    // the stand-in editor appends a line to each file it is given
+    writeFileSync(editor, '#!/bin/sh\nfor file in "$@"; do printf "Edited in review.\\n" >> "$file"; done\n');
+    chmodSync(editor, 0o755);
+    const sent = [];
+    const keys = ['e'];
+    const counts = await reviewSkillProposals([proposal()], {
+      run: async (...args) => (sent.push(args), { proposalID: args[1] }),
+      readKey: async () => keys.shift() ?? 'q',
+      readReason: async () => undefined,
+      openPullRequest: makeOpenPullRequest({ definitionsDir: definitions.checkout }, { gh: definitions.gh, editor }),
+      log: () => {},
+    });
+    const branch = 'skill/tide-tables-k3x9m2p7qa';
+
+    expect(git(definitions.origin, 'show', `${branch}:skills/tide-tables/ports.md`)).toBe('Port list\nEdited in review.');
+    expect(git(definitions.origin, 'log', '-1', '--format=%b', branch)).toContain("The files carry the reviewer's edits.");
+    expect(sent).toEqual([
+      ['skill-approve', 'k3x9m2p7qa', '--hash', 'hash-new', '--pull-request=https://git.example.com/owner/definitions/pull/3'],
+    ]);
+    expect(counts).toMatchObject({ edited: 1 });
   });
 
   test('a file path that leaves the skill folder is refused, and leaves no branch or worktree behind', async () => {
