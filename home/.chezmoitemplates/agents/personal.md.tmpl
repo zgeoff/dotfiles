@@ -19,7 +19,6 @@ echo a token or a secret value.
   - `vers` adds `vers-ci` (read-only), which holds only what the vers infra-drift CI job reads.
   - `cloud` adds `cloud-deploy`, which holds the secrets cloud's deploy workflows read, and `imp`,
     where cloud stores the files service's agent token.
-  - `orchestrator` reads across several repos' vaults, and its settings file sits outside every repo.
 - My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
