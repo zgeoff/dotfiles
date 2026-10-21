@@ -61,6 +61,8 @@ When working on a Linear task, include its issue ID in the PR description with a
 - Contributes to GEO-123: delivers part of the task; work remains.
 - Related to GEO-123: context only; no status changes.
 
+Name the issue only in the PR body. Never put it in the PR title or the branch name: Linear closes an issue that a merged PR names there. A PR that only records a grant uses Related to.
+
 Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, deployment or acceptance work remains.
 
 # Stack taste
@@ -76,8 +78,7 @@ PRs get a different review depending on what they change:
 
 - **Any PR, by default:** at least one local review before hand-off. Codex reviews first; an Opus
   review agent stands in when Codex is unavailable or times out. Answer every finding: fix it, or
-  reply with why not. On a repo where noslop reviews PRs (`hq noslop` lists them), noslop's check
-  is the review. Answer every finding in its thread. Don't run a Codex review there.
+  reply with why not.
 - **A diff that touches auth, secrets, money, migrations, deletion or infra permissions, or crosses
   several interacting subsystems:** the default review, and the PR does not merge until every
   finding is fixed or answered.
@@ -89,14 +90,9 @@ PRs get a different review depending on what they change:
 
 Review rounds:
 
-- Evidence, not votes. Drop nits. On disagreement, write the discriminating test. Do not re-prompt
-  for a preferred answer.
-- One review round per diff, plus one re-check only when the round found a must-fix.
-- After the re-check, fix each finding in code the PR changed, in the same PR, whatever its size.
-  The reviewer then checks only that fix, fixed or not fixed, with no new findings. That ends the
-  review.
-- Fix a small defect you find in the same repo in the same PR, a finding in code the PR didn't
-  touch included. File a follow-up issue only for something large, or one that needs my design
-  choice.
+- Evidence, not votes. On disagreement, write the discriminating test. Do not re-prompt for a
+  preferred answer.
+- Fix every finding, and every defect you meet while doing the work, in the same PR, whatever its size. A follow-up issue is only for a fix in another repo, or one that needs my decision.
+- A re-check checks only the fixes, with no new findings.
 - Fix a security defect before merge.
 - Report a timeout on a required review; never skip it silently.

@@ -57,10 +57,8 @@ const worktree = `.worktrees/${branch}`;
 const REPO_RULES = `
 Ground rules for working in this repo:
 - Read AGENTS.md at the repo root (and any agent docs it points to) before writing code, and load the skills it names as required reading for this kind of work. Its rules are binding.
-- Work ONLY inside the worktree at ${worktree}. Never commit on ${base}.
 - Set the worktree up the way the repo's docs say: install its dependencies inside the worktree, and start any services its tests need.
 - NEVER bypass git hooks (no --no-verify, no editing hook files). If a hook fails, fix the cause and re-commit.
-- Use Conventional Commits${issue ? `, referencing the issue in the scope, e.g. \`feat(#${issue}): …\`` : ''}.
 `;
 
 const IMPLEMENT_SCHEMA = {
@@ -205,7 +203,7 @@ ${CLASSIFY}`;
  */
 async function reviewPass(label, prior) {
   const recheck = prior
-    ? `\n\nA previous review round found these blocking findings, which a fixer has since addressed with new commits:\n\n${JSON.stringify(prior, null, 2)}\n\nVerify each is genuinely resolved and check the fix commits for new regressions. Return the full current findings list (unresolved findings stay blocking; genuinely fixed ones are dropped).`
+    ? `\n\nA previous review round found these blocking findings, which a fixer has since addressed with new commits:\n\n${JSON.stringify(prior, null, 2)}\n\nCheck only these listed fixes: verify each is genuinely resolved. Return only the findings that are still open (they stay blocking; genuinely fixed ones are dropped). Raise no new findings.`
     : '';
   if (reviewer === 'codex') {
     const codex = await agent(codexReviewPrompt + recheck, {
@@ -276,6 +274,7 @@ if (!review)
     reason: 'review agent died or was skipped',
   };
 const reviewedBy = new Set([review.by]);
+const firstReview = review;
 
 let blocking = review.findings.filter((f) => f.severity === 'blocking');
 for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
@@ -322,6 +321,11 @@ Commit the fixes (hooks must pass). Do not push.`,
   blocking = review.findings.filter((f) => f.severity === 'blocking');
 }
 
+// A re-review returns only the still-open listed findings, so the first
+// review's minor findings carry forward into the report.
+const minorFindings = firstReview.findings.filter((f) => f.severity === 'minor');
+if (review !== firstReview) minorFindings.push(...review.findings.filter((f) => f.severity === 'minor'));
+
 if (blocking.length > 0) {
   return {
     status: 'review-blocked',
@@ -329,18 +333,17 @@ if (blocking.length > 0) {
     worktree,
     reason: `blocking findings remain after ${MAX_FIX_ROUNDS} fix rounds`,
     outstandingFindings: blocking,
-    minorFindings: review.findings.filter((f) => f.severity === 'minor'),
+    minorFindings,
     reviewedBy: [...reviewedBy],
   };
 }
-const minorFindings = review.findings.filter((f) => f.severity === 'minor');
 log(`Review clean by ${[...reviewedBy].join(' + ')} (${minorFindings.length} minor finding(s) noted)`);
 
 phase('Open PR');
-const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries — following the repo's PR template if it has one: condensed description (lead ≤2 sentences, one-line bullets, ≤150 words), no narrative about review rounds or fix history${issue ? `, starting with \`Closes #${issue}\`` : ''}. For orientation only, the implementer summarized the work as: ${impl.summary}`;
+const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries${issue ? `, starting with \`Closes #${issue}\`` : ''}. For orientation only, the implementer summarized the work as: ${impl.summary}`;
 const prAction = prNumber
   ? `Update the existing PR #${prNumber}: refresh its body with \`gh pr edit ${prNumber}\` and mark it ready for review with \`gh pr ready ${prNumber}\`. Return its URL and number.`
-  : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`, title in Conventional Commits form${issue ? ` with the issue scope, e.g. \`feat(#${issue}): …\`` : ''}. Return the new PR's URL and number.`;
+  : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`. Return the new PR's URL and number.`;
 const pr = await agent(
   `Publish the reviewed feature branch in the worktree at ${worktree} as a PR against ${base}.
 
