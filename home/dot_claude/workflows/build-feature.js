@@ -274,6 +274,7 @@ if (!review)
     reason: 'review agent died or was skipped',
   };
 const reviewedBy = new Set([review.by]);
+const firstReview = review;
 
 let blocking = review.findings.filter((f) => f.severity === 'blocking');
 for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
@@ -320,6 +321,11 @@ Commit the fixes (hooks must pass). Do not push.`,
   blocking = review.findings.filter((f) => f.severity === 'blocking');
 }
 
+// A re-review returns only the still-open listed findings, so the first
+// review's minor findings carry forward into the report.
+const minorFindings = firstReview.findings.filter((f) => f.severity === 'minor');
+if (review !== firstReview) minorFindings.push(...review.findings.filter((f) => f.severity === 'minor'));
+
 if (blocking.length > 0) {
   return {
     status: 'review-blocked',
@@ -327,11 +333,10 @@ if (blocking.length > 0) {
     worktree,
     reason: `blocking findings remain after ${MAX_FIX_ROUNDS} fix rounds`,
     outstandingFindings: blocking,
-    minorFindings: review.findings.filter((f) => f.severity === 'minor'),
+    minorFindings,
     reviewedBy: [...reviewedBy],
   };
 }
-const minorFindings = review.findings.filter((f) => f.severity === 'minor');
 log(`Review clean by ${[...reviewedBy].join(' + ')} (${minorFindings.length} minor finding(s) noted)`);
 
 phase('Open PR');

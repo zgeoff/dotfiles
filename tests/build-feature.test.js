@@ -26,6 +26,12 @@ const labelFinding = {
   severity: 'blocking',
   summary: 'The label helper drops the trailing unit.',
 };
+const unitFinding = {
+  file: 'src/units.ts',
+  line: 9,
+  severity: 'minor',
+  summary: 'The unit table lists grams twice.',
+};
 
 /**
  * Runs the workflow against stub agents. `reviews` maps a review label to the
@@ -87,6 +93,21 @@ describe('build-feature review loop', () => {
     const run = await dryRun({ review: [quotaFinding], 're-review-1': [labelFinding] });
     expect(run.labels).toContain('open-pr');
     expect(run.result).toMatchObject({ status: 'ready' });
+  });
+
+  test('minor findings from the first review reach the report after a clean re-review', async () => {
+    const run = await dryRun({ review: [quotaFinding, unitFinding] });
+    expect(run.labels).toContain('codex-re-review-1');
+    expect(run.result).toMatchObject({ status: 'ready', minorFindings: [unitFinding] });
+  });
+
+  test('minor findings from the first review reach a review-blocked report', async () => {
+    const run = await dryRun({
+      review: [quotaFinding, unitFinding],
+      're-review-1': [quotaFinding],
+      're-review-2': [quotaFinding],
+    });
+    expect(run.result).toMatchObject({ status: 'review-blocked', minorFindings: [unitFinding] });
   });
 
   test('each fixer holds the whole diff to the cited rule', async () => {
