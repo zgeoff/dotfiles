@@ -13,9 +13,6 @@ namespace = "<namespace>"
 # the infrastructure checkout whose `bun run nixie:reset` does the factory reset
 cloud_dir = "~/projects/<cloud checkout>"
 
-# optional: the nixie-definitions checkout that `nixie skill approve` opens a pull request from
-# definitions_dir = "~/projects/nixie-definitions"
-
 # optional: the pod and container, if they differ from these defaults
 # pod = "nixie-0"
 # container = "nixie"

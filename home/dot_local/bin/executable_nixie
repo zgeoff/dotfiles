@@ -43,8 +43,7 @@ function loadConfig() {
         `  cp ${examplePath} ${configPath}`,
         '',
         'keys: host (ssh destination), domain (nixie web name), namespace (k8s namespace),',
-        '      cloud_dir (checkout with the nixie:reset script); optional pod, container,',
-        '      definitions_dir (nixie-definitions checkout, for nixie skill approve)',
+        '      cloud_dir (checkout with the nixie:reset script); optional pod, container',
       ].join('\n'),
     );
   }
@@ -68,11 +67,6 @@ function loadConfig() {
     cloudDir: parsed.cloud_dir.replace(/^~(?=\/|$)/, home),
     pod: parsed.pod || 'nixie-0',
     container: parsed.container || 'nixie',
-    // optional: the nixie-definitions checkout that `nixie skill approve` opens its PR from
-    definitionsDir:
-      typeof parsed.definitions_dir === 'string' && parsed.definitions_dir !== ''
-        ? parsed.definitions_dir.replace(/^~(?=\/|$)/, home)
-        : undefined,
   };
 }
 
@@ -909,11 +903,8 @@ async function memory(args) {
 
 // ---------------------------------------------------------------------------------------- skill
 
-// STOPGAP, removed by GEO-1510: until nixie keeps the skills it writes in its own store, an
-// approval here writes the proposed files to a branch of the nixie-definitions checkout and opens a
-// pull request with gh. The skill goes live through the definitions seed once that PR merges. The
-// pod's skill-* host commands list the proposals and record each answer; GEO-1510 keeps those and
-// replaces only this pull request path.
+// The pod's skill-* host commands list Nix's skill proposals and answer each one. An approval puts
+// the skill in force in nixie at once, and nixie exports it to the definitions repo itself.
 
 // Shows a diff of each file against the version of the skill in force: a file only the proposal
 // has diffs against nothing, and a file only the version in force has shows as removed.
@@ -969,14 +960,18 @@ export function formatTokenCheck(proposal) {
   return `  token   ${red(`untyped ${escapeControls(kind)}: ${escapeControls(raw)}`)} ${dim('(you never typed it, and your definitions lack it)')}`;
 }
 
+const skillOriginNotes = {
+  vendored: '(vendored: an approval replaces the copy skills.lock.json pins)',
+  nixie: '(nixie wrote it; its export may not have merged yet)',
+};
+
 function formatSkillTarget(proposal) {
   if (proposal.inForce === null) {
     return 'new skill';
   }
   const replaced = `replaces ${proposal.inForce.skillHash.slice(0, 12)}`;
-  return proposal.inForce.origin === 'vendored'
-    ? `${replaced} ${yellow('(vendored: an approval replaces the copy skills.lock.json pins)')}`
-    : replaced;
+  const note = skillOriginNotes[proposal.inForce.origin];
+  return note === undefined ? replaced : `${replaced} ${yellow(note)}`;
 }
 
 export function formatSkillProposal(proposal, now = Date.now()) {
@@ -984,6 +979,9 @@ export function formatSkillProposal(proposal, now = Date.now()) {
   return [
     `${bold(escapeControls(proposal.proposalID))} ${escapeControls(proposal.name)}`,
     `  skill   ${formatSkillTarget(proposal)}`,
+    ...(proposal.isStale
+      ? [`  stale   ${yellow('the skill in force moved past the version this replaces; an answer is refused, and it lapses')}`]
+      : []),
     `  age     ${formatAge(proposal.createdAt, now)} ${dim(`(lapses in ${lapsesIn})`)}`,
     `  from    ${escapeControls(`${proposal.thread ?? 'no thread'}, run ${proposal.provenance.runID}`)}`,
     formatTokenCheck(proposal),
@@ -1000,11 +998,11 @@ export function findSkillProposal(pending, id) {
   return proposal;
 }
 
-// -y/--yes, --reason <why> and --pull-request <url> (or --reason=, --pull-request=) anywhere; every
-// other argument is positional
+// -y/--yes, --reason <why> and --keep <side> (or --reason=, --keep=) anywhere; every other
+// argument is positional
 export function parseSkillArgs(args) {
-  const parsed = { yes: false, reason: undefined, pullRequest: undefined, positionals: [] };
-  const valued = { '--reason': 'reason', '--pull-request': 'pullRequest' };
+  const parsed = { yes: false, reason: undefined, keep: undefined, positionals: [] };
+  const valued = { '--reason': 'reason', '--keep': 'keep' };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     const [flag, inline] = arg.startsWith('--') && arg.includes('=') ? [arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1)] : [arg, undefined];
@@ -1013,7 +1011,7 @@ export function parseSkillArgs(args) {
     } else if (valued[flag] !== undefined) {
       const value = inline ?? args[index + 1];
       if (value === undefined || (inline === undefined && value.startsWith('-')) || value.trim() === '') {
-        fail(`${flag} takes ${flag === '--reason' ? 'the reason' : 'the pull request URL'}`);
+        fail(`${flag} takes ${flag === '--reason' ? 'the reason' : 'nixie or definitions'}`);
       }
       parsed[valued[flag]] = value;
       index += inline === undefined ? 1 : 0;
@@ -1026,22 +1024,8 @@ export function parseSkillArgs(args) {
   return parsed;
 }
 
-// runs git, or gh with the given binary, in a folder and returns its trimmed stdout
-async function runTool(argv, cwd) {
-  const proc = Bun.spawn(argv, { cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (exitCode !== 0) {
-    fail(`${argv.slice(0, 2).join(' ')} failed (exit ${exitCode}): ${stderr.trim() || stdout.trim()}`);
-  }
-  return stdout.trim();
-}
-
-// a proposed path stays inside the skill's folder; the server checked it, and this checks again
-// before anything writes to the checkout
+// a proposed path stays inside the folder the editor reads; the server checked it, and this
+// checks again before anything writes to disk
 function resolveSkillPath(folder, path) {
   const target = normalize(join(folder, path));
   if (!target.startsWith(`${folder}/`)) {
@@ -1050,121 +1034,57 @@ function resolveSkillPath(folder, path) {
   return target;
 }
 
-// Writes the proposal's files as skills/<name>/ on a new branch from the checkout's default branch,
-// in a temporary worktree, so the checkout itself never changes. The folder holds the proposal's
-// files and nothing else, because a proposal carries the skill's complete set. editFiles(paths), if
-// given, runs on the written files before the commit, so an edit and approve lands your edit. It
-// pushes the branch, opens the PR with gh, and returns the PR's URL. A try after one that pushed the
-// branch and then failed resumes from that branch: it writes nothing, takes the PR that is already
-// open on it, and opens one only when none is.
-export async function openSkillPullRequest(proposal, { definitionsDir, gh = 'gh', editFiles } = {}) {
-  if (definitionsDir === undefined || !existsSync(join(definitionsDir, '.git'))) {
-    fail('set definitions_dir in the config to a nixie-definitions checkout; nothing written');
-  }
-  const git = (...args) => runTool(['git', '-C', definitionsDir, ...args]);
-  await git('fetch', '--quiet', 'origin');
-  const base = await git('symbolic-ref', '--short', 'refs/remotes/origin/HEAD').catch(() => 'origin/main');
-  const branch = `skill/${proposal.name}-${proposal.proposalID}`;
-  const verb = proposal.inForce === null ? 'add' : 'update';
-  const title = `feat(skills): ${verb} ${proposal.name}`;
-  const body = [
-    `nixie proposed this skill as ${proposal.proposalID} (skill hash ${proposal.skillHash}).`,
-    '',
-    proposal.untypedToken === null
-      ? 'The token check passed.'
-      : `The token check found an untyped ${proposal.untypedToken.kind}: ${proposal.untypedToken.raw}`,
-    ...(editFiles === undefined ? [] : ['', 'The files carry the reviewer\'s edits.']),
-  ].join('\n');
-  if ((await git('ls-remote', '--heads', 'origin', branch)) === '') {
-    await pushSkillBranch(proposal, { git, base, branch, title, body, editFiles });
-  }
-  const open = await runTool(
-    [gh, 'pr', 'list', '--head', branch, '--state', 'open', '--json', 'url', '--jq', '.[0].url // empty'],
-    definitionsDir,
-  );
-  if (open !== '') {
-    return open;
-  }
-  const output = await runTool(
-    [gh, 'pr', 'create', '--head', branch, '--base', base.replace(/^origin\//, ''), '--title', title, '--body', body],
-    definitionsDir,
-  );
-  const url = output.split('\n').findLast((line) => /^https?:\/\//.test(line));
-  if (url === undefined) {
-    fail(`gh pr create printed no URL:\n${output}`);
-  }
-  return url;
-}
-
-// Writes the files in a temporary worktree on a new branch, commits and pushes it. The worktree goes
-// away after, and the local branch with it unless the push reached origin, so a later try starts
-// clean; a local branch a crash left behind goes before the worktree takes its name.
-async function pushSkillBranch(proposal, { git, base, branch, title, body, editFiles }) {
-  await git('branch', '--quiet', '-D', branch).catch(() => undefined);
-  const worktree = join(mkdtempSync(join(tmpdir(), 'nixie-skill-')), 'definitions');
-  await git('worktree', 'add', '--quiet', '-b', branch, worktree, base);
-  let isPushed = false;
+// Writes the proposal's files to a private temporary folder, opens them all in the editor, as git
+// does ($EDITOR may carry its own arguments), and reads them back. Returns the edited files, or
+// undefined when the editor exits non-zero. The folder goes away after.
+export async function editSkillFiles(proposal, editor = process.env.EDITOR || 'vi') {
+  const folder = mkdtempSync(join(tmpdir(), 'nixie-skill-edit-'));
   try {
-    const folder = join(worktree, 'skills', proposal.name);
-    rmSync(folder, { recursive: true, force: true });
     const written = proposal.files.map((file) => {
       const target = resolveSkillPath(folder, file.path);
       mkdirSync(dirname(target), { recursive: true });
-      writeFileSync(target, file.text);
-      return target;
+      writeFileSync(target, file.text, { mode: 0o600 });
+      return { path: file.path, target };
     });
-    if (editFiles !== undefined && !(await editFiles(written))) {
-      fail('edit cancelled: the editor failed; nothing pushed');
+    const proc = Bun.spawn(['sh', '-c', `${editor} "$@"`, 'sh', ...written.map((file) => file.target)], {
+      stdio: ['inherit', 'inherit', 'inherit'],
+    });
+    if ((await proc.exited) !== 0) {
+      return undefined;
     }
-    const inWorktree = (...args) => runTool(['git', '-C', worktree, ...args]);
-    await inWorktree('add', '--all', join('skills', proposal.name));
-    if ((await inWorktree('status', '--porcelain')) === '') {
-      fail(`skills/${proposal.name} on ${base} already holds these files; nothing pushed`);
-    }
-    await inWorktree('commit', '--quiet', '-m', title, '-m', body);
-    await inWorktree('push', '--quiet', '-u', 'origin', branch);
-    isPushed = true;
+    return written.map((file) => ({ path: file.path, text: readFileSync(file.target, 'utf8') }));
   } finally {
-    await git('worktree', 'remove', '--force', worktree).catch(() => undefined);
-    rmSync(dirname(worktree), { recursive: true, force: true });
-    if (!isPushed) {
-      await git('branch', '--quiet', '-D', branch).catch(() => undefined);
-    }
+    rmSync(folder, { recursive: true, force: true });
   }
 }
 
-// Records the approval with its PR. A PR that opened when the record then failed stays open, so
-// the failure names the command that records it.
-async function recordSkillApproval(run, proposal, url) {
-  try {
-    return await run('skill-approve', proposal.proposalID, '--hash', proposal.skillHash, `--pull-request=${url}`);
-  } catch (error) {
-    if (error instanceof Failure) {
-      fail(`${error.message}\n${url} is open; record it with nixie skill approve ${proposal.proposalID} --pull-request ${url}`);
-    }
-    throw error;
+// the most the edited files take as one argument of the remote command line
+const maxEditedBytes = 100_000;
+
+// Approves the proposal under the skill hash it was shown with, with your edited files when you
+// changed any, and prints the approval. The skill is in force for the next task.
+async function approveSkill(run, proposal, files, log) {
+  const isEdited = files !== undefined && files.some((file, index) => file.text !== proposal.files[index].text);
+  const encoded = isEdited ? JSON.stringify(files) : undefined;
+  if (encoded !== undefined && Buffer.byteLength(encoded) > maxEditedBytes) {
+    fail(`the edited files take more than ${maxEditedBytes} bytes; approve them unedited, or ask Nix for a new proposal`);
   }
+  const result = await run(
+    'skill-approve',
+    proposal.proposalID,
+    '--hash',
+    proposal.skillHash,
+    ...(encoded === undefined ? [] : [`--files=${encoded}`]),
+  );
+  log(`${green('✓')} approved${isEdited ? ' with your edits' : ''}: in force for new tasks (approval ${result.approvalID})`);
+  return isEdited ? 'edited' : 'approved';
 }
 
-// Opens the files in the editor, as git does: $EDITOR may carry its own arguments. Returns false
-// when the editor exits non-zero.
-async function editSkillFiles(paths, editor = process.env.EDITOR || 'vi') {
-  const proc = Bun.spawn(['sh', '-c', `${editor} "$@"`, 'sh', ...paths], { stdio: ['inherit', 'inherit', 'inherit'] });
-  return (await proc.exited) === 0;
-}
-
-// Each answer binds to the skill hash of the proposal shown, so a proposal that closed since the
-// listing refuses it and the loop goes on. An approval opens the definitions PR first and records
-// it after; an edit and approve opens the files in the editor before the commit. A rejection asks
-// for its reason, which Nix reads on its next turn, and a blank reason sends nothing.
-export async function reviewSkillProposals(pending, { run, readKey, readReason, openPullRequest, log = console.log }) {
-  const approve = async (proposal, isEdited) => {
-    const url = await openPullRequest(proposal, { isEdited });
-    await recordSkillApproval(run, proposal, url);
-    log(`${green('✓')} approved: ${url}`);
-    return isEdited ? 'edited' : 'approved';
-  };
-
+// Each answer binds to the skill hash of the proposal shown, so a proposal that closed or went
+// stale since the listing refuses it and the loop goes on. An edit and approve opens the files in
+// the editor first; a failed editor sends nothing. A rejection asks for its reason, which Nix reads
+// on its next turn, and a blank reason sends nothing.
+export async function reviewSkillProposals(pending, { run, readKey, readReason, editFiles, log = console.log }) {
   const answer = async (action, proposal) => {
     if (action === 'skip') {
       log(dim('skipped'));
@@ -1180,20 +1100,27 @@ export async function reviewSkillProposals(pending, { run, readKey, readReason, 
       log(`${green('✓')} rejected`);
       return 'rejected';
     }
-    return approve(proposal, action === 'edit');
+    if (action === 'approve') {
+      return approveSkill(run, proposal, undefined, log);
+    }
+    const files = await editFiles(proposal);
+    if (files === undefined) {
+      log(yellow('edit cancelled: the editor failed; nothing sent'));
+      return 'again';
+    }
+    return approveSkill(run, proposal, files, log);
   };
 
   return reviewLoop(pending, { show: (proposal) => formatSkillProposal(proposal), answer, readKey, log });
 }
 
-// `skill approve <id>` opens the PR and records it; with --pull-request it records a PR that is
-// already open, as after a record that failed. `skill reject <id> --reason <why>` records the
+// `skill approve <id>` puts the skill in force; `skill reject <id> --reason <why>` records the
 // rejection. Each asks first unless --yes.
-export async function answerSkillProposal(answer, args, { run, openPullRequest, log = console.log, ask = confirm }) {
-  const { yes, reason, pullRequest, positionals } = parseSkillArgs(args);
-  const misplaced = answer === 'reject' ? pullRequest : reason;
+export async function answerSkillProposal(answer, args, { run, log = console.log, ask = confirm }) {
+  const { yes, reason, keep, positionals } = parseSkillArgs(args);
+  const misplaced = keep ?? (answer === 'approve' ? reason : undefined);
   if (positionals.length !== 1 || misplaced !== undefined || (answer === 'reject' && reason === undefined)) {
-    fail(answer === 'approve' ? skillApproveUsage : 'usage: nixie skill reject <id> --reason <why> [--yes]');
+    fail(answer === 'approve' ? 'usage: nixie skill approve <id> [--yes]' : 'usage: nixie skill reject <id> --reason <why> [--yes]');
   }
   const proposal = findSkillProposal(await run('skill-pending'), positionals[0]);
   log(formatSkillProposal(proposal));
@@ -1204,31 +1131,55 @@ export async function answerSkillProposal(answer, args, { run, openPullRequest, 
     log(`${green('✓')} rejected`);
     return 0;
   }
-  ask(pullRequest === undefined ? 'approve it and open the definitions PR?' : `record ${pullRequest} as its approval?`, 'skill approve', yes);
-  const url = pullRequest ?? (await openPullRequest(proposal, { isEdited: false }));
-  await recordSkillApproval(run, proposal, url);
-  log(`${green('✓')} approved: ${url}`);
+  ask('approve it? it goes in force for new tasks', 'skill approve', yes);
+  await approveSkill(run, proposal, undefined, log);
   return 0;
 }
 
-const skillApproveUsage = 'usage: nixie skill approve <id> [--pull-request <url>] [--yes]';
+// One skill that nixie wrote and that is in force: the approval that applied it, the pull request
+// that exports it to your definitions repo, and a conflict when your definitions changed the skill
+// after the approval.
+export function formatWrittenSkill(skill, now = Date.now()) {
+  const lines = [
+    `${bold(escapeControls(skill.name))} ${dim(`approval ${skill.approvalID}`)}`,
+    `  from    proposal ${escapeControls(skill.proposalID)}, approved ${formatAge(skill.approvedAt, now)} ago`,
+    `  skill   ${skill.skillHash.slice(0, 12)} ${dim(skill.base === null ? '(new to your definitions)' : `(replaces ${skill.base.skillHash.slice(0, 12)})`)}`,
+    `  export  ${skill.pullRequestURL == null ? dim('no pull request yet') : escapeControls(skill.pullRequestURL)}`,
+  ];
+  if (skill.isConflict) {
+    const change = skill.definitions === null ? 'removed it' : `changed it to ${skill.definitions.skillHash.slice(0, 12)}`;
+    lines.push(
+      `  ${red('conflict')} your definitions ${change} after the approval`,
+      dim(`  keep one: nixie skill resolve ${skill.approvalID} --keep nixie|definitions`),
+    );
+  }
+  return lines.join('\n');
+}
+
+// `skill resolve <approval> --keep nixie|definitions`: nixie keeps its version over your change,
+// or retires it and puts your definitions' version back in force. It asks first unless --yes.
+export async function resolveWrittenSkill(args, { run, log = console.log, ask = confirm }) {
+  const { yes, reason, keep, positionals } = parseSkillArgs(args);
+  if (positionals.length !== 1 || reason !== undefined || !['nixie', 'definitions'].includes(keep)) {
+    fail('usage: nixie skill resolve <approval> --keep nixie|definitions [--yes]');
+  }
+  const skill = (await run('skill-written')).find((candidate) => candidate.approvalID === positionals[0]);
+  if (skill === undefined) {
+    fail(`no skill nixie wrote is in force under approval ${positionals[0]}; run nixie skill written`);
+  }
+  log(formatWrittenSkill(skill));
+  ask(keep === 'nixie' ? "keep nixie's version over your definitions?" : "retire nixie's version and keep your definitions'?", 'skill resolve', yes);
+  await run('skill-resolve', skill.approvalID, `--keep=${keep}`);
+  log(`${green('✓')} kept ${keep === 'nixie' ? "nixie's version" : "your definitions' version"}`);
+  return 0;
+}
 
 const skillUsage = [
-  'usage: nixie skill pending | review',
-  `       ${skillApproveUsage.slice('usage: '.length)}`,
+  'usage: nixie skill pending | review | written',
+  '       nixie skill approve <id> [--yes]',
   '       nixie skill reject <id> --reason <why> [--yes]',
+  '       nixie skill resolve <approval> --keep nixie|definitions [--yes]',
 ].join('\n');
-
-// the PR opener the review and approve commands use: an edit and approve opens the written files in
-// $EDITOR, or the editor given, before the commit
-export function makeOpenPullRequest(config, { gh = 'gh', editor = process.env.EDITOR || 'vi' } = {}) {
-  return (proposal, { isEdited }) =>
-    openSkillPullRequest(proposal, {
-      definitionsDir: config.definitionsDir,
-      gh,
-      ...(isEdited ? { editFiles: (paths) => editSkillFiles(paths, editor) } : {}),
-    });
-}
 
 async function skillPending(config) {
   const pending = await runMemoryCommand(config, 'skill-pending');
@@ -1255,10 +1206,22 @@ async function skillReview(config) {
     run: (...args) => runMemoryCommand(config, ...args),
     readKey: readTerminalKey,
     readReason: async () => prompt('why (Nix reads this):'),
-    openPullRequest: makeOpenPullRequest(config),
+    editFiles: (proposal) => editSkillFiles(proposal),
   });
   console.log(`\n${formatReviewSummary(counts)}`);
   return counts.refused > 0 ? 1 : 0;
+}
+
+async function skillWritten(config) {
+  const written = await runMemoryCommand(config, 'skill-written');
+  if (written.length === 0) {
+    console.log(dim('no skill nixie wrote is in force over your definitions'));
+    return 0;
+  }
+  console.log(written.map((skill) => formatWrittenSkill(skill)).join('\n\n'));
+  const conflicts = written.filter((skill) => skill.isConflict).length;
+  console.log(dim(`\n${written.length} in force, ${conflicts} in conflict with your definitions`));
+  return 0;
 }
 
 async function skill(args) {
@@ -1267,7 +1230,7 @@ async function skill(args) {
     console.log(skillUsage);
     return 0;
   }
-  if ((sub === 'pending' || sub === 'review') && rest.length > 0) {
+  if (['pending', 'review', 'written'].includes(sub) && rest.length > 0) {
     fail(`skill ${sub}: unknown argument ${rest[0]}\n${skillUsage}`);
   }
   if (sub === 'pending') {
@@ -1276,12 +1239,16 @@ async function skill(args) {
   if (sub === 'review') {
     return skillReview(loadConfig());
   }
+  if (sub === 'written') {
+    return skillWritten(loadConfig());
+  }
   if (sub === 'approve' || sub === 'reject') {
     const config = loadConfig();
-    return answerSkillProposal(sub, rest, {
-      run: (...command) => runMemoryCommand(config, ...command),
-      openPullRequest: makeOpenPullRequest(config),
-    });
+    return answerSkillProposal(sub, rest, { run: (...command) => runMemoryCommand(config, ...command) });
+  }
+  if (sub === 'resolve') {
+    const config = loadConfig();
+    return resolveWrittenSkill(rest, { run: (...command) => runMemoryCommand(config, ...command) });
   }
   fail(sub === undefined ? skillUsage : `skill: unknown subcommand ${sub}\n${skillUsage}`);
 }
@@ -1309,7 +1276,7 @@ const commands = {
   },
   skill: {
     usage: 'skill <subcommand>',
-    summary: "review or answer Nix's skill proposals; an approval opens a nixie-definitions PR",
+    summary: "review or answer Nix's skill proposals; list the skills nixie wrote and resolve a conflict",
     run: skill,
   },
   reset: { usage: 'reset [--confirm]', summary: 'dry-run the factory reset; --confirm runs it', run: reset },
