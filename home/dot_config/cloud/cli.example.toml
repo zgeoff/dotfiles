@@ -1,9 +1,0 @@
-# Example config for the `cloud` CLI. Copy it to ~/.config/cloud/cli.toml and fill in the
-# placeholder; cli.toml stays local and out of this repo.
-
-# the 1Password reference that `op read` resolves to a file-drop token: the owner token, or the
-# agent token for a local agent. CLOUD_FILES_TOKEN, when set, wins and op is not run.
-token_ref = "op://<vault>/<item>/credential"
-
-# optional: the file drop's origin, if it differs from this default
-# url = "https://files.geoff.cloud"

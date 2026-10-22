@@ -1,9 +1,10 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, readdirSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { formatMarkdown, main, parseOptions, readToken } from '../home/dot_local/bin/executable_cloud';
+import { formatMarkdown, main, opCommandFor, parseOptions, readToken } from '../home/dot_local/bin/executable_cloud';
 
 const cliPath = join(import.meta.dir, '../home/dot_local/bin/executable_cloud');
+const shippedConfigPath = join(import.meta.dir, '../home/dot_config/cloud/create_cli.toml');
 
 // fixtures live in the repo's ignored .scratch/, not the system temp folder
 const scratch = join(import.meta.dir, `../.scratch/cloud-test-${process.pid}`);
@@ -98,8 +99,9 @@ beforeEach(() => {
 });
 
 // Runs the CLI in process against the stand-in. The env is built from scratch, so the machine's
-// own CLOUD_FILES_TOKEN or config never leaks in; op answers from the opTokens map.
-async function cloud(args, { env = {}, opTokens = {} } = {}) {
+// own CLOUD_FILES_TOKEN or config never leaks in; op answers from the opTokens map, and only the
+// commands in onPath are found on PATH.
+async function cloud(args, { env = {}, opTokens = {}, onPath = [] } = {}) {
   const out = [];
   const err = [];
   const opCalls = [];
@@ -110,10 +112,11 @@ async function cloud(args, { env = {}, opTokens = {} } = {}) {
       CLOUD_FILES_TOKEN: token,
       ...env,
     },
-    runOp: async (ref) => {
-      opCalls.push(ref);
+    runOp: async (command, ref) => {
+      opCalls.push(`${command} read ${ref}`);
       return opTokens[ref] ?? '';
     },
+    which: (command) => (onPath.includes(command) ? `/stand-in/${command}` : null),
     log: (line) => out.push(line),
     logError: (line) => err.push(line),
     now: () => now,
@@ -286,15 +289,39 @@ describe('cloud token', () => {
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
   });
 
-  test('without CLOUD_FILES_TOKEN, op reads the reference in the config', async () => {
+  test('with a service-account token, op reads the reference in the config, even when op-win is there', async () => {
     const { code, opCalls } = await cloud(['ls'], {
-      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '' },
+      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '', OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in' },
       opTokens: { 'op://vault-a/files-token/credential': token },
+      onPath: ['op', 'op-win'],
     });
 
     expect(code).toBe(0);
-    expect(opCalls).toEqual(['op://vault-a/files-token/credential']);
+    expect(opCalls).toEqual(['op read op://vault-a/files-token/credential']);
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
+  });
+
+  test('without a service-account token, op-win reads the reference in the config', async () => {
+    const { code, opCalls } = await cloud(['ls'], {
+      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '' },
+      opTokens: { 'op://vault-a/files-token/credential': token },
+      onPath: ['op', 'op-win'],
+    });
+
+    expect(code).toBe(0);
+    expect(opCalls).toEqual(['op-win read op://vault-a/files-token/credential']);
+    expect(requests[0].authorization).toBe(`Bearer ${token}`);
+  });
+
+  test('opCommandFor picks op for a service account or a Connect server, op-win otherwise, op without op-win', () => {
+    const both = (command) => ['op', 'op-win'].includes(command);
+    const opOnly = (command) => command === 'op';
+
+    expect(opCommandFor({ OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in' }, both)).toBe('op');
+    expect(opCommandFor({ OP_CONNECT_HOST: 'http://connect.example.test' }, both)).toBe('op');
+    expect(opCommandFor({}, both)).toBe('op-win');
+    expect(opCommandFor({ OP_SERVICE_ACCOUNT_TOKEN: '' }, both)).toBe('op-win');
+    expect(opCommandFor({}, opOnly)).toBe('op');
   });
 
   test('with neither, the error says how to create the config and nothing is sent', async () => {
@@ -302,7 +329,7 @@ describe('cloud token', () => {
 
     expect(code).toBe(1);
     expect(err).toContain('CLOUD_FILES_TOKEN is not set and there is no config');
-    expect(err).toContain('cli.example.toml');
+    expect(err).toContain('chezmoi apply');
     expect(opCalls).toEqual([]);
     expect(requests).toEqual([]);
   });
@@ -313,7 +340,7 @@ describe('cloud token', () => {
     await expect(readToken({ env: {}, configPath: noRef, config: { url: 'x' } })).rejects.toThrow('has no token_ref');
     await expect(
       readToken({ env: {}, configPath, config: { tokenRef: 'op://vault-a/x/y' }, runOp: async () => '' }),
-    ).rejects.toThrow('gave an empty token');
+    ).rejects.toThrow('op read op://vault-a/x/y gave an empty token');
   });
 
   test('the token is never a flag', async () => {
@@ -338,6 +365,85 @@ describe('cloud token', () => {
   });
 });
 
+// The real CLI in a child process, with HOME and PATH built from scratch: HOME holds only the
+// shipped config, and PATH holds only stand-in op and op-win scripts, so no real 1Password CLI runs.
+// Each stand-in logs its call and prints the token; the one that must not run prints a wrong token.
+describe('cloud token from the shell, with stand-in op and op-win', () => {
+  const home = join(scratch, 'shell-home');
+  const bin = join(scratch, 'shell-bin');
+  const workdir = join(scratch, 'shell-work');
+  const callLog = join(scratch, 'op-calls.log');
+  mkdirSync(join(home, '.config/cloud'), { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(workdir, { recursive: true });
+  writeFileSync(join(home, '.config/cloud/cli.toml'), readFileSync(shippedConfigPath));
+  for (const name of ['op', 'op-win']) {
+    // op-win is op.exe under WSL, so its stand-in ends the token with \r\n
+    const ending = name === 'op-win' ? '\\r\\n' : '\\n';
+    writeFileSync(
+      join(bin, name),
+      `#!/bin/sh\nprintf '%s %s\\n' "${name}" "$*" >> "$CALL_LOG"\nprintf '%s${ending}' "$${name === 'op' ? 'OP' : 'OP_WIN'}_STAND_IN_TOKEN"\n`,
+    );
+    chmodSync(join(bin, name), 0o755);
+  }
+
+  // async, since a synchronous spawn would block the stand-in server in this process
+  async function shell(env) {
+    rmSync(callLog, { force: true });
+    const proc = Bun.spawn([process.execPath, cliPath, 'ls'], {
+      cwd: workdir,
+      env: { HOME: home, PATH: bin, NO_COLOR: '1', CLOUD_FILES_URL: server.url.href, CALL_LOG: callLog, ...env },
+      stdout: 'ignore',
+      stderr: 'pipe',
+    });
+    const [err, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+    const calls = readFileSync(callLog, 'utf8').trim().split('\n');
+    return { code, err, calls };
+  }
+
+  test('with no service-account token, the token comes through op-win from the shipped reference', async () => {
+    const { code, err, calls } = await shell({ OP_WIN_STAND_IN_TOKEN: token, OP_STAND_IN_TOKEN: 'wrong-op-token-zz11' });
+
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(calls).toEqual(['op-win read op://cloud/files-owner-token/credential']);
+    expect(requests.map((request) => request.authorization)).toEqual([`Bearer ${token}`]);
+  });
+
+  test('with a service-account token, the token comes through op', async () => {
+    const { code, err, calls } = await shell({
+      OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in',
+      OP_STAND_IN_TOKEN: token,
+      OP_WIN_STAND_IN_TOKEN: 'wrong-op-win-token-zz22',
+    });
+
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(calls).toEqual(['op read op://cloud/files-owner-token/credential']);
+    expect(requests.map((request) => request.authorization)).toEqual([`Bearer ${token}`]);
+  });
+
+  test('no token reaches the disk: the shipped config holds only a reference, and the CLI writes no file', async () => {
+    const shipped = Bun.TOML.parse(readFileSync(shippedConfigPath, 'utf8'));
+    expect(Object.keys(shipped)).toEqual(['token_ref']);
+    expect(shipped.token_ref).toBe('op://cloud/files-owner-token/credential');
+
+    const before = readdirSync(home, { recursive: true }).sort();
+    await shell({ OP_WIN_STAND_IN_TOKEN: token });
+    await shell({ OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in', OP_STAND_IN_TOKEN: token });
+
+    expect(readdirSync(home, { recursive: true }).sort()).toEqual(before);
+    expect(readdirSync(workdir)).toEqual([]);
+    for (const name of before) {
+      const path = join(home, name);
+      if (!statSync(path).isDirectory()) {
+        expect(readFileSync(path, 'utf8')).not.toContain(token);
+      }
+    }
+    expect(readFileSync(callLog, 'utf8')).not.toContain(token);
+  });
+});
+
 describe('cloud help', () => {
   test('documents each command and how to create the config', () => {
     const proc = Bun.spawnSync(['bun', cliPath, 'help'], {
@@ -351,7 +457,9 @@ describe('cloud help', () => {
     }
     expect(text).toContain('CLOUD_FILES_TOKEN');
     expect(text).toContain('(missing)');
-    expect(text).toMatch(/cp \S+\/\.config\/cloud\/cli\.example\.toml \S+absent\.toml/);
+    expect(text).toContain('chezmoi apply');
+    expect(text).toContain('token_ref = "op://cloud/files-owner-token/credential"');
+    expect(text).toContain('op-win');
   });
 
   test('an unknown command prints the help to stderr and exits 2', async () => {

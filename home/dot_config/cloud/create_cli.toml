@@ -1,0 +1,10 @@
+# Config for the `cloud` CLI. chezmoi creates this file only when it is absent, so a local change
+# (another token_ref, a url) stays. It holds a 1Password reference, never a token.
+
+# the 1Password reference that the CLI reads the file-drop token from: through `op` when an agent's
+# service-account token is loaded, otherwise through `op-win` with one approval in 1Password.
+# CLOUD_FILES_TOKEN, when set, wins and 1Password is not asked.
+token_ref = "op://cloud/files-owner-token/credential"
+
+# optional: the file drop's origin, if it differs from this default
+# url = "https://files.geoff.cloud"
