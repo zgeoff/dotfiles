@@ -370,6 +370,12 @@ describe('cloud helpers', () => {
     expect(formatMarkdown(upload('A', { label: 'two\nlines' }))).toBe('![two lines](https://files.example.test/A/kite.png)');
   });
 
+  test('formatMarkdown percent-encodes a parenthesis, which would end the link early', () => {
+    expect(formatMarkdown(upload('A', { filename: 'chart).png', url: 'https://files.example.test/A/chart(1).png' }))).toBe(
+      '![chart).png](https://files.example.test/A/chart%281%29.png)',
+    );
+  });
+
   test('parseOptions takes -- as the end of options', () => {
     expect(parseOptions(['--', '--odd-name.png'], { usage: 'x' }).positionals).toEqual(['--odd-name.png']);
   });

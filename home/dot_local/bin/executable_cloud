@@ -160,9 +160,12 @@ function requireID(id, usage) {
 
 const markdownAlt = (text) => text.replace(/[\\[\]]/g, (char) => `\\${char}`).replace(/[\r\n]+/g, ' ');
 
+// a parenthesis would end the link early; %28 and %29 name the same path
+const markdownURL = (url) => url.replace(/[()]/g, (char) => (char === '(' ? '%28' : '%29'));
+
 // a Markdown image line for a PR body: the label, or else the filename, as the alt text
 export function formatMarkdown(upload) {
-  return `![${markdownAlt(upload.label ?? upload.filename)}](${upload.url})`;
+  return `![${markdownAlt(upload.label ?? upload.filename)}](${markdownURL(upload.url)})`;
 }
 
 export function formatSize(bytes) {
