@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readdirSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { formatMarkdown, main, parseOptions, readToken } from '../home/dot_local/bin/executable_cloud';
 
 const cliPath = join(import.meta.dir, '../home/dot_local/bin/executable_cloud');
@@ -86,6 +86,10 @@ const server = Bun.serve({
 afterAll(() => {
   server.stop(true);
   rmSync(scratch, { recursive: true, force: true });
+  // .scratch/ goes too when this run made it and nothing else is in it
+  if (readdirSync(dirname(scratch)).length === 0) {
+    rmdirSync(dirname(scratch));
+  }
 });
 
 beforeEach(() => {
@@ -310,6 +314,14 @@ describe('cloud token', () => {
     await expect(
       readToken({ env: {}, configPath, config: { tokenRef: 'op://vault-a/x/y' }, runOp: async () => '' }),
     ).rejects.toThrow('gave an empty token');
+  });
+
+  test('the token is never a flag', async () => {
+    const { code, err } = await cloud(['up', fixture('kite.png', 'kite'), '--token', 'flag-token-x1']);
+
+    expect(code).toBe(1);
+    expect(err).toContain('unknown option --token');
+    expect(requests).toEqual([]);
   });
 
   test('the token appears in no output, even on a 401', async () => {
