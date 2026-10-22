@@ -1,0 +1,429 @@
+#!/usr/bin/env bun
+
+// cloud: upload, list, extend and delete files on the files.geoff.cloud file drop.
+// The token comes from $CLOUD_FILES_TOKEN, or else `op read` of token_ref in
+// ~/.config/cloud/cli.toml (or $CLOUD_CLI_CONFIG); `cloud help` says how to create it.
+//
+// Add a command: one entry in `commands` below, with a usage, a summary and an async run(args, deps).
+
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
+
+const home = homedir();
+const defaultConfigPath = join(home, '.config/cloud/cli.toml');
+const examplePath = join(home, '.config/cloud/cli.example.toml');
+const defaultURL = 'https://files.geoff.cloud';
+
+const useColour = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code) => (text) => (useColour ? `\x1b[${code}m${text}\x1b[0m` : text);
+const red = paint('31');
+const yellow = paint('33');
+const dim = paint('2');
+const bold = paint('1');
+
+export class Failure extends Error {}
+
+const fail = (message) => {
+  throw new Failure(message);
+};
+
+// ---------------------------------------------------------------------------------------- config
+
+const configPathOf = (env) => env.CLOUD_CLI_CONFIG || defaultConfigPath;
+
+const createConfigHelp = (configPath) =>
+  [
+    'create it from the example, then fill in the 1Password reference:',
+    `  mkdir -p ${join(home, '.config/cloud')}`,
+    `  cp ${examplePath} ${configPath}`,
+    '',
+    'keys: token_ref (op:// reference to a file-drop token); optional url',
+  ].join('\n');
+
+// the config, or undefined when the file is absent; a file that is there must parse
+export function readConfig(configPath) {
+  if (!existsSync(configPath)) {
+    return undefined;
+  }
+
+  let parsed;
+  try {
+    parsed = Bun.TOML.parse(readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    fail(`cannot parse ${configPath}: ${error.message}`);
+  }
+
+  for (const key of ['token_ref', 'url']) {
+    if (parsed[key] !== undefined && (typeof parsed[key] !== 'string' || parsed[key] === '')) {
+      fail(`${configPath}: ${key} must be a non-empty string (see ${examplePath})`);
+    }
+  }
+  return { tokenRef: parsed.token_ref, url: parsed.url };
+}
+
+// $CLOUD_FILES_URL, then the config's url, then files.geoff.cloud; never with a trailing slash
+export function resolveBaseURL(env, config) {
+  return (env.CLOUD_FILES_URL || config?.url || defaultURL).replace(/\/+$/, '');
+}
+
+// ----------------------------------------------------------------------------------------- token
+
+// runs `op read <ref>` and returns its trimmed output
+async function opRead(ref) {
+  if (!Bun.which('op')) {
+    fail('op is not on PATH: install the 1Password CLI, or set CLOUD_FILES_TOKEN');
+  }
+  const proc = Bun.spawn(['op', 'read', ref], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exitCode !== 0) {
+    fail(`op read ${ref} failed (exit ${exitCode}): ${stderr.trim()}`);
+  }
+  return stdout.trim();
+}
+
+// $CLOUD_FILES_TOKEN when set; otherwise op read of the config's token_ref. op is not run when the
+// variable is set, so an agent with the token in its environment needs no 1Password access.
+export async function readToken({ env, configPath, config, runOp = opRead }) {
+  if (env.CLOUD_FILES_TOKEN) {
+    return env.CLOUD_FILES_TOKEN;
+  }
+  if (config === undefined) {
+    fail([`CLOUD_FILES_TOKEN is not set and there is no config at ${configPath}`, '', createConfigHelp(configPath)].join('\n'));
+  }
+  if (config.tokenRef === undefined) {
+    fail(`CLOUD_FILES_TOKEN is not set and ${configPath} has no token_ref (see ${examplePath})`);
+  }
+  const token = await runOp(config.tokenRef);
+  if (!token) {
+    fail(`op read ${config.tokenRef} gave an empty token`);
+  }
+  return token;
+}
+
+// -------------------------------------------------------------------------------------------- api
+
+// one client per command; the token goes only into the Authorization header
+async function connect(deps) {
+  const configPath = configPathOf(deps.env);
+  const config = readConfig(configPath);
+  const token = await readToken({ env: deps.env, configPath, config, runOp: deps.runOp });
+  const baseURL = resolveBaseURL(deps.env, config);
+
+  return async (method, path, body) => {
+    const headers = { Authorization: `Bearer ${token}` };
+    let payload = body;
+    if (body !== undefined && !(body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+      payload = JSON.stringify(body);
+    }
+
+    let response;
+    try {
+      response = await fetch(`${baseURL}/api${path}`, { method, headers, body: payload });
+    } catch (error) {
+      fail(`cannot reach ${baseURL}: ${error.message}`);
+    }
+
+    const text = await response.text();
+    let parsed;
+    try {
+      parsed = text === '' ? undefined : JSON.parse(text);
+    } catch {
+      parsed = undefined;
+    }
+    if (!response.ok) {
+      // oRPC answers an error with { code, status, message }
+      const message = typeof parsed?.message === 'string' ? parsed.message : text.trim().slice(0, 200);
+      fail(`${method} ${path} failed (${response.status}): ${message || response.statusText}`);
+    }
+    if (parsed === undefined) {
+      fail(`${method} ${path} answered ${response.status} with no JSON body`);
+    }
+    return parsed;
+  };
+}
+
+// an id goes into the path, so it must be one path segment
+function requireID(id, usage) {
+  if (id === undefined || id.startsWith('-')) {
+    fail(`usage: ${usage}`);
+  }
+  return encodeURIComponent(id);
+}
+
+// --------------------------------------------------------------------------------------- display
+
+const markdownAlt = (text) => text.replace(/[\\[\]]/g, (char) => `\\${char}`).replace(/[\r\n]+/g, ' ');
+
+// a Markdown image line for a PR body: the label, or else the filename, as the alt text
+export function formatMarkdown(upload) {
+  return `![${markdownAlt(upload.label ?? upload.filename)}](${upload.url})`;
+}
+
+export function formatSize(bytes) {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return unit === 0 ? `${value} B` : `${value.toFixed(1)} ${units[unit]}`;
+}
+
+export function formatExpiry(expiresAt, now = Date.now()) {
+  if (expiresAt === null) {
+    return 'never';
+  }
+  const ms = new Date(expiresAt).getTime() - now;
+  const days = Math.floor(Math.abs(ms) / 86_400_000);
+  const hours = Math.floor(Math.abs(ms) / 3_600_000);
+  const span = days >= 1 ? `${days}d` : `${hours}h`;
+  return ms <= 0 ? `expired ${span} ago` : `in ${span}`;
+}
+
+const isExpired = (upload, now) => upload.expiresAt !== null && new Date(upload.expiresAt).getTime() <= now;
+
+export function formatList(uploads, now = Date.now()) {
+  const rows = uploads.map((upload) => [
+    upload.id,
+    formatSize(upload.size),
+    formatExpiry(upload.expiresAt, now),
+    upload.uploader,
+    upload.label ? `${upload.filename}  ${dim(upload.label)}` : upload.filename,
+  ]);
+  const widths = [0, 1, 2, 3].map((column) => Math.max(...rows.map((row) => row[column].length)));
+  return rows.map((row) => row.map((cell, column) => (column < 4 ? cell.padEnd(widths[column]) : cell)).join('  ')).join('\n');
+}
+
+export function formatInfo(upload, now = Date.now()) {
+  const fields = [
+    ['id', upload.id],
+    ['url', upload.url],
+    ['filename', upload.filename],
+    ['type', upload.contentType],
+    ['size', `${formatSize(upload.size)} (${upload.size} bytes)`],
+    ['sha256', upload.sha256],
+    ['uploaded', `${upload.createdAt} by ${upload.uploader}`],
+    ['expires', upload.expiresAt === null ? 'never' : `${upload.expiresAt} (${formatExpiry(upload.expiresAt, now)})`],
+    ['label', upload.label ?? '-'],
+    ['link', upload.link ?? '-'],
+  ];
+  return fields.map(([name, value]) => `${name.padEnd(8)}  ${value}`).join('\n');
+}
+
+// --------------------------------------------------------------------------------------- options
+
+// splits args into positionals and --name value / --name=value options; flags take no value
+export function parseOptions(args, { valued = [], flags = [], usage }) {
+  const positionals = [];
+  const options = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--') {
+      positionals.push(...args.slice(index + 1));
+      break;
+    }
+    if (!arg.startsWith('--')) {
+      positionals.push(arg);
+      continue;
+    }
+    const [name, inline] = arg.slice(2).split(/=(.*)/s);
+    if (flags.includes(name) && inline === undefined) {
+      options[name] = true;
+    } else if (valued.includes(name)) {
+      const value = inline ?? args[++index];
+      if (value === undefined || (inline === undefined && value.startsWith('--')) || value.trim() === '') {
+        fail(`--${name} takes a value\nusage: ${usage}`);
+      }
+      options[name] = value;
+    } else {
+      fail(`unknown option ${arg}\nusage: ${usage}`);
+    }
+  }
+  return { positionals, options };
+}
+
+// ------------------------------------------------------------------------------------------ up
+
+const upUsage = 'cloud up <file> [--expires 7d|30d|never|<date>] [--label <text>] [--link <url>] [--md]';
+
+async function up(args, deps) {
+  const { positionals, options } = parseOptions(args, { valued: ['expires', 'label', 'link'], flags: ['md'], usage: upUsage });
+  if (positionals.length !== 1) {
+    fail(`usage: ${upUsage}`);
+  }
+  const [path] = positionals;
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
+    fail(`no file at ${path}`);
+  }
+
+  const form = new FormData();
+  form.append('file', file, basename(path));
+  form.append('filename', basename(path));
+  // sent even when it is the service's default too, so the request says what the upload gets
+  form.append('expires', options.expires ?? '7d');
+  if (options.label !== undefined) {
+    form.append('label', options.label);
+  }
+  if (options.link !== undefined) {
+    form.append('link', options.link);
+  }
+
+  const call = await connect(deps);
+  const upload = await call('POST', '/files', form);
+  deps.log(options.md ? formatMarkdown(upload) : upload.url);
+  return 0;
+}
+
+// ------------------------------------------------------------------------------------------ ls
+
+const lsUsage = 'cloud ls [--all] [--expired]';
+
+async function ls(args, deps) {
+  const { positionals, options } = parseOptions(args, { flags: ['all', 'expired'], usage: lsUsage });
+  if (positionals.length > 0) {
+    fail(`ls: unknown argument ${positionals[0]}\nusage: ${lsUsage}`);
+  }
+  const includeExpired = Boolean(options.all || options.expired);
+
+  const call = await connect(deps);
+  const listed = await call('GET', `/files?includeExpired=${includeExpired}`);
+  const now = deps.now();
+  const uploads = options.expired && !options.all ? listed.filter((upload) => isExpired(upload, now)) : listed;
+
+  if (uploads.length === 0) {
+    deps.log(dim(options.expired && !options.all ? 'no expired upload' : 'no upload'));
+    return 0;
+  }
+  deps.log(formatList(uploads, now));
+  return 0;
+}
+
+// -------------------------------------------------------------------------------------- expire
+
+const expireUsage = 'cloud expire <id> <7d|30d|never|<date>>';
+
+async function expire(args, deps) {
+  const { positionals } = parseOptions(args, { usage: expireUsage });
+  if (positionals.length !== 2) {
+    fail(`usage: ${expireUsage}`);
+  }
+  const [rawID, expires] = positionals;
+  const id = requireID(rawID, expireUsage);
+
+  const call = await connect(deps);
+  const upload = await call('POST', `/files/${id}/expire`, { expires });
+  deps.log(`${upload.id}  expires ${upload.expiresAt === null ? 'never' : `${upload.expiresAt} (${formatExpiry(upload.expiresAt, deps.now())})`}`);
+  return 0;
+}
+
+// ------------------------------------------------------------------------------------------ rm
+
+const rmUsage = 'cloud rm <id>';
+
+async function rm(args, deps) {
+  const { positionals } = parseOptions(args, { usage: rmUsage });
+  if (positionals.length !== 1) {
+    fail(`usage: ${rmUsage}`);
+  }
+  const id = requireID(positionals[0], rmUsage);
+
+  const call = await connect(deps);
+  const removed = await call('DELETE', `/files/${id}`);
+  deps.log(`removed ${removed.id}`);
+  return 0;
+}
+
+// ---------------------------------------------------------------------------------------- info
+
+const infoUsage = 'cloud info <id>';
+
+async function info(args, deps) {
+  const { positionals } = parseOptions(args, { usage: infoUsage });
+  if (positionals.length !== 1) {
+    fail(`usage: ${infoUsage}`);
+  }
+  const id = requireID(positionals[0], infoUsage);
+
+  const call = await connect(deps);
+  const upload = await call('GET', `/files/${id}`);
+  deps.log(formatInfo(upload, deps.now()));
+  return 0;
+}
+
+// ---------------------------------------------------------------------------------------- help
+
+function help(_args, deps) {
+  const configPath = configPathOf(deps.env);
+  const width = Math.max(...Object.values(commands).map((command) => command.usage.length));
+  const lines = [`${bold('☁ cloud')} ${dim('· the files.geoff.cloud file drop')}`, ''];
+  for (const command of Object.values(commands)) {
+    lines.push(`  cloud ${command.usage.padEnd(width)}  ${command.summary}`);
+  }
+  lines.push(
+    '',
+    'up prints the file\'s URL; --md prints a Markdown image line instead. An upload expires in 7d',
+    'unless --expires says otherwise. A date is YYYY-MM-DD (00:00 UTC) or a date and time with its',
+    'offset. The agent token keeps a file 30 days at most; never and expire need the owner token.',
+    'ls lists the uploads that have not expired; --all adds the expired ones, --expired shows only them.',
+    '',
+    'token: $CLOUD_FILES_TOKEN if set, otherwise `op read` of token_ref in the config.',
+    `config: ${configPath}${existsSync(configPath) ? '' : yellow(' (missing)')}`,
+    createConfigHelp(configPath).replace(/^(?=.)/gm, '  '),
+  );
+  deps.log(lines.join('\n'));
+  return 0;
+}
+
+const commands = {
+  up: { usage: 'up <file> [--expires …] [--label …] [--link …] [--md]', summary: 'upload a file and print its URL', run: up },
+  ls: { usage: 'ls [--all] [--expired]', summary: 'list the uploads this token can see', run: ls },
+  expire: { usage: 'expire <id> <7d|30d|never|date>', summary: "change an upload's expiry (owner token)", run: expire },
+  rm: { usage: 'rm <id>', summary: 'delete an upload', run: rm },
+  info: { usage: 'info <id>', summary: "show an upload's details", run: info },
+  help: { usage: 'help', summary: 'show this help', run: help },
+};
+
+// deps lets the tests swap the environment, op and the output
+export async function main(argv, deps = {}) {
+  const resolved = {
+    env: process.env,
+    runOp: opRead,
+    log: console.log,
+    logError: console.error,
+    now: Date.now,
+    ...deps,
+  };
+  const [name = 'help', ...args] = argv;
+  const command = commands[name] ?? (['-h', '--help'].includes(name) ? commands.help : undefined);
+  if (!command) {
+    resolved.logError(`cloud: unknown command ${name}\n`);
+    help([], { ...resolved, log: resolved.logError });
+    return 2;
+  }
+  const optionArgs = args.includes('--') ? args.slice(0, args.indexOf('--')) : args;
+  if (name !== 'help' && optionArgs.some((arg) => arg === '-h' || arg === '--help')) {
+    resolved.log(`usage: cloud ${command.usage}`);
+    return 0;
+  }
+  try {
+    return await command.run(args, resolved);
+  } catch (error) {
+    if (error instanceof Failure) {
+      resolved.logError(`${red('cloud:')} ${error.message}`);
+      return 1;
+    }
+    throw error;
+  }
+}
+
+if (import.meta.main) {
+  process.exitCode = await main(process.argv.slice(2));
+}
