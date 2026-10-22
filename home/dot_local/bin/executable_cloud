@@ -405,7 +405,7 @@ export async function main(argv, deps = {}) {
     ...deps,
   };
   const [name = 'help', ...args] = argv;
-  const command = commands[name] ?? (['-h', '--help'].includes(name) ? commands.help : undefined);
+  const command = (Object.hasOwn(commands, name) ? commands[name] : undefined) ?? (['-h', '--help'].includes(name) ? commands.help : undefined);
   if (!command) {
     resolved.logError(`cloud: unknown command ${name}\n`);
     help([], { ...resolved, log: resolved.logError });

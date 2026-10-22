@@ -362,6 +362,15 @@ describe('cloud help', () => {
     expect(err).toContain('cloud rm <id>');
   });
 
+  test('a name that every object inherits is an unknown command too', async () => {
+    for (const name of ['toString', 'constructor', '__proto__']) {
+      const { code, err } = await cloud([name]);
+
+      expect(code).toBe(2);
+      expect(err).toContain(`unknown command ${name}`);
+    }
+  });
+
   test('<command> --help prints its usage', async () => {
     const { code, out } = await cloud(['up', '--help']);
 
