@@ -1,8 +1,10 @@
 #!/usr/bin/env bun
 
 // cloud: upload, list, extend and delete files on the files.geoff.cloud file drop.
-// The token comes from $CLOUD_FILES_TOKEN, or else `op read` of token_ref in
-// ~/.config/cloud/cli.toml (or $CLOUD_CLI_CONFIG); `cloud help` says how to create it.
+// The token comes from $CLOUD_FILES_TOKEN, or else a 1Password read of token_ref in
+// ~/.config/cloud/cli.toml (or $CLOUD_CLI_CONFIG), which the dotfiles ship. The read goes through
+// `op` when an agent's service-account token is loaded, and otherwise through `op-win`, the
+// Windows 1Password app, which asks for one approval. The token is never written to disk.
 //
 // Add a command: one entry in `commands` below, with a usage, a summary and an async run(args, deps).
 
@@ -12,8 +14,8 @@ import { basename, join } from 'node:path';
 
 const home = homedir();
 const defaultConfigPath = join(home, '.config/cloud/cli.toml');
-const examplePath = join(home, '.config/cloud/cli.example.toml');
 const defaultURL = 'https://files.geoff.cloud';
+const defaultTokenRef = 'op://cloud/files-owner-token/credential';
 
 const useColour = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = (code) => (text) => (useColour ? `\x1b[${code}m${text}\x1b[0m` : text);
@@ -34,9 +36,8 @@ const configPathOf = (env) => env.CLOUD_CLI_CONFIG || defaultConfigPath;
 
 const createConfigHelp = (configPath) =>
   [
-    'create it from the example, then fill in the 1Password reference:',
-    `  mkdir -p ${join(home, '.config/cloud')}`,
-    `  cp ${examplePath} ${configPath}`,
+    `the dotfiles ship ${defaultConfigPath}; \`chezmoi apply\` creates it, or write ${configPath} by hand:`,
+    `  token_ref = "${defaultTokenRef}"`,
     '',
     'keys: token_ref (op:// reference to a file-drop token); optional url',
   ].join('\n');
@@ -56,7 +57,7 @@ export function readConfig(configPath) {
 
   for (const key of ['token_ref', 'url']) {
     if (parsed[key] !== undefined && (typeof parsed[key] !== 'string' || parsed[key] === '')) {
-      fail(`${configPath}: ${key} must be a non-empty string (see ${examplePath})`);
+      fail(`${configPath}: ${key} must be a non-empty string`);
     }
   }
   return { tokenRef: parsed.token_ref, url: parsed.url };
@@ -69,26 +70,38 @@ export function resolveBaseURL(env, config) {
 
 // ----------------------------------------------------------------------------------------- token
 
-// runs `op read <ref>` and returns its trimmed output
-async function opRead(ref) {
-  if (!Bun.which('op')) {
-    fail('op is not on PATH: install the 1Password CLI, or set CLOUD_FILES_TOKEN');
+// the 1Password CLI that reads the token: `op` when an agent's service-account token (or a Connect
+// server) is loaded, since op then needs no sign-in; otherwise `op-win`, which reaches the Windows
+// 1Password app from WSL and asks for one approval. Without op-win (macOS), op asks the desktop app.
+export function opCommandFor(env, which = Bun.which) {
+  if (env.OP_SERVICE_ACCOUNT_TOKEN || env.OP_CONNECT_HOST) {
+    return 'op';
   }
-  const proc = Bun.spawn(['op', 'read', ref], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  return which('op-win', { PATH: env.PATH ?? '' }) ? 'op-win' : 'op';
+}
+
+// runs `<command> read <ref>` and returns its trimmed output; op-win's \r\n goes with the trim
+async function opRead(command, ref, env) {
+  const path = Bun.which(command, { PATH: env.PATH ?? '' });
+  if (!path) {
+    fail(`${command} is not on PATH: install the 1Password CLI, or set CLOUD_FILES_TOKEN`);
+  }
+  const proc = Bun.spawn([path, 'read', ref], { env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
   if (exitCode !== 0) {
-    fail(`op read ${ref} failed (exit ${exitCode}): ${stderr.trim()}`);
+    fail(`${command} read ${ref} failed (exit ${exitCode}): ${stderr.trim()}`);
   }
   return stdout.trim();
 }
 
-// $CLOUD_FILES_TOKEN when set; otherwise op read of the config's token_ref. op is not run when the
-// variable is set, so an agent with the token in its environment needs no 1Password access.
-export async function readToken({ env, configPath, config, runOp = opRead }) {
+// $CLOUD_FILES_TOKEN when set; otherwise a read of the config's token_ref through opCommandFor's
+// CLI. 1Password is not asked when the variable is set, so an agent with the token in its
+// environment needs no 1Password access. The token stays in memory only.
+export async function readToken({ env, configPath, config, runOp = opRead, which = Bun.which }) {
   if (env.CLOUD_FILES_TOKEN) {
     return env.CLOUD_FILES_TOKEN;
   }
@@ -96,11 +109,12 @@ export async function readToken({ env, configPath, config, runOp = opRead }) {
     fail([`CLOUD_FILES_TOKEN is not set and there is no config at ${configPath}`, '', createConfigHelp(configPath)].join('\n'));
   }
   if (config.tokenRef === undefined) {
-    fail(`CLOUD_FILES_TOKEN is not set and ${configPath} has no token_ref (see ${examplePath})`);
+    fail(`CLOUD_FILES_TOKEN is not set and ${configPath} has no token_ref\n\n${createConfigHelp(configPath)}`);
   }
-  const token = await runOp(config.tokenRef);
+  const command = opCommandFor(env, which);
+  const token = await runOp(command, config.tokenRef, env);
   if (!token) {
-    fail(`op read ${config.tokenRef} gave an empty token`);
+    fail(`${command} read ${config.tokenRef} gave an empty token`);
   }
   return token;
 }
@@ -111,7 +125,7 @@ export async function readToken({ env, configPath, config, runOp = opRead }) {
 async function connect(deps) {
   const configPath = configPathOf(deps.env);
   const config = readConfig(configPath);
-  const token = await readToken({ env: deps.env, configPath, config, runOp: deps.runOp });
+  const token = await readToken({ env: deps.env, configPath, config, runOp: deps.runOp, which: deps.which });
   const baseURL = resolveBaseURL(deps.env, config);
 
   return async (method, path, body) => {
@@ -377,7 +391,8 @@ function help(_args, deps) {
     'offset. The agent token keeps a file 30 days at most; never and expire need the owner token.',
     'ls lists the uploads that have not expired; --all adds the expired ones, --expired shows only them.',
     '',
-    'token: $CLOUD_FILES_TOKEN if set, otherwise `op read` of token_ref in the config.',
+    'token: $CLOUD_FILES_TOKEN if set, otherwise a 1Password read of token_ref in the config: through op',
+    'when OP_SERVICE_ACCOUNT_TOKEN is set, otherwise through op-win (one approval in 1Password).',
     `config: ${configPath}${existsSync(configPath) ? '' : yellow(' (missing)')}`,
     createConfigHelp(configPath).replace(/^(?=.)/gm, '  '),
   );
@@ -394,11 +409,12 @@ const commands = {
   help: { usage: 'help', summary: 'show this help', run: help },
 };
 
-// deps lets the tests swap the environment, op and the output
+// deps lets the tests swap the environment, op, the PATH lookup and the output
 export async function main(argv, deps = {}) {
   const resolved = {
     env: process.env,
     runOp: opRead,
+    which: Bun.which,
     log: console.log,
     logError: console.error,
     now: Date.now,
