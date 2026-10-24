@@ -1,0 +1,30 @@
+# Calls the repo-sync workflow in zgeoff/tools, which opens one pull request that
+# carries every manifest entry whose files this repository is behind on.
+#
+# Two optional string inputs under `with:` change which entries run. `skip`
+# takes the comma-separated names of the entries to leave alone. `include`
+# takes the comma-separated names of the opt-in entries to sync, which reach
+# this repository only when they are listed. A name in `include` that is not an
+# opt-in entry fails the run.
+#
+# The `uses:` line pins a sync tag of zgeoff/tools, and a run syncs the files
+# that tag holds. Move to a newer tag between sweeps with
+# scripts/pin-tools-ref.sh in zgeoff/tools.
+name: Repo sync
+
+on:
+  schedule:
+    # Monday 06:00 UTC
+    - cron: 0 6 * * 1
+  workflow_dispatch:
+
+jobs:
+  sync:
+    permissions:
+      contents: read
+    uses: zgeoff/tools/.github/workflows/repo-sync.yml@sync-v24
+    with:
+      skip: editorconfig, socket, skill-pr-evidence, memory-cap
+    secrets:
+      REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
+      REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
