@@ -1,6 +1,9 @@
 [settings]
 # install pipx-backend tools with uv
 pipx.uvx = true
+# take a repo's Rust from its rust-toolchain.toml, so the global stable never
+# overrides a repo's pin through RUSTUP_TOOLCHAIN
+idiomatic_version_file_enable_tools = ["rust"]
 
 [tools]
 go = "1.25.6"
@@ -15,3 +18,4 @@ ruby = "4.0.1"
 gitleaks = "8.30.1"
 rust = "stable"
 "cargo:tokei" = "15.0.0"
+actionlint = "1.7.12"
