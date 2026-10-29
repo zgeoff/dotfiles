@@ -1,0 +1,22 @@
+# repo-sync delivers this file from zgeoff/tools
+#
+# Runs the shared repo-sync guard on each push to the repo-sync branch. The
+# repo-sync workflow turns on auto-merge of its pull request, and the guard
+# turns it off when anyone but the pull request's author pushes, so a commit
+# added by hand waits for review.
+name: Repo sync guard
+
+on:
+  push:
+    branches: [repo-sync/zgeoff-tools]
+
+concurrency:
+  group: repo-sync-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hold:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: zgeoff/tools/.github/workflows/repo-sync-guard.yml@sync-v31
