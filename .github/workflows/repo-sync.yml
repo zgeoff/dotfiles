@@ -8,15 +8,25 @@
 # opt-in entry fails the run.
 #
 # The `uses:` line pins a sync tag of zgeoff/tools, and a run syncs the files
-# that tag holds. Move to a newer tag between sweeps with
-# scripts/pin-tools-ref.sh in zgeoff/tools.
+# that tag holds. A push to main that changes this file, such as the merge of
+# Renovate's bump to a newer tag, starts a run, so the new tag's files arrive
+# without waiting for the weekly run. scripts/pin-tools-ref.sh in zgeoff/tools
+# moves a repo to a tag by hand.
 name: Repo sync
 
 on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/repo-sync.yml]
   schedule:
     # Monday 06:00 UTC
     - cron: 0 6 * * 1
   workflow_dispatch:
+
+# A newer run syncs every entry again, so it replaces an older run on the ref.
+concurrency:
+  group: repo-sync-caller-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   sync:
