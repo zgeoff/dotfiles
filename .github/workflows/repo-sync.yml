@@ -32,7 +32,7 @@ jobs:
   sync:
     permissions:
       contents: read
-    uses: zgeoff/tools/.github/workflows/repo-sync.yml@sync-v31
+    uses: zgeoff/tools/.github/workflows/repo-sync.yml@sync-v33
     with:
       skip: editorconfig, socket, skill-pr-evidence, memory-cap
     secrets:
