@@ -34,7 +34,7 @@ If the name doesn't resolve, use `Workflow({ scriptPath: '~/.claude/workflows/bu
 | `issue` | none | GitHub issue number, for the commit scope and `Closes #n`. |
 | `prNumber` | none | Push to and ready this existing PR instead of opening one. |
 | `verifyCommands` | none | Extra full-graph checks for cross-cutting work, run before the final commit. |
-| `review` | `codex` | `codex` runs `codex review` and falls back to Opus when Codex is missing, fails, or takes more than 15 minutes. `opus` skips Codex. |
+| `review` | `codex` | `codex` gets a Codex review through the `second-opinion` skill, and falls back to Opus when Codex is missing, fails, or takes more than 15 minutes. `opus` skips Codex. |
 
 Leave `review` at `codex` unless the user names a model.
 

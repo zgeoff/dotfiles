@@ -27,7 +27,7 @@ export const meta = {
 };
 
 const MAX_FIX_ROUNDS = 2;
-// codex review takes 3 to 9 minutes; past this, fall back to Opus.
+// A Codex review takes 3 to 9 minutes; past this, fall back to Opus.
 const CODEX_TIMEOUT_SECONDS = 900;
 
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
@@ -184,13 +184,14 @@ ${plan}
 ${CLASSIFY}
 Do not modify any files. No praise, no restating the diff.`;
 
-const codexReviewPrompt = `Run a Codex review of the feature branch in the worktree at ${worktree} and return its findings. First run \`git -C ${worktree} fetch origin\` so origin/${base} is current. Do not review the code yourself and do not modify any files.
+const codexReviewPrompt = `Get a Codex review of the feature branch in the worktree at ${worktree}, and return its findings. Do not review the code yourself, and do not modify any files.
 
-1. From inside the worktree, run: \`timeout ${CODEX_TIMEOUT_SECONDS} codex review --base origin/${base} < /dev/null > codex-review.out 2>&1\`, writing the output file to a scratch location outside the worktree. Run it in the background and wait for it; it takes 3 to 9 minutes. Stdin must come from /dev/null, or codex waits on it forever.
-2. If \`codex\` is not installed, exits non-zero, hits the timeout, or prints no review, return ran=false with the reason and an empty findings list.
-3. Otherwise return ran=true and map each Codex finding into the findings list, keeping its file and line.
+1. Load the \`second-opinion\` skill, and write the prompt for a review as its "Write the prompt" and "Ask for a reply shape" sections say. First run \`git -C ${worktree} fetch origin\`, so origin/${base} is current. The diff command for the prompt is \`git diff origin/${base}...HEAD\`. The rules to paste come from the repo's AGENTS.md and the skills it names, for the files the diff touches. The plan below says what the change is for. When a previous round's findings are listed at the end, ask Codex to check only those fixes, and to raise no new findings.
+2. From inside the worktree, run the Codex command from the skill's commands reference, wrapped in \`timeout ${CODEX_TIMEOUT_SECONDS}\`, with the prompt and reply files in a scratch folder outside the worktree. Run it in the background and wait for it.
+3. If \`codex\` is not installed, exits non-zero, hits the timeout, or writes no reply, return ran=false with the reason and an empty findings list. Don't fall back to another model yourself: the workflow does that.
+4. Otherwise return ran=true, and map each Codex finding into the findings list, keeping its file and line. Skip the skill's "After the answer" steps: a later stage fixes the findings.
 
-The plan the branch implements, for judging severity:
+The plan the branch implements:
 
 ${plan}
 
