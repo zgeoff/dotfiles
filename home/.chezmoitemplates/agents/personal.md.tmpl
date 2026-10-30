@@ -75,9 +75,8 @@ Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, 
 
 PRs get a different review depending on what they change:
 
-- **Any PR, by default:** at least one local review before hand-off. Codex reviews first; an Opus
-  review agent stands in when Codex is unavailable or times out. Answer every finding: fix it, or
-  reply with why not.
+- **Any PR, by default:** at least one local review before hand-off, through the `second-opinion`
+  skill. Answer every finding: fix it, or reply with why not.
 - **A diff that touches auth, secrets, money, migrations, deletion or infra permissions, or crosses
   several interacting subsystems:** the default review, and the PR does not merge until every
   finding is fixed or answered.
