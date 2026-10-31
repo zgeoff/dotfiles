@@ -7,33 +7,43 @@
 # this repository only when they are listed. A name in `include` that is not an
 # opt-in entry fails the run.
 #
-# The `uses:` line pins a sync tag of zgeoff/tools, and a run syncs the files
-# that tag holds. A push to main that changes this file, such as the merge of
-# Renovate's bump to a newer tag, starts a run, so the new tag's files arrive
-# without waiting for the weekly run. scripts/pin-tools-ref.sh in zgeoff/tools
-# moves a repo to a tag by hand.
+# The `uses:` line pins a commit on main of zgeoff/tools. A green main there
+# that changes a synced file sends this repository a repository_dispatch event
+# with its commit, and the run syncs that commit's files. The sync pull request
+# moves the pin to that commit, and merges on green checks. A run from any other
+# trigger syncs the newest green commit on main there. Each run also opens an
+# issue when the sync pull request is red for more than a day.
 name: Repo sync
 
 on:
+  repository_dispatch:
+    types: [zgeoff-tools-sync]
   push:
     branches: [main]
     paths: [.github/workflows/repo-sync.yml]
   schedule:
-    # Monday 06:00 UTC
-    - cron: 0 6 * * 1
+    # 06:00 UTC
+    - cron: 0 6 * * *
   workflow_dispatch:
 
-# A newer run syncs every entry again, so it replaces an older run on the ref.
+# No run cancels another, so a scheduled run never cancels the run of a
+# dispatch. A run from an older commit than this repository already pins, on
+# main or in the open sync pull request, changes nothing.
 concurrency:
-  group: repo-sync-caller-${{ github.ref }}
-  cancel-in-progress: true
+  group: repo-sync-caller-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   sync:
     permissions:
       contents: read
-    uses: zgeoff/tools/.github/workflows/repo-sync.yml@sync-v33
+      issues: write
+      pull-requests: read
+      checks: read
+      statuses: read
+    uses: zgeoff/tools/.github/workflows/repo-sync.yml@4501c398fd59c2c1b6218ea86a0161103246af62 # main
     with:
+      ref: ${{ github.event.client_payload.sha }}
       skip: editorconfig, socket, skill-pr-evidence, memory-cap
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
