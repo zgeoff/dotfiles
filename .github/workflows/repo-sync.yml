@@ -26,11 +26,12 @@ on:
     - cron: 0 6 * * *
   workflow_dispatch:
 
-# No run cancels another, so a scheduled run never cancels the run of a
-# dispatch. A run from an older commit than this repository already pins, on
-# main or in the open sync pull request, changes nothing.
+# github.sha of a repository_dispatch run is this repository's main, so the
+# group names the dispatched commit. A newer run replaces only a pending run of
+# the same commit, or a pending run of another trigger, which syncs the newest
+# green commit as the newer run does. No run cancels a running one.
 concurrency:
-  group: repo-sync-caller-${{ github.sha }}
+  group: repo-sync-caller-${{ github.event.client_payload.sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -41,7 +42,8 @@ jobs:
       pull-requests: read
       checks: read
       statuses: read
-    uses: zgeoff/tools/.github/workflows/repo-sync.yml@4501c398fd59c2c1b6218ea86a0161103246af62 # main
+      actions: read
+    uses: zgeoff/tools/.github/workflows/repo-sync.yml@39d8fb2cc5267d772e2787ddc8493eaa06b69b70 # main
     with:
       ref: ${{ github.event.client_payload.sha }}
       skip: editorconfig, socket, skill-pr-evidence, memory-cap
