@@ -46,7 +46,8 @@ jobs:
     uses: zgeoff/tools/.github/workflows/repo-sync.yml@2dcc64b65afeea2023dc8dcf028e7c5e8592871f # main
     with:
       ref: ${{ github.event.client_payload.sha }}
-      skip: editorconfig, socket, skill-pr-evidence, memory-cap
+      skip: socket, skill-pr-evidence, memory-cap
+      include: workflow-bun-pr
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
       REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
