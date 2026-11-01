@@ -1,0 +1,11 @@
+{
+  "name": "dotfiles",
+  "private": true,
+  "scripts": {
+    "audit": "bun audit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4"
+  }
+}

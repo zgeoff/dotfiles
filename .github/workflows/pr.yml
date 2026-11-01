@@ -1,0 +1,30 @@
+# repo-sync delivers this file from zgeoff/tools
+#
+# Runs the shared Bun pull-request checks: separate gitleaks, static, test and
+# test-<lane> jobs in a public repo, and one checks job in a private one. In
+# both, the checks job fails when any check fails, so the ruleset requires
+# `pr / checks`. Three
+# optional repo variables change them: BUN_CHECK_SCRIPTS, a space-separated
+# list of package scripts that replaces the standard list (audit deadcode
+# format:check lint typecheck test, then each lane script),
+# NODE_VERSION, which sets up Node next to Bun, and BUN_CHECK_TIMEOUT_MINUTES,
+# the time limit of each job that runs scripts (20 when unset).
+name: PR
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: zgeoff/tools/.github/workflows/bun-checks.yml@2dcc64b65afeea2023dc8dcf028e7c5e8592871f # main
+    with:
+      scripts: ${{ vars.BUN_CHECK_SCRIPTS }}
+      node-version: ${{ vars.NODE_VERSION }}
+      timeout-minutes: ${{ fromJSON(vars.BUN_CHECK_TIMEOUT_MINUTES || '20') }}

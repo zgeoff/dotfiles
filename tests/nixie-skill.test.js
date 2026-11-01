@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   Failure,
@@ -43,7 +42,10 @@ const proposal = (overrides = {}) => ({
 
 const now = Date.parse('2026-01-02T00:00:00.000Z');
 
-const scratch = mkdtempSync(join(tmpdir(), 'nixie-skill-test-'));
+// fixtures live in the repo's ignored .scratch/, not the system temp folder
+const scratchRoot = join(import.meta.dir, '../.scratch');
+mkdirSync(scratchRoot, { recursive: true });
+const scratch = mkdtempSync(join(scratchRoot, 'nixie-skill-test-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 describe('nixie skill pending', () => {
