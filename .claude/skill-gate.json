@@ -1,0 +1,7 @@
+{
+  "ignore": ["node_modules/"],
+  "gates": [
+    { "match": "**/skills/*/SKILL.md", "skills": ["skill-writing", "docs-writing", "deslop"] },
+    { "match": "**/skills/*/references/**", "skills": ["skill-writing", "docs-writing", "deslop"] }
+  ]
+}
