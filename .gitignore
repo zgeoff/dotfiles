@@ -2,3 +2,4 @@
 .worktrees/
 home/packages/Brewfile.lock.json
 .scratch/
+node_modules/

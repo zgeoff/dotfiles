@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   Failure,
@@ -29,7 +28,10 @@ const proposal = (n, text) => ({
   quote: null,
 });
 
-const scratch = mkdtempSync(join(tmpdir(), 'nixie-test-'));
+// fixtures live in the repo's ignored .scratch/, not the system temp folder
+const scratchRoot = join(import.meta.dir, '../.scratch');
+mkdirSync(scratchRoot, { recursive: true });
+const scratch = mkdtempSync(join(scratchRoot, 'nixie-test-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 // A stub editor: writes fixed text over the file it is given, or exits 1.
