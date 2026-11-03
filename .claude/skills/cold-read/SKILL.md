@@ -69,7 +69,7 @@ Hand back:
 
 3. Decide what the file is. Anything an agent reads to do its work, such as a skill, a reference, a
    playbook, a brief or AGENTS.md, is a skill. Anything else is a doc.
-4. Spawn one `general-purpose` subagent for each file: the path that `/cold-read <path>` names, or,
+4. Spawn one `general-purpose` subagent for each file: the path given to `/cold-read <path>`, or,
    before you hand over work, each file you wrote or changed. Run them in parallel when there are
    several. A skill's SKILL.md and each of its references are separate files. Never use a fork: a
    fork inherits your conversation, and the cold reader must not have it.
