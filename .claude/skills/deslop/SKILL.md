@@ -14,23 +14,23 @@ Edit text that already exists, in place, until it reads like a person wrote it. 
 by line, and change only these:
 
 - each fault in [What to fix](#what-to-fix);
-- each failure of the prose check, even one that list leaves out;
+- each failure of the prose check, `bun x @zgeoff/chex prose <file>`, even one that What to fix
+  leaves out;
 - the structure of a section that still reads oddly after you rewrote it twice, as
   [Change the structure](#change-the-structure) says.
 
 Leave everything else as it is, and add no new content.
 
-- **Fix the faults in the list, even when someone asks for a writer's style.** Copying a writer's
-  voice copies their habits, faults included. When you give the reason for a change, name the prose
-  fault it fixes, such as a contrast frame.
+- **Fix the faults in What to fix, even when someone asks you to write like a named writer.** When
+  you copy a writer's voice, you copy their faults too. Name the fault each change fixes, such as a
+  contrast frame.
 - **Reread each rewrite on its own.** A tidy rewrite can read worse than the line it replaced.
-- **Leave a blunt line blunt.** Don't pad a short, flat line: it may be the part that already works.
+- **Leave a blunt line blunt.** Leave a short, flat line as it is: it may already work.
 
-You're done when every line has had one pass, you've reread each rewrite, and the prose check,
-`bun x @zgeoff/chex prose <file>`, passes. Write your edits into the file, then hand back each
-change as a `diff` block, and what you left as it was. Whoever asked reads each change, and reverts
-the ones they reject. For text outside a file, such as a PR description, hand back the changes and
-leave the source alone.
+You're done when every line has had one pass, you've reread each rewrite, and the prose check
+passes. Write your edits into the file, then hand back each change as a `diff` block, and what you
+left as it was. Whoever asked reads each change, and reverts the ones they reject. For text outside
+a file, such as a PR description, hand back the changes and leave the source alone.
 
 ## Key rules
 
@@ -43,16 +43,18 @@ leave the source alone.
 - [Check each rewrite](#check-each-rewrite): read it on its own, and run the prose check.
 - [Show the changes](#show-the-changes): a heading and a reason per kind of fault, and a `diff`
   block per place.
-- [After a cold read](#after-a-cold-read): deslop each section you redrafted again.
+- [After a cold read](#after-a-cold-read): deslop again each section you redrafted.
 
 ## What to fix
 
-The rules behind this list live in the [skill-writing](../skill-writing/SKILL.md) skill, under
-"Write it plainly". Fix every fault in the list in a skill or its references, a PR description, an
-issue, a commit message or a code comment. In a README, AGENTS.md, CLAUDE.md or another doc, fix
-only the rhetoric: contrast frames, drama words, counted lists, aphorisms and explained blunt lines.
-Leave other faults in those files alone, except a failure of the prose check, and list them in your
-hand-back: the [docs-writing](../docs-writing/SKILL.md) skill's rules cover them.
+The rules behind these faults live in the [skill-writing](../skill-writing/SKILL.md) skill, under
+"Write it plainly".
+
+- In a skill or its references, a PR description, an issue, a commit message or a code comment, fix
+  every fault below.
+- In a README, AGENTS.md, CLAUDE.md or another doc, fix only the rhetoric, items 3, 5, 6 and 8, and
+  each failure of the prose check. List each other fault you leave in your hand-back. The
+  [docs-writing](../docs-writing/SKILL.md) skill's rules cover those.
 
 1. **Lead with the job or the reader's situation.** Cut a stock opener, such as "This skill…", "Use
    this file when…" or "Your job is to…".
@@ -69,16 +71,17 @@ hand-back: the [docs-writing](../docs-writing/SKILL.md) skill's rules cover them
    + Ask a second gardener to walk the bed and note each plant that gets too little sun.
    ```
 
-3. **Cut contrast frames: "X, not Y" and "X rather than Y".** Say what to do. Keep the frame only
-   when a reader without the "not" would pick the wrong thing, such as "Run it from the repo root,
-   not the package folder".
+3. **Cut contrast frames: "X, not Y" and "X rather than Y".** Say what to do. When a reader without
+   the "not" would pick the wrong thing, keep the frame, such as "Run it from the repo root, not the
+   package folder".
 
    ```diff
    - Sow after the last frost, not before it.
    + Sow after the last frost.
    ```
 
-4. **Split the reason into its own short sentence.** Drop "because" when the order already says it.
+4. **Split the reason into its own short sentence.** When the order already gives the reason, drop
+   "because".
 
    ```diff
    - Mulch the bed in spring, because bare soil dries out by June.
@@ -105,8 +108,9 @@ hand-back: the [docs-writing](../docs-writing/SKILL.md) skill's rules cover them
    ```
 
 7. **Make a person or the reader the subject.** A thing that acts like a person hides who does the
-   work. Look hardest at each bullet that opens with "A", "The" or "Each" and a thing, and start it
-   with what the reader does.
+   work. So does a sentence that states a rule as what "a [noun]" does, such as "a new bed" below.
+   Start each such sentence with what the reader does. Keep a definition, and a fact about a named
+   tool.
 
    ```diff
    - The seed packet decides how deep each seed goes.
@@ -114,8 +118,8 @@ hand-back: the [docs-writing](../docs-writing/SKILL.md) skill's rules cover them
    ```
 
    ```diff
-   - - Each new bed gets a layer of compost.
-   + - Spread a layer of compost on each new bed.
+   - A new bed fails when nobody spreads compost on it.
+   + Spread a layer of compost on each new bed.
    ```
 
 8. **Keep blunt lines blunt.** Don't explain them, qualify them or make them more formal. Cut a
@@ -128,8 +132,8 @@ hand-back: the [docs-writing](../docs-writing/SKILL.md) skill's rules cover them
 
 9. **Replace a made-up label with the plain name.** When the writer coined a name for a thing that
    developers already call something else, say the plain thing, and cut the sentence that defines
-   the label. Search the repo for the label first. When another file uses it, list that file in your
-   hand-back, and change it too, unless you are editing text outside a file.
+   the label. Search the repo for the label first. When another file uses the label, rename it there
+   too and list that file in your hand-back, unless you are editing text outside a file.
 
    ```diff
    - Check the wilt score each week.
@@ -141,8 +145,8 @@ hand-back: the [docs-writing](../docs-writing/SKILL.md) skill's rules cover them
    + Ask the gardener who planted the bed before you prune it.
    ```
 
-10. **Turn a label and a colon into a sentence.** Write the verb that a label, such as "Watering:"
-    or "Exception:", leaves the reader to guess.
+10. **Turn a lead-in and a colon into a sentence.** Write the verb that a lead-in, such as
+    "Watering:" or "Exception:", leaves the reader to guess.
 
     ```diff
     - - Watering: early morning, at the roots.
@@ -174,23 +178,23 @@ Read each rewrite on its own, as if you'd never seen the old line. Look for:
 - a list that grew inside a sentence;
 - a sentence that got longer.
 
-Then run the prose check from the repo root. The check must pass, so fix each failure, even one the
-list leaves out. For text outside a file, write it to a file in your scratch folder first:
+Then run the prose check from the repo root. The check must pass, so fix each failure, even one that
+What to fix leaves out. For text outside a file, write it to a file in your scratch folder first:
 
 ```bash
 bun x @zgeoff/chex prose <file>
 ```
 
 Apart from its failures, it prints candidates: possible faults, such as the contrast frames, counted
-lists and stock openers a search can find. The check can't tell a fair use from a slip, so judge
-each candidate, and fix the slips.
+lists and stock openers a search can find. The check can't tell a fair use from a mistake, so judge
+each candidate, and fix the mistakes.
 
 ## Show the changes
 
 Give each kind of fault you fixed one `###` heading, named in a few words, such as "Cut drama
 words". Under it, write one line on why. Then give each place you changed its own `diff` block, with
-`-` before and `+` after, so the lines show in colour. Head a change for a fault outside the list
-"Prose check" or "Structure". Never show the whole file.
+`-` before and `+` after, so the lines show in colour. When the fault is outside What to fix, use
+the heading "Prose check" or "Structure". Never show the whole file.
 
 End with short bulleted lists, each with its reasons:
 
