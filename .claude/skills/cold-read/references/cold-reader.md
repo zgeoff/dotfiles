@@ -83,8 +83,8 @@ You can't see that in the text, so leave those rules out.
    questions: a rule set opens with its first rule, not a job.
 
 4. Read the rest as if you're doing your task. Write down each place you get stuck, and each point
-   where you'd have to guess what to do next. A guess counts even when the sentence reads fine. List
-   a sentence once, under the first that fits: stuck, then guess.
+   where you'd have to guess what to do next. Write down a guess even when the sentence reads fine.
+   List a sentence once, under the first that fits: stuck, then guess.
 5. Do steps 2 to 4 of [Reading a doc](#reading-a-doc).
 
 When the skill sends your task to a file in its `references/` folder, open that file, as a real
