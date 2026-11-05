@@ -5,7 +5,9 @@
 # even where settings.local.json swaps OP_SERVICE_ACCOUNT_TOKEN for a repo profile.
 # Exits non-zero, with nothing on stdout, when a field is missing or empty.
 set -euo pipefail
-item=$(OP_SERVICE_ACCOUNT_TOKEN=$(jq -er .env.OP_SERVICE_ACCOUNT_TOKEN "$HOME/.claude/settings.json") \
+sa=$(jq -er '.env.OP_SERVICE_ACCOUNT_TOKEN | select(. != "")' "$HOME/.claude/settings.json") ||
+  { echo "axiom-headers: no OP_SERVICE_ACCOUNT_TOKEN in ~/.claude/settings.json" >&2; exit 1; }
+item=$(OP_SERVICE_ACCOUNT_TOKEN=$sa \
   op item get axiom-mcp --vault zgeoff --reveal --format json)
 jq -ec '
   def field($label): [.fields[] | select(.label == $label) | .value | select(. != null and . != "")][0];
