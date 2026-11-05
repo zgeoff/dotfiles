@@ -6,7 +6,10 @@
 # Exits non-zero, with nothing on stdout, when a field is missing or empty.
 set -euo pipefail
 sa=$(jq -er '.env.OP_SERVICE_ACCOUNT_TOKEN | select(. != "")' "$HOME/.claude/settings.json") ||
-  { echo "axiom-headers: no OP_SERVICE_ACCOUNT_TOKEN in ~/.claude/settings.json" >&2; exit 1; }
+  {
+    echo "axiom-headers: no OP_SERVICE_ACCOUNT_TOKEN in ~/.claude/settings.json" >&2
+    exit 1
+  }
 item=$(OP_SERVICE_ACCOUNT_TOKEN=$sa \
   op item get axiom-mcp --vault zgeoff --reveal --format json)
 jq -ec '
@@ -14,4 +17,4 @@ jq -ec '
   (field("credential") // error("no credential in op://zgeoff/axiom-mcp")) as $token
   | (field("org-id") // error("no org-id in op://zgeoff/axiom-mcp")) as $org
   | {"Authorization": ("Bearer " + $token), "x-axiom-org-id": $org}
-' <<<"$item"
+' <<< "$item"
