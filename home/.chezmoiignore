@@ -37,4 +37,7 @@ packages/**
 # Codex delegation sends code to OpenAI; personal machines only
 .claude/skills/delegate
 .claude/skills/delegate/**
+# MCP headers helpers read the zgeoff vault; personal machines only
+.claude/mcp-helpers
+.claude/mcp-helpers/**
 {{ end }}
