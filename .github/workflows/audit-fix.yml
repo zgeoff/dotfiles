@@ -2,8 +2,8 @@
 #
 # Runs the shared audit-fix step, which turns a red `bun audit` on the default
 # branch into a fix pull request, or into a pull request that records an ignore
-# with a reason and an expiry. It runs daily, by hand, and after a PR or
-# dependency-health run on main fails. A failed run on any other branch starts
+# with a reason and an expiry. It runs daily, by hand, and after a PR, CI, Main
+# or dependency-health run on main fails. A failed run on any other branch starts
 # nothing, because the job audits only the default branch. A failed run of a
 # pull request, or from another repository, starts nothing either, because a
 # fork's branch can be named main. It needs Bun 1.4.0 or newer in .bun-version
@@ -12,7 +12,7 @@ name: Audit fix
 
 on:
   workflow_run:
-    workflows: [PR, pr, CI, Dependency Health, Dep Health]
+    workflows: [PR, pr, CI, Main, Dependency Health, Dep Health]
     types: [completed]
     branches: [main]
   schedule:
@@ -33,7 +33,7 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository)
     permissions:
       contents: read
-    uses: zgeoff/tools/.github/workflows/audit-fix.yml@a0db58cc79f5778e12332e925ef17b215d6ca2e2 # main
+    uses: zgeoff/tools/.github/workflows/audit-fix.yml@e0d1a0905e45b83478e430b626139ca9a96dfd39 # main
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
       REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
