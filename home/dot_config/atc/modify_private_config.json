@@ -1,0 +1,19 @@
+#!/bin/sh
+# chezmoi owns agents.claude.env.PR_EVIDENCE_URL and agents.claude.env.PR_EVIDENCE_TOKEN_REF, and
+# deep-merges them over the live atc daemon config. Every other key stays as atc or the owner wrote
+# it: targets, auth profiles, the other agents and the rest of agents.claude. The daemon passes
+# agents.claude.env to every Claude session it starts, local and imp alike. The token reference names
+# a 1Password item, never the token. Removing a key here does not remove it from the live file.
+set -eu
+current=$(cat)
+[ -n "$current" ] || current='{}'
+printf '%s' "$current" | jq --indent 2 '. * {
+  "agents": {
+    "claude": {
+      "env": {
+        "PR_EVIDENCE_URL": "https://files.geoff.cloud/api/files",
+        "PR_EVIDENCE_TOKEN_REF": "op://zgeoff/files-agent-token/credential"
+      }
+    }
+  }
+}'
