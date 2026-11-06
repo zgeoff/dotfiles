@@ -15,7 +15,8 @@ home/                 chezmoi source state; each name maps to its target through
   dot_claude/         ~/.claude: skills, agents, workflows, output styles, settings
   dot_codex/          ~/.codex: global rules and config
   dot_local/bin/      personal CLIs
-tests/                bun tests for the CLIs in home/dot_local/bin/; run them with `bun test`
+tests/                bun tests for the CLIs in home/dot_local/bin/ and the atc config modify_
+                      script; run them with `bun test`
 ```
 
 ## This repo
@@ -24,8 +25,8 @@ tests/                bun tests for the CLIs in home/dot_local/bin/; run them wi
   the repos offer and skips the rest, so check its `not available, skipped` stderr when a package
   seems absent.
 - Tools rewrite some managed files. The `modify_` scripts own only some keys of
-  `~/.claude/settings.json` and `~/.codex/config.toml`, and leave the rest (tokens, trust, MCP
-  paths) to the machine.
+  `~/.claude/settings.json`, `~/.codex/config.toml` and `~/.config/atc/config.json`, and leave the
+  rest (tokens, trust, MCP paths, atc targets and agents) to the machine.
 - After `mise use -g`, run `chezmoi re-add ~/.config/mise/config.toml` to bring the change back into
   the source.
 - Check a change with `chezmoi diff --source <worktree>`, which renders templates against the real
