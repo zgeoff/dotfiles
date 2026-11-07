@@ -33,7 +33,7 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository)
     permissions:
       contents: read
-    uses: zgeoff/tools/.github/workflows/audit-fix.yml@99e0e097edc9bc98b7040972b3fe4ec41f61e023 # main
+    uses: zgeoff/tools/.github/workflows/audit-fix.yml@63994ebfb7a3947baf6c64926aa18faa03da484e # main
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
       REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
