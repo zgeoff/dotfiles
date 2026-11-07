@@ -9,10 +9,10 @@ model_context_window = 600000
 model_auto_compact_token_limit = 500000
 
 approvals_reviewer = "auto_review"
-# Codex CLI config — managed by chezmoi (dotfiles: home/dot_codex/modify_config.toml.tmpl).
+# Codex CLI config — managed by chezmoi (dotfiles: home/dot_codex/modify_private_config.toml.tmpl).
 
-# model: left unset so Codex picks its current recommended model.
-model_reasoning_effort = "high"   # Claude effortLevel = high
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium" # one step below Claude effortLevel = high, to cut Codex usage
 personality = "pragmatic"         # closest built-in to STE Direct; the full style is in developer_instructions
 
 # Permissions: Claude skipAutoPermissionPrompt + autoMode  ->  sandboxed, no prompts except rule hits.
