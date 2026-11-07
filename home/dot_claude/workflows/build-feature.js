@@ -1,9 +1,9 @@
 export const meta = {
   name: 'build-feature',
   description:
-    'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex (or Opus) reviews the diff, a PR opens once clean, haiku watches CI, with bounded fix loops at each gate',
+    'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex or Opus reviews the diff when asked, a PR opens once clean, haiku watches CI, with bounded fix loops at each gate',
   whenToUse:
-    'After a feature plan has been agreed interactively. Load the build-feature skill first; it documents the args. Pass args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus" }. A run cannot pause for conversation, so bake every decision into the plan. Returns the PR URL on success, or a failure report with the branch left in place.',
+    'After a feature plan has been agreed interactively. Load the build-feature skill first; it documents the args. Pass args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "none" | "codex" | "opus" }. A run cannot pause for conversation, so bake every decision into the plan. Returns the PR URL on success, or a failure report with the branch left in place.',
   phases: [
     {
       title: 'Implement',
@@ -12,7 +12,8 @@ export const meta = {
     },
     {
       title: 'Review',
-      detail: 'Codex (Opus fallback) reviews the diff; sonnet fixes blocking findings (max 2 rounds)',
+      detail:
+        'Skipped when review is "none"; otherwise Codex (Opus fallback) reviews the diff and sonnet fixes blocking findings (max 2 rounds)',
     },
     {
       title: 'Open PR',
@@ -34,16 +35,16 @@ const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
 
 if (!parsedArgs || !parsedArgs.plan || !parsedArgs.branch) {
   throw new Error(
-    'build-feature requires args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "codex" | "opus" }',
+    'build-feature requires args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "none" | "codex" | "opus" }',
   );
 }
 
 const { plan, branch, issue, prNumber, verifyCommands } = parsedArgs;
 const base = parsedArgs.base || 'main';
-const reviewer = parsedArgs.review || 'codex';
+const reviewer = parsedArgs.review || 'none';
 
-if (reviewer !== 'codex' && reviewer !== 'opus') {
-  throw new Error(`build-feature: review must be "codex" or "opus", got ${JSON.stringify(reviewer)}`);
+if (reviewer !== 'none' && reviewer !== 'codex' && reviewer !== 'opus') {
+  throw new Error(`build-feature: review must be "none", "codex" or "opus", got ${JSON.stringify(reviewer)}`);
 }
 
 const worktree = `.worktrees/${branch}`;
@@ -225,6 +226,98 @@ async function reviewPass(label, prior) {
   return opus ? { by: 'opus', findings: opus.findings } : null;
 }
 
+function buildReviewFixPrompt(blocking) {
+  return `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix these findings:
+${REPO_RULES}
+${JSON.stringify(blocking, null, 2)}
+
+${FIX_RULES}
+
+The plan the branch implements, for context:
+
+${plan}
+
+Commit the fixes (hooks must pass). Do not push.`;
+}
+
+/**
+ * The review gate: one review, then a bounded number of fix and re-check
+ * rounds. Returns `{ stop }` with the run's result when the run ends here, or
+ * `{ summary }` with who reviewed and the minor findings once the branch is clean.
+ */
+async function runReviewGate() {
+  let review = await reviewPass('review', null);
+  if (!review)
+    return {
+      stop: {
+        status: 'failed',
+        stage: 'review',
+        branch,
+        worktree,
+        reason: 'review agent died or was skipped',
+      },
+    };
+  const reviewedBy = new Set([review.by]);
+  const firstReview = review;
+
+  let blocking = review.findings.filter((f) => f.severity === 'blocking');
+  for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
+    log(`Review round ${round}: ${blocking.length} blocking finding(s), dispatching fixer`);
+    const fix = await agent(buildReviewFixPrompt(blocking), {
+      label: `fix-review-${round}`,
+      model: 'sonnet',
+      schema: FIX_SCHEMA,
+      phase: 'Review',
+    });
+    if (!fix || fix.status === 'blocked') {
+      return {
+        stop: {
+          status: 'blocked',
+          stage: 'review-fix',
+          branch,
+          worktree,
+          reason: fix ? fix.blockedReason : 'fixer agent died or was skipped',
+          outstandingFindings: blocking,
+        },
+      };
+    }
+    review = await reviewPass(`re-review-${round}`, blocking);
+    if (!review)
+      return {
+        stop: {
+          status: 'failed',
+          stage: 'review',
+          branch,
+          worktree,
+          reason: 're-review agent died or was skipped',
+        },
+      };
+    reviewedBy.add(review.by);
+    blocking = review.findings.filter((f) => f.severity === 'blocking');
+  }
+
+  // A re-review returns only the still-open listed findings, so the first
+  // review's minor findings carry forward into the report.
+  const minorFindings = firstReview.findings.filter((f) => f.severity === 'minor');
+  if (review !== firstReview) minorFindings.push(...review.findings.filter((f) => f.severity === 'minor'));
+
+  if (blocking.length > 0) {
+    return {
+      stop: {
+        status: 'review-blocked',
+        branch,
+        worktree,
+        reason: `blocking findings remain after ${MAX_FIX_ROUNDS} fix rounds`,
+        outstandingFindings: blocking,
+        minorFindings,
+        reviewedBy: [...reviewedBy],
+      },
+    };
+  }
+  log(`Review clean by ${[...reviewedBy].join(' + ')} (${minorFindings.length} minor finding(s) noted)`);
+  return { summary: { reviewedBy: [...reviewedBy], minorFindings } };
+}
+
 phase('Implement');
 const verifyGate =
   verifyCommands && verifyCommands.length > 0
@@ -264,81 +357,15 @@ if (impl.status === 'blocked') {
 }
 log(`Implemented: ${impl.summary}`);
 
-phase('Review');
-let review = await reviewPass('review', null);
-if (!review)
-  return {
-    status: 'failed',
-    stage: 'review',
-    branch,
-    worktree,
-    reason: 'review agent died or was skipped',
-  };
-const reviewedBy = new Set([review.by]);
-const firstReview = review;
-
-let blocking = review.findings.filter((f) => f.severity === 'blocking');
-for (let round = 1; blocking.length > 0 && round <= MAX_FIX_ROUNDS; round++) {
-  log(`Review round ${round}: ${blocking.length} blocking finding(s), dispatching fixer`);
-  const fix = await agent(
-    `A reviewer found blocking problems on the feature branch in the worktree at ${worktree}. Fix these findings:
-${REPO_RULES}
-${JSON.stringify(blocking, null, 2)}
-
-${FIX_RULES}
-
-The plan the branch implements, for context:
-
-${plan}
-
-Commit the fixes (hooks must pass). Do not push.`,
-    {
-      label: `fix-review-${round}`,
-      model: 'sonnet',
-      schema: FIX_SCHEMA,
-      phase: 'Review',
-    },
-  );
-  if (!fix || fix.status === 'blocked') {
-    return {
-      status: 'blocked',
-      stage: 'review-fix',
-      branch,
-      worktree,
-      reason: fix ? fix.blockedReason : 'fixer agent died or was skipped',
-      outstandingFindings: blocking,
-    };
-  }
-  review = await reviewPass(`re-review-${round}`, blocking);
-  if (!review)
-    return {
-      status: 'failed',
-      stage: 'review',
-      branch,
-      worktree,
-      reason: 're-review agent died or was skipped',
-    };
-  reviewedBy.add(review.by);
-  blocking = review.findings.filter((f) => f.severity === 'blocking');
+let reviewSummary = { reviewedBy: [], minorFindings: [] };
+if (reviewer === 'none') {
+  log('Review skipped: review is "none"');
+} else {
+  phase('Review');
+  const gate = await runReviewGate();
+  if (gate.stop) return gate.stop;
+  reviewSummary = gate.summary;
 }
-
-// A re-review returns only the still-open listed findings, so the first
-// review's minor findings carry forward into the report.
-const minorFindings = firstReview.findings.filter((f) => f.severity === 'minor');
-if (review !== firstReview) minorFindings.push(...review.findings.filter((f) => f.severity === 'minor'));
-
-if (blocking.length > 0) {
-  return {
-    status: 'review-blocked',
-    branch,
-    worktree,
-    reason: `blocking findings remain after ${MAX_FIX_ROUNDS} fix rounds`,
-    outstandingFindings: blocking,
-    minorFindings,
-    reviewedBy: [...reviewedBy],
-  };
-}
-log(`Review clean by ${[...reviewedBy].join(' + ')} (${minorFindings.length} minor finding(s) noted)`);
 
 phase('Open PR');
 const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries${issue ? `, starting with \`Closes #${issue}\`` : ''}. For orientation only, the implementer summarized the work as: ${impl.summary}`;
@@ -346,7 +373,7 @@ const prAction = prNumber
   ? `Update the existing PR #${prNumber}: refresh its body with \`gh pr edit ${prNumber}\` and mark it ready for review with \`gh pr ready ${prNumber}\`. Return its URL and number.`
   : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`. Return the new PR's URL and number.`;
 const pr = await agent(
-  `Publish the reviewed feature branch in the worktree at ${worktree} as a PR against ${base}.
+  `Publish the feature branch in the worktree at ${worktree} as a PR against ${base}.
 
 1. Bring the branch up to date: \`git -C ${worktree} fetch origin\` then \`git -C ${worktree} rebase origin/${base}\`. If the rebase hits conflicts, resolve them faithfully to both sides' intent (reinstall dependencies in the worktree if their manifests changed) and return resolvedConflicts=true; if it was clean or a no-op, return resolvedConflicts=false.
 2. Push with \`git -C ${worktree} push -u origin ${branch}\`, adding \`--force-with-lease\` only if the rebase rewrote commits that were already pushed.
@@ -369,11 +396,6 @@ if (!pr)
   };
 let rebaseConflicts = Boolean(pr.resolvedConflicts);
 log(`${prNumber ? 'PR readied' : 'PR opened'}: ${pr.url}`);
-
-const reviewSummary = {
-  reviewedBy: [...reviewedBy],
-  minorFindings,
-};
 
 phase('Watch CI');
 for (let round = 0; ; round++) {
