@@ -35,9 +35,10 @@ const unitFinding = {
 
 /**
  * Runs the workflow against stub agents. `reviews` maps a review label to the
- * findings it returns; a label it doesn't name returns no findings.
+ * findings it returns; a label it doesn't name returns no findings. `review`
+ * is the workflow's review arg, left out when null.
  */
-async function dryRun(reviews) {
+async function dryRun(reviews, review = 'codex') {
   const calls = [];
   const trace = [];
   const agent = async (prompt, opts) => {
@@ -57,13 +58,36 @@ async function dryRun(reviews) {
     throw new Error(`unexpected agent ${opts.label}`);
   };
   const result = await loadWorkflow()(
-    { plan: 'Add a quota check to checkout.', branch: 'quota-check' },
+    { plan: 'Add a quota check to checkout.', branch: 'quota-check', ...(review === null ? {} : { review }) },
     agent,
     (line) => trace.push(`log   ${line}`),
     () => {},
   );
   return { result, calls, trace, labels: calls.map((c) => c.label) };
 }
+
+describe('build-feature review arg', () => {
+  test('with no review arg, the run skips the review and opens its PR', async () => {
+    const run = await dryRun({}, null);
+    expect(run.labels).toEqual(['implement', 'open-pr', 'watch-ci-1']);
+    expect(run.result).toMatchObject({ status: 'ready', reviewedBy: [], minorFindings: [] });
+  });
+
+  test('review "none" skips the review and opens its PR', async () => {
+    const run = await dryRun({}, 'none');
+    expect(run.labels).toEqual(['implement', 'open-pr', 'watch-ci-1']);
+  });
+
+  test('review "codex" runs the review before the PR opens', async () => {
+    const run = await dryRun({}, 'codex');
+    expect(run.labels).toEqual(['implement', 'codex-review', 'open-pr', 'watch-ci-1']);
+    expect(run.result).toMatchObject({ status: 'ready', reviewedBy: ['codex'] });
+  });
+
+  test('an unknown review value stops the run at its argument check', async () => {
+    await expect(dryRun({}, 'gemini')).rejects.toThrow('review must be "none", "codex" or "opus"');
+  });
+});
 
 describe('build-feature review loop', () => {
   test('a finding that survives 2 fix rounds ends review-blocked with no third round', async () => {

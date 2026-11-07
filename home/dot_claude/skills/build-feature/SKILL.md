@@ -1,11 +1,11 @@
 ---
 name: build-feature
-description: Runs the build-feature workflow, which takes an agreed plan to a reviewed, CI-green PR. Load it for medium or larger work (anything that needs a written plan, adds behaviour, or touches more than a few files) once the plan is agreed. Holds the call, the review routing, what to do with each result, and the gotchas.
+description: Runs the build-feature workflow, which takes an agreed plan to a CI-green PR. Load it for medium or larger work (anything that needs a written plan, adds behaviour, or touches more than a few files) once the plan is agreed. Holds the call, the review routing, what to do with each result, and the gotchas.
 ---
 
 # Build a feature
 
-The `build-feature` workflow drives an agreed plan to a reviewed, CI-green PR. Codex reviews the diff before the PR opens, with Opus as the fallback. Each fix loop stops after 2 rounds.
+The `build-feature` workflow drives an agreed plan to a CI-green PR. When `review` asks for it, Codex reviews the diff before the PR opens, with Opus as the fallback. Each fix loop stops after 2 rounds.
 
 For each finding, the review fixer re-reads the rule it cites, searches the whole PR diff for other breaks of that rule, holds new code, tests included, to every rule, and fixes all of it in one round. [`build-feature.js`](../../workflows/build-feature.js) owns the sequence of stages and the model each one runs on.
 
@@ -34,9 +34,9 @@ If the name doesn't resolve, use `Workflow({ scriptPath: '~/.claude/workflows/bu
 | `issue` | none | GitHub issue number, for the commit scope and `Closes #n`. |
 | `prNumber` | none | Push to and ready this existing PR instead of opening one. |
 | `verifyCommands` | none | Extra full-graph checks for cross-cutting work, run before the final commit. |
-| `review` | `codex` | `codex` gets a Codex review through the `second-opinion` skill, and falls back to Opus when Codex is missing, fails, or takes more than 15 minutes. `opus` skips Codex. |
+| `review` | `none` | `none` skips the review and goes straight to opening the PR and watching CI. `codex` gets a Codex review through the `second-opinion` skill, and falls back to Opus when Codex is missing, fails, or takes more than 15 minutes. `opus` skips Codex. |
 
-Leave `review` at `codex` unless the user names a model.
+Pass `review: 'codex'` when the "Building and reviewing" rules in CLAUDE.md ask for a local review, and `opus` only when the user names that model.
 
 Each repo's setup comes from its own AGENTS.md and CLAUDE.md, which the workflow's agents read: dependency install, test services, required skills. When a repo needs a step the agents can't find, add it to that repo's AGENTS.md, not to the workflow.
 
@@ -49,7 +49,7 @@ The return statements in [`build-feature.js`](../../workflows/build-feature.js) 
 - `ci-failed`: CI is still red after 2 fix rounds. `failures` holds the failing checks.
 - `blocked`: an agent stopped. `reason` holds its reason when it gave one; otherwise read the run's transcript. Fix the cause, then resume.
 - `failed`: an agent died, and `stage` holds the stage it died in.
-- `reviewedBy`: `codex`, `opus`, or both. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
+- `reviewedBy`: `codex`, `opus`, or both, and empty when `review` is `none`. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
 - `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
 - `rebaseConflicts: true`: a rebase was resolved by hand. Point the user at those hunks rather than re-running the review.
 
