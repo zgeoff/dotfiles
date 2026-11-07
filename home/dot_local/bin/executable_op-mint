@@ -33,6 +33,8 @@ profile_settings() {
     global) echo "$HOME/.claude/settings.json" ;;
     # the repo was renamed to impz; the profile keeps its name
     imp) echo "$HOME/projects/impz/.claude/settings.local.json" ;;
+    # a token in hq's repo settings would replace the global one in every session there
+    hq) echo "$HOME/.config/hq/slots-op.json" ;;
     *) echo "$HOME/projects/$1/.claude/settings.local.json" ;;
   esac
 }
@@ -50,7 +52,7 @@ op_mint() {
   settings="$(profile_settings "$profile")"
 
   # A project token must never land in a tracked file.
-  if [ "$profile" != global ]; then
+  if [ "$profile" != global ] && [ "$profile" != hq ]; then
     repo="$(dirname "$(dirname "$settings")")"
     [ -d "$repo/.git" ] || { echo "op-mint: $repo is not a git repo" >&2; exit 1; }
     git -C "$repo" check-ignore -q "$settings" || {

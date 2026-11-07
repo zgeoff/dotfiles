@@ -20,7 +20,9 @@ echo a token or a secret value.
   - `cloud` adds `cloud-deploy`, which holds the secrets cloud's deploy workflows read, `imp`,
     where cloud stores the files service's agent token, and `fleet`, which holds the Claude slot
     tokens that the account rotation writes.
-  - `hq` uses `fleet` (read-only), to read each Claude slot's usage.
+  - `hq` uses `fleet` (read-only), to read each Claude slot's usage. Its token lives in
+    `~/.config/hq/slots-op.json`, outside the repo, so sessions in `~/projects/hq` keep the
+    global token.
 - My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
   there. Any other agent (or a Claude session started before a re-mint) reads it inline:
