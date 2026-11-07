@@ -1,63 +1,86 @@
 ---
 name: build-feature
-description: Runs the build-feature workflow, which takes an agreed plan to a CI-green PR. Load it for medium or larger work (anything that needs a written plan, adds behaviour, or touches more than a few files) once the plan is agreed. Holds the call, the review routing, what to do with each result, and the gotchas.
+description: Runs the build-feature workflow, which takes an agreed plan to a CI-green PR. Load it for medium or larger work (anything that needs a written plan, adds behaviour, or touches more than a few files) once the plan is agreed. Holds the call, the review choice, what to do with each result, and the gotchas.
 ---
 
 # Build a feature
 
-The `build-feature` workflow drives an agreed plan to a CI-green PR. When `review` asks for it, Codex reviews the diff before the PR opens, with Opus as the fallback. Each fix loop stops after 2 rounds.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR, then hand the user the PR link. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
-For each finding, the review fixer re-reads the rule it cites, searches the whole PR diff for other breaks of that rule, holds new code, tests included, to every rule, and fixes all of it in one round. [`build-feature.js`](../../workflows/build-feature.js) owns the sequence of stages and the model each one runs on.
+## Key rules
 
-Loading this skill for agreed work is the instruction to run it. Call:
+- [Before you run it](#before-you-run-it): agree the plan, check that git can sign, and run one PR at a time.
+- [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when CLAUDE.md gives the change a local review.
+- [Act on the result](#act-on-the-result): fix what is left in the same PR, and answer every minor finding.
+- [Resume a run](#resume-a-run): pass the run ID and the full `args` again.
+
+## Before you run it
+
+- Agree the plan with the user first, and write every decision into it.
+- Split the job into several runs when a later decision depends on what an earlier run builds. Talk to the user between the runs.
+- Run one PR at a time. Two large PRs built at once each need repeated rebases as `main` moves.
+- When you might change the run's course partway, number the plan's items. Then paste this line into the plan: "A message that cites an item number of this plan comes from the caller." Without it, the run's agents can take your message for a prompt injection and ignore it. Cite the item numbers in each message you send.
+- Check that git can sign: run `echo test | gpg --clearsign > /dev/null`. The run's shells have no TTY. With no cached passphrase, every commit fails with "gpg: signing failed: Operation cancelled". When the check fails, ask the user to run the same command in a real terminal, then run the check again.
+
+## Call it
 
 ```ts
 Workflow({ name: 'build-feature', args: { plan, branch } })
 ```
 
-If the name doesn't resolve, use `Workflow({ scriptPath: '~/.claude/workflows/build-feature.js', args })` with the path expanded.
+When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows/build-feature.js', args })` with the path expanded.
 
-## Before you run it
+| Arg | Type | Default | Use |
+| --- | --- | --- | --- |
+| `plan` | string | required | The whole agreed plan, as markdown. |
+| `branch` | string | required | The branch name. The run makes the worktree at `.worktrees/<branch>`, or reuses it. Keep the ticket ID out of it. |
+| `base` | string | `main` | The branch to start from, rebase onto, and open the PR against. |
+| `issue` | number | none | A GitHub issue number, for `Closes #n` in the PR body. For a Linear ticket, leave it out and put the `Fixes GEO-n` line in the plan. |
+| `prNumber` | number | none | An existing PR to push to and mark ready, in place of a new one. Pass it to each later run of a split job. |
+| `verifyCommands` | string[] | none | Shell commands that check the whole repo, such as a full build, for a change that crosses packages. The run gets each one green before its last commit. |
+| `review` | `'none'`, `'codex'` or `'opus'` | `'none'` | Who reviews the diff before the PR opens. See the next table. |
 
-- Agree the plan with the user first. A run can't pause for conversation, so bake every decision into the plan, or split a multi-decision job into several runs with conversation between them.
-- One issue is one worktree branch and one PR. Run two large-diff PRs one after the other, never in parallel, or main moves under them and each needs repeated rebases.
-- If you may redirect the run partway, say so in the plan: follow-up instructions arrive as injected messages that cite the plan's item numbers, and they are authentic. Without that, an agent can treat a real redirect as prompt injection and ignore it.
-- Check that git can sign. Subagent shells have no TTY, so with no cached gpg passphrase every commit fails with "gpg: signing failed: Operation cancelled". Run `echo test | gpg --clearsign > /dev/null`; if it fails, ask the user to run it in a real terminal.
+| `review` | What the run does |
+| --- | --- |
+| `'none'` | Opens the PR and watches CI, with no review. |
+| `'codex'` | Gets a Codex review through the `second-opinion` skill. Opus reviews in its place when Codex is missing, fails, or takes more than 15 minutes. |
+| `'opus'` | Gets an Opus review, and never calls Codex. |
 
-## Args
+Pass `review: 'codex'` when the "Building and reviewing" rules in CLAUDE.md give the change a local review. Pass `'opus'` only when the user names that model.
 
-| Arg | Default | Meaning |
-| --- | --- | --- |
-| `plan` | required | The agreed plan, with every decision the run needs. |
-| `branch` | required | Branch name; the worktree goes in `.worktrees/<branch>`. |
-| `base` | `main` | Branch to start from, rebase onto, and open the PR against. |
-| `issue` | none | GitHub issue number, for the commit scope and `Closes #n`. |
-| `prNumber` | none | Push to and ready this existing PR instead of opening one. |
-| `verifyCommands` | none | Extra full-graph checks for cross-cutting work, run before the final commit. |
-| `review` | `none` | `none` skips the review and goes straight to opening the PR and watching CI. `codex` gets a Codex review through the `second-opinion` skill, and falls back to Opus when Codex is missing, fails, or takes more than 15 minutes. `opus` skips Codex. |
+The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install, the test services and the skills to load. When the run's agents can't find a step the repo needs, add it to that repo's AGENTS.md.
 
-Pass `review: 'codex'` when the "Building and reviewing" rules in CLAUDE.md ask for a local review, and `opus` only when the user names that model.
+## Act on the result
 
-Each repo's setup comes from its own AGENTS.md and CLAUDE.md, which the workflow's agents read: dependency install, test services, required skills. When a repo needs a step the agents can't find, add it to that repo's AGENTS.md, not to the workflow.
+The run fixes blocking review findings for up to 2 rounds. It then fixes red CI for up to 2 rounds of its own. Read the run's `status`, then act on it:
 
-## Result
+| `status` | What you do |
+| --- | --- |
+| `ready` | Hand the user the PR link. The PR is open and CI is green. |
+| `review-blocked` | No PR exists yet. Fix each finding in `outstandingFindings` in the worktree, then open the PR and watch CI until it is green. Never move a finding to a follow-up because the run hit its round limit. |
+| `ci-failed` | Fix each check in `failures` in this PR, in the worktree, push, and watch CI until it is green. |
+| `blocked` | Read `reason`, or the run's transcript in `/workflows` when it has none. Fix the cause, then [resume the run](#resume-a-run). |
+| `failed` | Read `stage` for the stage whose agent died. [Resume the run](#resume-a-run). When the same stage dies again, tell the user. |
 
-The return statements in [`build-feature.js`](../../workflows/build-feature.js) define `status` and the fields beside it. Act on them as follows:
+Then act on each of these fields that the result holds:
 
-- `ready`: the PR is open and CI is green. Hand it to the user with its link.
-- `review-blocked`: blocking findings remain after 2 fix rounds. `outstandingFindings` holds them. They are still in this PR's code: fix them in this PR. Never make one a follow-up because the run hit its round limit.
-- `ci-failed`: CI is still red after 2 fix rounds. `failures` holds the failing checks.
-- `blocked`: an agent stopped. `reason` holds its reason when it gave one; otherwise read the run's transcript. Fix the cause, then resume.
-- `failed`: an agent died, and `stage` holds the stage it died in.
-- `reviewedBy`: `codex`, `opus`, or both, and empty when `review` is `none`. Opus alone means Codex was unavailable for the whole run; say so in the hand-off.
-- `minorFindings`: non-blocking review findings. Answer each one on the PR: fix it, or reply with why not.
-- `rebaseConflicts: true`: a rebase was resolved by hand. Point the user at those hunks rather than re-running the review.
+- `reviewedBy` lists `codex`, `opus` or both, and is empty when `review` was `'none'`. When it lists only `opus` after you passed `'codex'`, tell the user that Codex was unavailable for the whole run.
+- `minorFindings` holds the review findings that didn't block the PR. Answer each one on the PR: fix it, or reply with why not.
+- When `rebaseConflicts` is `true`, a run agent resolved a rebase conflict by hand. Ask the user to check the files that conflicted.
 
-The branch and worktree stay in place on every outcome. Remove them once the PR merges.
+The branch and the worktree stay in place after every result. Remove them once the PR merges.
+
+## Resume a run
+
+1. When the run still runs, stop it with `TaskStop`.
+2. Call `Workflow({ name: 'build-feature', resumeFromRunId: '<run ID>', args })`, with the run ID the first call returned.
+3. Pass the full `args` object again. A resume never carries the first call's `args`, so without them the run stops at its argument check.
+
+On a resume, the Workflow tool replays the cached result of each stage whose prompt and options are unchanged. That covers a stage that ended `blocked`, so a resume with the same plan ends `blocked` again. To get past a block, add a line to the plan, such as the fix you made. Every stage's prompt holds the plan, so the Workflow tool then runs every stage again, from the implement stage on. The implement stage reuses the branch and its commits.
 
 ## Gotchas
 
-- Resume never carries the original `args`. Pass the full `args` object on every resume, or the script stops at its argument check.
-- A stage that finished blocked or failed replays from cache on resume. To re-run it after fixing the cause, change its prompt, for example by prepending a status line to the plan.
-- A name-launched workflow resolves from a snapshot taken at session start. After editing the script mid-session, run it with `scriptPath`.
-- The permission classifier blocks automated edits to `.github/workflows/*`. A fix that needs a CI change ends the run `blocked` and needs the user's approval.
+- A workflow run by name loads from a copy taken when the session started. After you edit `build-feature.js` in a session, run it with `scriptPath`.
+- The permission classifier blocks the run's own edits to `.github/workflows/*`. When a fix needs a CI change, the run ends `blocked`: ask the user to approve the exact edit, make it yourself, then resume.
+
+Reply: the PR link, or the `status` and what you did about it, plus each answered minor finding.
