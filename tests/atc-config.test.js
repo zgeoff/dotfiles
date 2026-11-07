@@ -1,67 +1,115 @@
-import { describe, expect, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { $ } from 'bun';
 
 const scriptPath = join(import.meta.dir, '../home/dot_config/atc/modify_private_config.json');
 
-// chezmoi runs a modify_ script with the live file on stdin and writes its stdout back
-function modify(input) {
-  const run = Bun.spawnSync(['sh', scriptPath], { stdin: Buffer.from(input) });
-  expect(run.stderr.toString()).toBe('');
-  expect(run.exitCode).toBe(0);
-  return run.stdout.toString();
-}
+test('it adds the pr-evidence address and token path to the claude agent env', async () => {
+  const live = { agents: { claude: { env: { HARBOUR_MODE: 'calm' } } } };
 
-const prEvidenceEnv = {
-  PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-  PR_EVIDENCE_TOKEN_REF: 'op://zgeoff/files-agent-token/credential',
-};
+  const result = await $`sh ${scriptPath} < ${Response.json(live)}`.nothrow().quiet();
 
-// An invented daemon config in the shape atc writes: a target, an auth profile and two agents.
-const liveConfig = {
-  agents: {
-    claude: {
-      auth: { profiles: ['claude', 'github'] },
-      env: { HARBOUR_MODE: 'calm' },
-    },
-    lantern: {
-      kind: 'claude',
-      env: { LANTERN_COLOUR: 'amber' },
-    },
-  },
-  targets: { local: { provider: 'local-pty' } },
-  authProfiles: { github: { kind: 'github' } },
-  defaultTarget: 'local',
-};
-
-describe('the atc config modify script', () => {
-  test('adds the pr-evidence address and token reference to the claude agent env', () => {
-    const output = JSON.parse(modify(JSON.stringify(liveConfig)));
-
-    expect(output.agents.claude.env).toEqual({ HARBOUR_MODE: 'calm', ...prEvidenceEnv });
-  });
-
-  test('keeps every key it does not own', () => {
-    const output = JSON.parse(modify(JSON.stringify(liveConfig)));
-
-    expect(output).toEqual({
-      ...liveConfig,
+  expect({
+    exitCode: result.exitCode,
+    config: JSON.parse(result.stdout.toString()),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
+    exitCode: 0,
+    config: {
       agents: {
-        ...liveConfig.agents,
-        claude: { ...liveConfig.agents.claude, env: { HARBOUR_MODE: 'calm', ...prEvidenceEnv } },
+        claude: {
+          env: {
+            HARBOUR_MODE: 'calm',
+            PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
+            PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+          },
+        },
       },
-    });
+    },
+    stderr: '',
   });
+});
 
-  test('writes a file formatted as atc writes it, so a second run changes nothing', () => {
-    const first = modify(JSON.stringify(liveConfig));
+test('it removes the op:// token reference that op run would try to resolve', async () => {
+  const live = {
+    agents: {
+      claude: {
+        env: {
+          PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
+          PR_EVIDENCE_TOKEN_REF: 'op://zgeoff/files-agent-token/credential',
+        },
+      },
+    },
+  };
 
-    expect(first).toBe(`${JSON.stringify(JSON.parse(first), null, 2)}\n`);
-    expect(modify(first)).toBe(first);
+  const result = await $`sh ${scriptPath} < ${Response.json(live)}`.nothrow().quiet();
+
+  expect(JSON.parse(result.stdout.toString()).agents.claude.env).toStrictEqual({
+    PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
+    PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
   });
+});
 
-  test('starts from an empty object when the live file is absent', () => {
-    const output = JSON.parse(modify(''));
+test('it keeps every key it does not own', async () => {
+  const live = {
+    agents: {
+      claude: { auth: { profiles: ['claude', 'github'] }, env: { HARBOUR_MODE: 'calm' } },
+      lantern: { kind: 'claude', env: { LANTERN_COLOUR: 'amber' } },
+    },
+    targets: { local: { provider: 'local-pty' } },
+    authProfiles: { github: { kind: 'github' } },
+    defaultTarget: 'local',
+  };
 
-    expect(output).toEqual({ agents: { claude: { env: prEvidenceEnv } } });
+  const result = await $`sh ${scriptPath} < ${Response.json(live)}`.nothrow().quiet();
+
+  expect(JSON.parse(result.stdout.toString())).toStrictEqual({
+    agents: {
+      claude: {
+        auth: { profiles: ['claude', 'github'] },
+        env: {
+          HARBOUR_MODE: 'calm',
+          PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
+          PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+        },
+      },
+      lantern: { kind: 'claude', env: { LANTERN_COLOUR: 'amber' } },
+    },
+    targets: { local: { provider: 'local-pty' } },
+    authProfiles: { github: { kind: 'github' } },
+    defaultTarget: 'local',
+  });
+});
+
+test('it writes a file formatted as atc writes it, so a second run changes nothing', async () => {
+  const first = await $`sh ${scriptPath} < ${Response.json({ defaultTarget: 'local' })}`.quiet();
+
+  const second = await $`sh ${scriptPath} < ${new Response(first.stdout)}`.nothrow().quiet();
+
+  expect(second.stdout.toString()).toBe(
+    `${JSON.stringify(JSON.parse(first.stdout.toString()), null, 2)}\n`,
+  );
+});
+
+test('it starts from an empty object when the live file is absent', async () => {
+  const result = await $`sh ${scriptPath} < ${new Response('')}`.nothrow().quiet();
+
+  expect({
+    exitCode: result.exitCode,
+    config: JSON.parse(result.stdout.toString()),
+    stderr: result.stderr.toString(),
+  }).toStrictEqual({
+    exitCode: 0,
+    config: {
+      agents: {
+        claude: {
+          env: {
+            PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
+            PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+          },
+        },
+      },
+    },
+    stderr: '',
   });
 });
