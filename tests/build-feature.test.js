@@ -38,7 +38,7 @@ const unitFinding = {
  * findings it returns; a label it doesn't name returns no findings. `review`
  * is the workflow's review arg, left out when null.
  */
-async function dryRun(reviews, review = 'codex') {
+async function dryRun(reviews, review) {
   const calls = [];
   const trace = [];
   const agent = async (prompt, opts) => {
@@ -95,7 +95,7 @@ describe('build-feature review loop', () => {
       review: [quotaFinding],
       're-review-1': [quotaFinding],
       're-review-2': [quotaFinding],
-    });
+    }, 'codex');
     if (process.env.DRY_RUN) console.log([...run.trace, `status ${run.result.status}`].join('\n'));
     expect(run.labels).toEqual([
       'implement',
@@ -114,13 +114,13 @@ describe('build-feature review loop', () => {
   });
 
   test('a branch clean after the second fix round opens its PR', async () => {
-    const run = await dryRun({ review: [quotaFinding], 're-review-1': [labelFinding] });
+    const run = await dryRun({ review: [quotaFinding], 're-review-1': [labelFinding] }, 'codex');
     expect(run.labels).toContain('open-pr');
     expect(run.result).toMatchObject({ status: 'ready' });
   });
 
   test('minor findings from the first review reach the report after a clean re-review', async () => {
-    const run = await dryRun({ review: [quotaFinding, unitFinding] });
+    const run = await dryRun({ review: [quotaFinding, unitFinding] }, 'codex');
     expect(run.labels).toContain('codex-re-review-1');
     expect(run.result).toMatchObject({ status: 'ready', minorFindings: [unitFinding] });
   });
@@ -130,12 +130,12 @@ describe('build-feature review loop', () => {
       review: [quotaFinding, unitFinding],
       're-review-1': [quotaFinding],
       're-review-2': [quotaFinding],
-    });
+    }, 'codex');
     expect(run.result).toMatchObject({ status: 'review-blocked', minorFindings: [unitFinding] });
   });
 
   test('each fixer holds the whole diff to the cited rule', async () => {
-    const run = await dryRun({ review: [quotaFinding], 're-review-1': [quotaFinding], 're-review-2': [quotaFinding] });
+    const run = await dryRun({ review: [quotaFinding], 're-review-1': [quotaFinding], 're-review-2': [quotaFinding] }, 'codex');
     for (const label of ['fix-review-1', 'fix-review-2']) {
       const prompt = run.calls.find((c) => c.label === label).prompt;
       expect(prompt).toContain('re-read the rule it cites');

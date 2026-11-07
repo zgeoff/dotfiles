@@ -241,7 +241,7 @@ Commit the fixes (hooks must pass). Do not push.`;
 }
 
 /**
- * The review gate: one review, then up to MAX_FIX_ROUNDS fix and re-check
+ * The review gate: one review, then a bounded number of fix and re-check
  * rounds. Returns `{ stop }` with the run's result when the run ends here, or
  * `{ summary }` with who reviewed and the minor findings once the branch is clean.
  */
