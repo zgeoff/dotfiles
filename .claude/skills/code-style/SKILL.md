@@ -14,8 +14,8 @@ metadata:
 ## Files and modules
 
 - Give each file one main export, and name the file after it: `parse-cli-args.ts` exports
-  `parseCLIArgs`. `index.ts`, `types.ts` and `constants.ts` have no main export. Name a module that
-  only has a side effect for what it does: `augment-bun-test.ts`.
+  `parseCLIArgs`. `index.ts`, `types.ts` and `constants.ts` have no main export. When a module has
+  only a side effect, name it for what it does: `augment-bun-test.ts`.
 - Order a file as imports, the main export, then its helpers in the order it calls them. Put each
   type or constant just above its first use.
 - Make objects with factory functions, and never write a class. The one exception is a custom error,
@@ -71,7 +71,8 @@ metadata:
   removes or runs something:
   - a pure function that takes the values read and returns what to do. Give it a verb from a no-I/O
     row of the [verb table](#function-names), such as `collect` or `pick`, so the
-    `zgeoff/verb-contract` rule in `@zgeoff/oxlint-config` keeps I/O out of it;
+    [`zgeoff/verb-contract`](https://github.com/zgeoff/tools/blob/main/docs/architecture/oxlint-config-code-style.md)
+    rule in `@zgeoff/oxlint-config` keeps I/O out of it;
   - a thin function that does the reads, calls the pure one, and acts on its result. Give it the I/O
     verb that fits, such as `run`, `write` or `remove`, and no decision of its own.
 - Write the pure function first, from the values you will read, then the thin one around it. You
@@ -153,14 +154,15 @@ section, such as `fetch` or `process`.
 | function that returns a function                                                                          | `make`                       | returns a function                                                             |
 | higher-order wrapper                                                                                      | `with`                       | runs a callback inside a context                                               |
 | React hook                                                                                                | `use`                        | follows the rules of hooks                                                     |
-| event-callback prop or parameter                                                                          | `on`                         | follows the framework's callback convention                                    |
+| prop or parameter that takes an event callback                                                            | `on`                         | follows the framework's callback convention                                    |
 | function passed to an `on` prop, or a function that handles a framework lifecycle event such as a request | `handle`                     | follows the framework's callback convention                                    |
 | a test file's per-test fixture                                                                            | `setupTest`                  | as the testing skill's [setupTest](../testing/SKILL.md#setuptest) section says |
-| stored state that a test puts in place by calling the module that creates it                              | `seed`                       | may do I/O; test code only                                                     |
+| stored state put in place for a test, through the production module when the module can make that state   | `seed`                       | may do I/O; test code only ([seeding rules](../testing/references/seeding.md)) |
 
 - Keep a pure function pure all the way down: a `build` that calls a `read` does I/O. The
-  `zgeoff/verb-contract` rule in `@zgeoff/oxlint-config` checks the verbs, but it can't see I/O
-  inside an npm package or behind a helper whose name hides it. Check those by hand.
+  [`zgeoff/verb-contract`](https://github.com/zgeoff/tools/blob/main/docs/architecture/oxlint-config-code-style.md)
+  rule in `@zgeoff/oxlint-config` checks the verbs, but it can't see I/O inside an npm package or
+  behind a helper whose name hides it. Check those by hand.
 - Start a boolean function with `is`, `has`, `can` or `should` even when another verb reads well.
   Two kinds of boolean function keep their own verb:
   - a function with an I/O verb that returns a success flag, such as `removeFile`;
