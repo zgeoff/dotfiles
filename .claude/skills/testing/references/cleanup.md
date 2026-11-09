@@ -125,8 +125,7 @@ step with the flags of the repo's test script:
 4. For module state, add its reset to the test preload. For a stored row or a file, give each test
    its own copy, as [Database testing](./database.md) describes.
 
-Never reorder the tests. Never give each test unique IDs to dodge the shared state. Either one hides
-the leak until a later test fails on it.
+Never reorder the tests. That hides the leak until a later test fails on it.
 
 ## Leftovers of a killed run
 

@@ -81,17 +81,16 @@ data exists, boot it in the test body, after the test creates that data.
 
 ## Seeding rows
 
-In a test outside the module that creates a table's rows, seed those rows through that module's
-seeds, never with your own insert, as in [Stored state](../SKILL.md#stored-state). In the module's
-own tests, and to write a seed, follow [Seeding](./seeding.md).
+Follow [Seeding](./seeding.md) when you write a seed, and in the tests of the module that creates
+the rows. In every other test, seed the rows as the testing skill's
+[Stored state](../SKILL.md#stored-state) says.
 
 ## Reading results back
 
-In a test outside the module that creates a table's rows, read a row back through that module's read
-function, as in [Stored state](../SKILL.md#stored-state). In the module's own test, query its table
-directly. With Kysely, read a row that must exist with `executeTakeFirstOrThrow()`, and select only
-the column under test when only that column matters. Assert absence with `executeTakeFirst()` and
-`toBeUndefined()`.
+Read a row back as the testing skill's [Stored state](../SKILL.md#stored-state) says. In the tests
+of the module that creates the rows, query the table directly. With Kysely, read a row that must
+exist with `executeTakeFirstOrThrow()`, and select only the column under test when only that column
+matters. Assert absence with `executeTakeFirst()` and `toBeUndefined()`.
 
 ```ts
 // archive-note.test.ts, in the module that creates notes
@@ -121,10 +120,9 @@ expect(request).rejects.toMatchObject({ code: 'NOT_FOUND' });
 expect(await ctx.service.listNotes()).toStrictEqual([]);
 ```
 
-To test how code recovers after several calls fail, such as a job that gives up after its third
-failed run, make the calls one after another in one test. Turn each outcome into a value: `null`
-when the call resolves, and the error when it rejects. When you leave a rejection as it is, the test
-stops at the first failed call. Then read the stored state, and assert the outcomes and the state:
+To test several failed calls, make the calls one after another in one test. Turn each call's
+rejection into a value as [Failure branches](./boundaries.md#failure-branches) shows, then read the
+final state back. In this example, a job gives up after its third failed run:
 
 ```ts
 const runJobOnce = () =>
