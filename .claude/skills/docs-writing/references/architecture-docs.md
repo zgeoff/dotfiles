@@ -1,16 +1,16 @@
 # Architecture docs
 
-A reader opens an architecture doc in `docs/architecture/` before they change a subsystem: one
-concept, such as how a job's lease passes between workers, whatever packages implement it. The
-reader needs to predict what the system does in a case the doc doesn't describe. Explain the
-concept, and give the reason that leads from each fact to the next. When you list the package's
-parts, or retell one function step by step, the reader gets names without a working model. The rules
-in the [docs-writing skill](../SKILL.md) apply throughout, and so do its Doc files reference's rules
-on the opening and on diagrams.
+A reader opens an architecture doc in `docs/architecture/` before they change a subsystem. A
+subsystem is one concept, such as how a job's lease passes between workers, however many packages
+implement it. The reader needs to predict what the system does in a case the doc doesn't describe.
+Explain the concept, and give the reason that leads from each fact to the next. When you list the
+parts of a package, or retell one function step by step, the reader gets names without a working
+model. The rules in the [docs-writing skill](../SKILL.md) apply throughout, and so do the rules on
+the opening and on diagrams in [Doc files](./doc-files.md).
 
 Contents: [working model](#give-the-reader-a-working-model) · [the concept](#open-with-the-concept)
 · [mechanisms](#describe-a-mechanism-that-spans-files) ·
-[reasons](#give-the-reason-in-the-sentence-that-needs-it) ·
+[reasons](#give-the-reason-next-to-the-fact) ·
 [the set of docs](#shape-the-set-of-docs-around-concepts) · [what stays out](#what-stays-out)
 
 ## Give the reader a working model
@@ -26,8 +26,9 @@ After reading the doc, the reader knows:
 To test the doc:
 
 1. Pick a case it doesn't describe outright, such as a process that dies halfway through a write.
-2. Predict from the doc alone what the system does. The cold read the docs-writing skill asks for
-   does this best, because its reader hasn't seen the code.
+2. Predict from the doc alone what the system does. Run the cold read that the docs-writing skill
+   asks for, and give its reader the case: that reader hasn't seen the code, so it predicts better
+   than you can.
 3. Check the code. When the prediction was wrong, add the fact that would have made it right, and go
    back to step 1 with a new case. Stop when a prediction holds.
 
@@ -35,7 +36,7 @@ To test the doc:
 
 Say what the subsystem does in the domain's own terms, because the reader thinks in those terms
 before they know the code. In the opening, name the package that implements it only by what it does,
-never by its path. The bad example below opens with the path.
+never by its path.
 
 - Bad: "`libs/stock-ledger` holds the ledger row, the two counters, and the reserve function."
 - Good: "Every order a buyer places at a warehouse takes its stock from one place: that warehouse's
@@ -51,21 +52,22 @@ effect: each step happens because of the one before it, and that chain is what t
 change the subsystem safely. Leave out a step-by-step account of one function: the reader can open
 the function.
 
-## Give the reason in the sentence that needs it
+## Give the reason next to the fact
 
-Put the reason for each fact whose reason isn't obvious in the same sentence or the next, joined by
-"because", "so" or "therefore". For the reason, say why the system works this way, or what would
-fail if it didn't. Write a paragraph that explains a design choice in this order:
+Give the reason for each fact whose reason the code doesn't show. Put the reason in the same
+sentence or the next, joined by "because", "so" or "therefore". For the reason, say why the system
+works this way, or what would fail if it didn't. Write a paragraph that explains a design choice in
+this order:
 
 1. the problem;
 2. its consequence;
 3. the response;
 4. the limit on the response: what the response doesn't cover, or the condition it needs.
 
-A `**Why:**` marker is a bold label in front of a reason. Join a reason to its fact with "because",
-"so" or "therefore" instead. Keep the marker for a one-off decision that no paragraph's chain of
-cause and effect explains, and give it a paragraph of its own. With a `**Why:**` on every paragraph,
-the doc turns into a list of rules, and the reader loses how one fact leads to the next.
+Use a `**Why:**` marker, a bold label in front of a reason, only for a one-off decision that no
+paragraph's chain of cause and effect explains, and give it a paragraph of its own. With a
+`**Why:**` on every paragraph, the doc turns into a list of rules, and the reader loses how one fact
+leads to the next.
 
 - Bad:
 
@@ -89,16 +91,17 @@ keeps it, with its reason beside it.
 
 ## Shape the set of docs around concepts
 
-- **Keep an overview.** `docs/architecture/overview.md` shows the whole system on one page, so a
-  reader can find the doc they need. It has a paragraph and a link for each of:
+- **Keep an overview.** The `overview.md` in `docs/architecture/` shows the whole system on one
+  page, so a reader can find the doc they need. It has a paragraph and a link for each of:
   - the path a request takes, end to end;
   - the topology: which processes and deployments exist, and how they reach each other;
   - the data: each store, and the shapes of data it holds;
   - each concern that cuts across the system.
 
   When you add an architecture doc, add a paragraph and a link for it to the overview, and write the
-  overview first when the repo has none. Put the paragraph under the part of the system it belongs
-  to. The overview isn't a product overview, which says what the product is and who it's for.
+  overview first when the repo has none. Put that paragraph under the overview item that its
+  subsystem belongs to, such as the data. The overview isn't a product overview, which says what the
+  product is and who it's for.
 
 - **Write one architecture doc per subsystem, not per package.** A subsystem can span several
   packages, and a reader changing it needs all of it in one place. Split a doc at a concept
@@ -113,7 +116,7 @@ keeps it, with its reason beside it.
   ```
 
 - **Draw a diagram** for the overview's request path, and another for its topology. Every other doc
-  follows the Doc files reference's diagram rule.
+  follows the diagram rule in [Doc files](./doc-files.md).
 
 ## What stays out
 
@@ -121,9 +124,9 @@ Each of these has another owner, and a copy here would go out of date:
 
 - **Design the code doesn't implement yet.** It goes under `docs/design/`. When a built part came
   from a design, link the design in one sentence.
-- **What a user sees and does.** That goes in a guide, in `docs/guides/`.
-- **The alternatives you rejected, and the history of the design.** When the user signed off the
-  choice, those go in a decision record, a numbered file in `docs/decisions/`. Otherwise they go in
-  the PR description.
+- **What someone who uses the product sees and does.** That goes in a guide, in `docs/guides/`.
+- **The alternatives you rejected, and the history of the design.** When the user approved the
+  choice, those go in a [decision record](./docs-tree.md#decision-records), a numbered file in
+  `docs/decisions/`. Otherwise they go in the PR description.
 - **Reference for internals**, such as one entry per protocol method, config key or module. That
   stays in the code, or in reference generated from it.
