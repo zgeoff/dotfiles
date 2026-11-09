@@ -7,7 +7,7 @@ idiomatic_version_file_enable_tools = ["rust"]
 
 [tools]
 go = "1.27.3"
-node = "24.22.1"
+node = "24.22.2"
 python = "3.15.2"
 ruby = "4.0.9"
 
