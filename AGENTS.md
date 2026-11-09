@@ -15,8 +15,8 @@ home/                 chezmoi source state; each name maps to its target through
   dot_claude/         ~/.claude: skills, agents, workflows, output styles, settings
   dot_codex/          ~/.codex: global rules and config
   dot_local/bin/      personal CLIs
-tests/                bun tests for the CLIs in home/dot_local/bin/ and the atc config modify_
-                      script; run them with `bun test`
+tests/                bun tests for the CLIs in home/dot_local/bin/ and the atc config and Claude
+                      settings modify_ scripts; run them with `bun test`
 ```
 
 ## This repo
