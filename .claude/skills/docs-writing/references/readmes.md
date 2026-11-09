@@ -13,11 +13,19 @@ Contents: [the five kinds](#the-five-kinds) · [root README](#root-readme) ·
 
 1. **Root README:** `README.md` at the repo root, the repo's front page. It is always this kind,
    even when the root has a manifest.
-2. **Package README:** in any other folder with its own manifest (`package.json`, `go.mod` or
-   `Cargo.toml`), wherever the folder sits. Give a published package the
-   [published package sections](#published-package-sections), because the registry shows its README
-   on the package's page. Give an unpublished package a short README, as the last paragraph of
-   [published package sections](#published-package-sections) describes.
+2. **Package README:** in any other folder that holds one of these manifests, wherever the folder
+   sits:
+
+   - `package.json`
+   - `go.mod`
+   - `Cargo.toml`
+   - `build.gradle.kts`, `build.gradle`, `settings.gradle.kts` or `settings.gradle`
+
+   Give a published package the [published package sections](#published-package-sections), because
+   the registry shows its README on the package's page. Give an unpublished package a short README
+   with no header: one paragraph on what the package is for, and a link to the architecture doc that
+   covers it, when one exists.
+
 3. **Docs index:** `docs/README.md`, one line and a link for each doc.
 4. **Design README:** `docs/design/<work>/README.md`, one line and a link for each doc and spike in
    the design. Give a design folder inside another design folder its own design README.
@@ -92,9 +100,6 @@ field to rewrite a relative link so that it points at the repo.
 5. `## Configuration`: one paragraph, and a link to the config schema, or to the configuration guide
    when there's no schema. Leave it out when the package has no configuration.
 6. `## Documentation`: one line that links `docs/`, for the reader who reads to the end.
-
-Give an unpublished package a short README with no header: one paragraph on what the package is for,
-and a link to the architecture doc that covers it, when one exists.
 
 ## Length
 
