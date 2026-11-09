@@ -58,8 +58,6 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {{- end }}
 }' '. * $owned
   | if $automode != null then .autoMode = $automode else . end
-  # agents re-mint an expired 1Password token with op-mint without a permission
-  # prompt; the machine keeps its own allow rules beside this one
   | .permissions.allow |= ((. // []) | if any(.[]; . == "Bash(op-mint *)") then . else . + ["Bash(op-mint *)"] end)
   # agents use the saved gh login and the default git SSH key, so drop the
   # machine-user token and key override that agent-identity or an earlier render wrote
