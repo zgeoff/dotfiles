@@ -24,6 +24,23 @@ test('it fills in the home directory', () => {
   );
 });
 
+test('it throws on a malformed personal block', () => {
+  const template =
+    'lamp=on\n{{- if not (and (hasKey . "personal") .personal }}\nkite=red\n{{- end }}\n';
+
+  expect(() => renderNonPersonalTemplate(template, { homeDir: '/home/wren' })).toThrow(
+    'no rule for {{- if not (and (hasKey . "personal") .personal }}',
+  );
+});
+
+test('it throws on a directive split across lines', () => {
+  const template = 'os={{\n  .chezmoi.os\n}}\n';
+
+  expect(() => renderNonPersonalTemplate(template, { homeDir: '/home/wren' })).toThrow(
+    'no rule for {{\n  .chezmoi.os\n}}',
+  );
+});
+
 test('it throws on a directive it has no rule for', () => {
   const template = 'os={{ .chezmoi.os }}\n';
 
