@@ -2,7 +2,7 @@
 # chezmoi owns the keys below and deep-merges them over the live file. Every
 # other key stays as Claude Code or a script wrote it: env.OP_SERVICE_ACCOUNT_TOKEN
 # (rotated weekly by op-mint) and permissions, where chezmoi adds only the op-mint
-# allow rule. On a personal machine, chezmoi owns autoMode in full: edit
+# allow rules. On a personal machine, chezmoi owns autoMode in full: edit
 # .chezmoitemplates/claude/automode.json.age with `chezmoi decrypt`/`chezmoi encrypt`,
 # not the live file (an /auto-mode-setup run there is overwritten on the next apply).
 # Removing a key here does not remove it from the live file.
@@ -58,7 +58,11 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {{- end }}
 }' '. * $owned
   | if $automode != null then .autoMode = $automode else . end
-  | .permissions.allow |= ((. // []) | if any(.[]; . == "Bash(op-mint *)") then . else . + ["Bash(op-mint *)"] end)
+  | .permissions.allow |= reduce (
+      "Bash(op-mint --list)", "Bash(op-mint hq)", "Bash(op-mint imp)", "Bash(op-mint nixie)",
+      "Bash(op-mint noslop)", "Bash(op-mint osrs)", "Bash(op-mint pepys)", "Bash(op-mint vers)",
+      "Bash(op-mint wow-forever)"
+    ) as $rule (. // []; if any(.[]; . == $rule) then . else . + [$rule] end)
   # agents use the saved gh login and the default git SSH key, so drop the
   # machine-user token and key override that agent-identity or an earlier render wrote
   | del(.env.GH_TOKEN, .env.GITHUB_TOKEN, .env.GIT_SSH_COMMAND)

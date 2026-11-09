@@ -18,7 +18,7 @@ function setupTest() {
   };
 }
 
-test('it adds the op-mint rule after the allow rules the machine already has', async () => {
+test('it adds the op-mint rules after the allow rules the machine already has', async () => {
   const ctx = setupTest();
   const live = {
     permissions: {
@@ -37,7 +37,19 @@ test('it adds the op-mint rule after the allow rules the machine already has', a
   }).toStrictEqual({
     exitCode: 0,
     permissions: {
-      allow: ['Bash(git status)', 'WebFetch(domain:kite.example)', 'Bash(op-mint *)'],
+      allow: [
+        'Bash(git status)',
+        'WebFetch(domain:kite.example)',
+        'Bash(op-mint --list)',
+        'Bash(op-mint hq)',
+        'Bash(op-mint imp)',
+        'Bash(op-mint nixie)',
+        'Bash(op-mint noslop)',
+        'Bash(op-mint osrs)',
+        'Bash(op-mint pepys)',
+        'Bash(op-mint vers)',
+        'Bash(op-mint wow-forever)',
+      ],
       deny: ['Bash(rm -rf *)'],
       defaultMode: 'auto',
     },
@@ -45,29 +57,47 @@ test('it adds the op-mint rule after the allow rules the machine already has', a
   });
 });
 
-test('it adds the op-mint rule to a settings file with no permissions', async () => {
+test('it adds the op-mint rules to a settings file with no permissions', async () => {
   const ctx = setupTest();
 
   const result = await ctx.applySettings({}, { personal: false, decrypted: {} });
 
   expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
-    allow: ['Bash(op-mint *)'],
+    allow: [
+      'Bash(op-mint --list)',
+      'Bash(op-mint hq)',
+      'Bash(op-mint imp)',
+      'Bash(op-mint nixie)',
+      'Bash(op-mint noslop)',
+      'Bash(op-mint osrs)',
+      'Bash(op-mint pepys)',
+      'Bash(op-mint vers)',
+      'Bash(op-mint wow-forever)',
+    ],
   });
 });
 
-test('it keeps one op-mint rule when the machine already has it', async () => {
+test('it keeps one copy of an op-mint rule the machine already has, in its place', async () => {
   const ctx = setupTest();
-  const live = { permissions: { allow: ['Bash(op-mint *)', 'Bash(git status)'] } };
+  const live = { permissions: { allow: ['Bash(op-mint vers)', 'Bash(git status)'] } };
 
   const result = await ctx.applySettings(live, { personal: false, decrypted: {} });
 
   expect(JSON.parse(result.stdout.toString()).permissions.allow).toStrictEqual([
-    'Bash(op-mint *)',
+    'Bash(op-mint vers)',
     'Bash(git status)',
+    'Bash(op-mint --list)',
+    'Bash(op-mint hq)',
+    'Bash(op-mint imp)',
+    'Bash(op-mint nixie)',
+    'Bash(op-mint noslop)',
+    'Bash(op-mint osrs)',
+    'Bash(op-mint pepys)',
+    'Bash(op-mint wow-forever)',
   ]);
 });
 
-test('it adds the op-mint rule on a personal machine', async () => {
+test('it adds the op-mint rules on a personal machine', async () => {
   const ctx = setupTest();
   const live = { permissions: { allow: ['Bash(git status)'] } };
 
@@ -86,7 +116,20 @@ test('it adds the op-mint rule on a personal machine', async () => {
     stderr: result.stderr.toString(),
   }).toStrictEqual({
     exitCode: 0,
-    permissions: { allow: ['Bash(git status)', 'Bash(op-mint *)'] },
+    permissions: {
+      allow: [
+        'Bash(git status)',
+        'Bash(op-mint --list)',
+        'Bash(op-mint hq)',
+        'Bash(op-mint imp)',
+        'Bash(op-mint nixie)',
+        'Bash(op-mint noslop)',
+        'Bash(op-mint osrs)',
+        'Bash(op-mint pepys)',
+        'Bash(op-mint vers)',
+        'Bash(op-mint wow-forever)',
+      ],
+    },
     autoMode: { environment: ['a kite workshop'] },
     stderr: '',
   });
