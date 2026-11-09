@@ -17,7 +17,10 @@ see [Cleanup](../SKILL.md#cleanup) in the testing skill.
 ## The test preload
 
 - Put each reset of shared state in an `afterEach` hook in the test preload, the file that
-  `bunfig.toml` lists under `[test] preload`.
+  `bunfig.toml` lists under `[test] preload`. When you add state to production code that outlives a
+  test, such as a cache, add its reset there.
+- When a test changes process state that the preload doesn't reset, register `onTestFinished` right
+  after the change.
 - Start a shared resource, such as the MSW server, in the preload's `beforeAll`, never at import.
 - Import `updateEnv` and `removeEnvOverrides` from `@zgeoff/testing/helpers`. In a test, change an
   environment variable with `updateEnv`. In the preload, call `afterEach(removeEnvOverrides)`, which
@@ -146,6 +149,7 @@ that still runs. The sweep removes:
 - temp folders, such as a test's `HOME`;
 - the database clones that the test-database helper makes, as
   [Postgres isolation](./database.md#postgres-isolation) describes;
+- a template's lock file whose builder no longer runs, read from the prefix written inside the file;
 - templates whose hash no longer matches their inputs, as
   [Per-run templates](./slow-tests.md#per-run-templates) describes.
 

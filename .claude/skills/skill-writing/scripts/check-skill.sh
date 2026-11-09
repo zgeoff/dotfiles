@@ -8,7 +8,8 @@
 # .gitattributes.
 # Fails on: a missing name or description, a name that differs from the folder or breaks the name
 # format, a description over 1,024 characters, a plain description that holds a colon YAML reads as a
-# key, frontmatter that Bun.YAML.parse refuses (at the line it fails on), a link with a line anchor outside code, and a SKILL.md body over 1,700 words.
+# key, frontmatter that Bun.YAML.parse refuses (at the line it fails on), a link with a line anchor outside code, a
+# coined term outside code, such as "lane" or "the unit run", and a SKILL.md body over 1,700 words.
 # Warns on: a SKILL.md body over 1,500 words, a SKILL.md over 500
 # lines, a reference that SKILL.md does not list under ## References, a reference over 100 lines
 # with two or more headings and no contents list near its top, a code-formatted span outside a table that names an existing repo file, and a bullet in
@@ -74,6 +75,14 @@ use strict;
 use warnings;
 
 my ($errors, $warnings) = (0, 0);
+
+# Each coined term a skill may not use, with the plain wording that its error names. A term may
+# wrap onto the next line, so a space in it matches any run of white space.
+my @coined_terms = (
+  [qr/\blanes?\b/i, "write the command that runs those tests, such as `bun run test:e2e`, or the folder or file suffix that holds them"],
+  [qr/(?<![\w-])unit(?:-|\s+)runs?\b/i, "write the command that runs the tests, `bun run test`"],
+  [qr/\bunit\s+limit\b/i, "write the timeout and the command it applies to, such as \"the 5 s timeout of `bun run test`\""],
+);
 
 for my $dir (@ARGV) {
   $dir =~ s{^\./}{};
@@ -415,9 +424,26 @@ sub check_markdown {
   my $headings = 0;
   my $reference = !$is_skill;
   my $in_comment = 0;
+  my ($open_span, $in_list, $in_indented_code, $after_blank) = ("", 0, 0, 1);
+  my ($tail, $tail_line) = ("", 0);
 
   for my $line (@lines) {
     $line_number++;
+    if ($open eq "") {
+      if ($line =~ /^\s*$/) {
+        $after_blank = 1;
+        next;
+      }
+      # Four spaces after a blank line start an indented code block, except inside a list, where
+      # they indent the text of the item.
+      if ($line =~ /^(?: {4}|\t)/ && !$in_list && ($after_blank || $in_indented_code)) {
+        ($in_indented_code, $after_blank) = (1, 0);
+        next;
+      }
+      ($in_indented_code, $after_blank) = (0, 0);
+      if ($line =~ /^\s*(?:[-*+]|\d+[.)])\s/) { $in_list = 1 }
+      elsif ($line =~ /^\S/) { $in_list = 0 }
+    }
     if ($line =~ /^\s*(`{3,}|~{3,})(.*)$/) {
       my ($marker, $rest) = ($1, $2);
       if ($open eq "") { $open = $marker }
@@ -430,7 +456,15 @@ sub check_markdown {
 
     # An HTML comment never renders, so its text holds no link and no path.
     # A comment marker inside inline code renders as text, so the spans hide their markers first.
-    my $visible = $line =~ s{(`+)(.+?)\1}{my $span = $&; $span =~ s/<!--/<\x{1}!--/g; $span =~ s/-->/--\x{1}>/g; $span}ger;
+    # A code span may wrap onto the next line of its paragraph, so a line that only closes it starts
+    # after the closing backticks.
+    my $source = $line;
+    if ($open_span ne "") {
+      next unless $source =~ /(?<!`)\Q$open_span\E(?!`)/;
+      $source = substr($source, $+[0]);
+      $open_span = "";
+    }
+    my $visible = $source =~ s{(`+)(.+?)\1}{my $span = $&; $span =~ s/<!--/<\x{1}!--/g; $span =~ s/-->/--\x{1}>/g; $span}ger;
     if ($in_comment) {
       next unless $visible =~ s/\A.*?-->//;
       $in_comment = 0;
@@ -442,6 +476,13 @@ sub check_markdown {
     my $text = $visible;
     my @spans;
     $text =~ s/(`+)(.+?)\1/push @spans, $2; ""/ge;
+    # A backtick run left open starts a span only when a later line of the paragraph closes it, as
+    # CommonMark renders an unclosed run as text.
+    my ($unclosed) = $text =~ /(`+)/;
+    if (defined $unclosed && has_closing_run($unclosed, @lines[$line_number .. $#lines])) {
+      $open_span = $unclosed;
+      $text =~ s/`+.*\z//;
+    }
 
     if ($line_number <= 30) {
       $contents_links++ while $text =~ /\]\(#[^)\s]+\)/g;
@@ -457,6 +498,27 @@ sub check_markdown {
       fail("$file:$line_number", "link $target has a line anchor; name the target in the link text instead")
         if $target =~ /#L[0-9]+/;
     }
+
+    # A link target, a reference label, an HTML tag and a URL hold paths and anchors, such as #lanes,
+    # that the reader never reads.
+    my $prose = $text =~ s/\]\(\s*(?:<[^>]*>|(?:[^()\s]|\([^()\s]*\))*)[^)]*\)/]/gr
+      =~ s/\]\[[^\]]*\]/]/gr =~ s/^\s{0,3}\[(?!\^)[^\]]+\]:\s*\S+//r
+      =~ s/<\/?[A-Za-z][^>]*>|<[^>\s]*>//gr =~ s{\bhttps?://\S+}{}gr;
+    # The last word of the line before joins this one, so a term that wraps is read whole; a term
+    # inside that word alone was reported on its own line.
+    my $joined = $tail_line == $line_number - 1 && $tail ne "" ? "$tail $prose" : $prose;
+    my $start = length($joined) - length($prose);
+    my %seen;
+    for my $coined (@coined_terms) {
+      my ($pattern, $plain) = @$coined;
+      while ($joined =~ /$pattern/g) {
+        next if $+[0] <= $start;
+        my $term = lc($&) =~ s/\s+/ /gr;
+        next if $seen{$term}++;
+        fail("$file:$line_number", "\"$term\" is a coined term; $plain");
+      }
+    }
+    ($tail, $tail_line) = ($prose =~ /(\S+)\s*\z/ ? $1 : "", $line_number);
 
     # A span inside link text is already a link, so only the spans left after links drop are read.
     # A table row holds commands the agent types, such as the commands table of a skill, so it is skipped.
@@ -476,6 +538,23 @@ sub check_markdown {
   if ($reference && @lines > 100 && $headings >= 2 && $contents_links < 2) {
     warn_about($file, scalar(@lines) . " lines with no contents list near the top; open with links to its headings");
   }
+}
+
+# Returns true when a line of the same paragraph holds a backtick run as long as the one given.
+sub has_closing_run {
+  my ($run, @rest) = @_;
+  for my $line (@rest) {
+    return 0 if is_block_start($line);
+    return 1 if $line =~ /(?<!`)\Q$run\E(?!`)/;
+  }
+  return 0;
+}
+
+# A blank line, a list item, a heading, a fence, a table row or a block quote ends a paragraph, so a
+# code span never runs past one.
+sub is_block_start {
+  my ($line) = @_;
+  return $line =~ /^\s*$|^\s*(?:[-*+]|\d+[.)])\s|^\s{0,3}#{1,6}(?:\s|$)|^\s*(?:`{3,}|~{3,})|^\s*[|>]/;
 }
 
 sub resolve_path {

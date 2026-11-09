@@ -60,7 +60,7 @@ included. When you write such a helper, do the same.
 Choose how the test gets its copy:
 
 - When the code opens its own connection by path, or the test depends on file behaviour, such as a
-  read-only connection or write-ahead logging, copy the file into the test's `mkdtemp` tree.
+  read-only connection or write-ahead logging, copy the file into the test's temp folder.
 - When the code takes the connection as an argument, load the template's bytes into an in-memory
   database with `Database.deserialize` from `bun:sqlite`.
 

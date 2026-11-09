@@ -15,6 +15,7 @@ metadata:
 
 - [Dependency exceptions](./references/dependency-exceptions.md): adding a release-age exclude, an
   override or an audit ignore for a third-party package.
+- [Run times](./references/run-times.md): measuring a median time for the test budget or a timeout.
 
 ## Workflow lint
 
@@ -30,15 +31,17 @@ zgeoff/tools and overwrites your change. `pr.yml` runs the shared
 each pull request.
 
 - Add CI work as a package script. Unless `BUN_CHECK_SCRIPTS` is set, `bun-checks.yml` runs the
-  standard list: `audit`, `deadcode`, `format:check`, `lint`, `typecheck`, `test`, and each script
-  the repo defines for a lane in [Lanes](../testing/references/slow-tests.md#lanes) except
-  `model-api`.
-- To run a repo-only script, such as a `test:kvm` lane, list every script to run, the standard ones
-  too, in the repo variable `BUN_CHECK_SCRIPTS`. A script you leave out stops running, and a name
-  that `package.json` lacks fails the run.
+  standard list: `audit`, `deadcode`, `format:check`, `lint`, `typecheck` and `test`, and each of
+  `test:e2e`, `test:browser`, `test:docker`, `test:host` and `test:agent-sdk` that the repo defines.
+  [Where each test runs](../testing/references/slow-tests.md#where-each-test-runs) says what each
+  test script runs. `test:model-api` stays out of the list, and runs as that page says.
+- To run a script outside the standard list, such as a made-up `check:sql`, set the repo variable
+  `BUN_CHECK_SCRIPTS`. Write in it every script to run, the standard ones included. A script you
+  leave out stops running, and a name that `package.json` lacks fails the run.
 - Expect a private repo to run every script in one `checks` job. In a public repo, `bun-checks.yml`
-  runs each standard lane in a `test-<lane>` job, each other `test:<name>` script in the `test` job,
-  and the rest in the `static` job.
+  gives each of `test:e2e`, `test:browser`, `test:docker`, `test:host` and `test:agent-sdk` a job of
+  its name, such as `test-e2e`. It runs each other `test:<name>` script in the `test` job, and the
+  rest in the `static` job.
 - Require `pr / checks` in the `main` ruleset. In a public repo, the `checks` job fails when any
   other job fails.
 - Put a job of your own in a workflow you write, such as `image.yml`.
@@ -46,14 +49,13 @@ each pull request.
   tree.
 
 Find the repo's test budget in the Facts table of its project-ci-design skill. The budget caps the
-median test time of the last 20 push runs on `main` that restored no `actions/cache` entry, from
-`gh run list --branch main --event push --limit 20`. Measure the slowest test job in a public repo,
-and the sum of the test and lane steps in a private one. When the repo has no budget, skip each rule
-that uses one.
+median test time: the slowest test job in a public repo, and the sum of the steps that run test
+scripts in a private one. When the repo has no budget, skip each rule that uses one. Measure each
+time and median in this skill as [Run times](./references/run-times.md) says.
 
-- In a public repo, write a job of your own only when the script's step takes over 60 s longer than
-  a job's setup steps. Read both times from `gh run view <run-id> --json jobs`. Shard tests only
-  when the repo is over its test budget.
+- In a public repo, move a script into a job in a workflow you write only when its step takes over
+  60 s longer than the steps that set up a job, such as the checkout and `bun install`. Shard tests
+  only when the repo is over its test budget.
 - In a private repo, write a job of your own only for a heavy check: one on any runner but a
   GitHub-hosted `ubuntu-*`, or one that sets up KVM. Run it on `schedule` or `workflow_dispatch`. A
   required check runs on every push to a pull request, so never require a heavy check.
@@ -61,12 +63,11 @@ that uses one.
 
 ## Timeouts
 
-- Set `timeout-minutes` on every job that runs steps. On a job that calls a reusable workflow, pass
-  it as the `timeout-minutes` input when the workflow takes one.
-- Set 20 minutes on a job with tests until its tests have stayed within the test budget for a week
-  of runs on `main`. Then set twice the budget plus the job's median time outside its tests.
-- Set twice the median time on a job with no tests, and never less than 5 minutes. Take each median
-  from the test budget's 20 runs.
+- Set `timeout-minutes` on every job that runs steps. GitHub refuses it on a job that calls a
+  reusable workflow, so pass the workflow's `timeout-minutes` input when it has one.
+- Set 20 minutes on a job with tests. Once its tests have stayed within the test budget for a week
+  of runs on `main`, set twice the budget plus the job's median time outside its tests.
+- Set twice the median time on a job with no tests, and never less than 5 minutes.
 - Set the timeout of the `bun-checks.yml` jobs with the repo variable `BUN_CHECK_TIMEOUT_MINUTES`.
   Set it to the slowest test job's timeout. In a workflow you write that calls `bun-checks.yml`,
   pass the variable the way
@@ -84,14 +85,14 @@ that uses one.
   uses: zgeoff/tools/.github/workflows/<name>.yml@<commit> # main
   ```
 
-- Never move the pin by hand. Repo-sync opens a pull request that moves it.
+- Never move the pin by hand. Repo-sync moves each pin in `.github/workflows/`, yours included.
 
 ## Step scripts
 
 - Keep each `run:` to one plain command, with no shell `if`, loop, `&&`, `||`, `;`, pipe or
   `${{ }}`. Pass an expression's value through `env:`.
-- Write the script in TypeScript under `scripts/<job>/`, and run it through a package script, such
-  as `run: bun run --silent ci:tag-release` for `scripts/release/tag-release.ts`.
+- Write the script in TypeScript under `scripts/<job>/`. Run it as `bun run --silent ci:<name>`,
+  from a package script such as `"ci:tag-release": "bun scripts/release/tag-release.ts"`.
 - Keep step scripts out of `.github/`. Each script's test sits beside it, and `bun test` skips
   hidden folders.
 
@@ -120,8 +121,9 @@ jobs:
 
 ## Cancelling runs
 
-- Run the checks of a push to `main` in a workflow of their own, such as a `main.yml` that calls
-  `bun-checks.yml`. Never cancel its runs: a cancelled run leaves that merged commit untested.
+- Write a workflow of your own for the checks of a push to `main`, such as a `main.yml` that calls
+  `bun-checks.yml`. Repo-sync delivers none. Never cancel its runs: a cancelled run leaves that
+  merged commit untested.
 - In each pull-request workflow you write, cancel the older run. Name the workflow in the group, so
   two workflows never cancel each other:
 
@@ -146,13 +148,14 @@ jobs:
 - Never cache `~/.bun/install/cache` or `node_modules`. `bun install --frozen-lockfile` is faster
   than the restore.
 - When a job reads git history, such as tags, check out with `fetch-depth: 0` and
-  `filter: blob:none`, or `filter: ''` when it reads many old files. For a diff against the base
-  branch, use `fetch-depth: 2`.
+  `filter: blob:none`. When it reads many old files, use `filter: ''` in place of `blob:none`. For a
+  diff against the base branch, use `fetch-depth: 2`.
 
 ## `workflow_run` triggers
 
 When a job that `workflow_run` starts holds a secret or write access, give the job this `if:`. A
-`pull_request` run can hold a fork's code, and a fork's `main` passes the `branches:` filter.
+`pull_request` run can hold a fork's code, and a fork's `main` passes a `branches: [main]` filter on
+the trigger.
 
 ```yaml
 if: >-
@@ -168,10 +171,10 @@ bumps each one as soon as it publishes, and `bun install` refuses a release youn
 - Run `bun x @zgeoff/chex dependency-gates`, and add each first-party package it lists to
   `minimumReleaseAgeExcludes`, by its full name, such as `@zgeoff/std`.
 - Never write a scope, such as `@zgeoff/*`. Bun accepts it with no warning and lets nothing through.
-- Never put a [removal comment](./references/dependency-exceptions.md#release-age-excludes) above a
-  first-party exclude. The
+- Never write a [removal comment](./references/dependency-exceptions.md#release-age-excludes) for a
+  first-party package. The
   [audit-fix workflow](https://github.com/zgeoff/tools/blob/main/docs/architecture/dependency-updates.md#the-audit-fix-workflow)
-  deletes the exclude on the comment's date.
+  deletes the exclude of each package a removal comment names, on its removal date.
 - Add a missing exclude in a pull request of its own into `main`. Renovate drops a commit you push
   to its branch. Once yours merges, tick the rebase checkbox in each red Renovate pull request.
 

@@ -79,3 +79,14 @@ change to `setupTest()` sends the Worker a message.
 
 Keep `.rejects` for a promise that waits on a file read, a `fetch` or a subprocess. It settles
 those.
+
+## A value that may be missing
+
+When you assert on a field of a value that may be missing:
+
+- With `toBeUndefined`, `toBeFalsy`, `toBeNil` or a `.not` matcher, write `invariant(value)` first,
+  then assert on `value.field`. These matchers pass on `undefined`, so `value?.field` hides a
+  missing value.
+- With any other matcher, assert on `value?.field`. A missing value fails that matcher.
+
+To check that the value is absent, assert on it, with no `invariant`.
