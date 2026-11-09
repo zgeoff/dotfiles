@@ -54,9 +54,8 @@ Watch for these mistakes:
 - Outside a package with a golden test, default a field to a `@faker-js/faker` value when no test
   depends on its value. The reader then sees that the value doesn't matter. When the package has no
   `@faker-js/faker` dev dependency, add it.
-- Call `faker.seed()` with a fixed number in the test preload of each package that uses faker, so a
-  rerun of the same files gives the same values again. The test preload is the file that
-  `bunfig.toml` lists under `[test] preload`.
+- Call `faker.seed()` with a fixed number in the [test preload](./cleanup.md#the-test-preload) of
+  each package that uses faker, so a rerun of the same files gives the same values again.
 - Default an enum or a discriminator to the value most tests need.
 - Outside a package with a golden test, default each foreign key to a new `faker.string.uuid()`.
   Never require a parent. When a test needs a real parent, seed the parent and pass its ID.
