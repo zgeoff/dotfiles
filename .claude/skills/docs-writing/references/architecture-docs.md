@@ -126,7 +126,7 @@ Each of these has another owner, and a copy here would go out of date:
   from a design, link the design in one sentence.
 - **What someone who uses the product sees and does.** That goes in a guide, in `docs/guides/`.
 - **The alternatives you rejected, and the history of the design.** When the user approved the
-  choice, those go in a [decision record](./docs-tree.md#decision-records), a numbered file in
-  `docs/decisions/`. Otherwise they go in the PR description.
+  choice, those go in a [decision record](./docs-tree.md#designs-and-decision-records), a numbered
+  file in `docs/decisions/`. Otherwise they go in the PR description.
 - **Reference for internals**, such as one entry per protocol method, config key or module. That
   stays in the code, or in reference generated from it.
