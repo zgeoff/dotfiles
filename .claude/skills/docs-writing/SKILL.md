@@ -45,8 +45,8 @@ committed prose by these rules, whatever style you use in chat.
 - [Doc files](./references/doc-files.md): writing or reviewing any file in `docs/` or a README. It
   covers the doc's type, the rule to state in place of a copy of the code, the opening and diagrams.
 - [Architecture docs](./references/architecture-docs.md): a doc under `docs/architecture/`.
-- [The docs/ tree](./references/docs-tree.md): deciding where a doc goes, or writing a design, a
-  decision record or a spike.
+- [The docs/ tree](./references/docs-tree.md): deciding where a doc goes, or writing a spike. For a
+  design or a decision record, load the [design-docs](../design-docs/SKILL.md) skill.
 - [READMEs](./references/readmes.md): writing or reviewing a README, with Doc files open too. It
   holds the five kinds of README and what each holds.
 

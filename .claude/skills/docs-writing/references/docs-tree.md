@@ -5,17 +5,17 @@ delete a design once its code is built. Put each kind of doc in the folder that 
 contents list names.
 
 Contents: [where content goes](#where-each-kind-of-content-goes) · [length](#length) ·
-[designs](#designs) · [decision records](#decision-records) · [spikes](#spikes)
+[designs and decision records](#designs-and-decision-records) · [spikes](#spikes)
 
-| Folder               | Holds                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| `docs/README.md`     | the index                                                                          |
-| `docs/architecture/` | how the built system works: `overview.md`, then one doc per concept                |
-| `docs/guides/`       | the steps a user takes, one doc per user task                                      |
-| `docs/runbooks/`     | operator and contributor procedures, development and releasing included            |
-| `docs/reference/`    | generated reference only, such as the schema for the config file                   |
-| `docs/decisions/`    | numbered decision records: the choice, the rejected alternatives, and why          |
-| `docs/design/`       | a design: work with open questions that need [spikes](#spikes), deleted once built |
+| Folder               | Holds                                                                     |
+| -------------------- | ------------------------------------------------------------------------- |
+| `docs/README.md`     | the index                                                                 |
+| `docs/architecture/` | how the built system works: `overview.md`, then one doc per concept       |
+| `docs/guides/`       | the steps a user takes, one doc per user task                             |
+| `docs/runbooks/`     | operator and contributor procedures, development and releasing included   |
+| `docs/reference/`    | generated reference only, such as the schema for the config file          |
+| `docs/decisions/`    | numbered decision records: the choice, the rejected alternatives, and why |
+| `docs/design/`       | a design for work not yet built, deleted once built                       |
 
 Once `docs/architecture/` holds more than 6 docs, not counting `overview.md`, group them into
 subfolders by area, so a reader can scan the folder. Link `docs/reference/` from the index.
@@ -51,46 +51,12 @@ these:
 - moving the overflow into a README or code comments;
 - splitting where the concept has no boundary.
 
-## Designs
+## Designs and decision records
 
-Start a design only when the user asks for one. A design has open questions that need spikes before
-anyone can build; a plan for work about to be built has none, and goes in its issue or PR. While its
-code is unbuilt, the design lives in `docs/design/<work>/`, where `<work>` names the work in a few
-words.
-
-When its code is built:
-
-1. Move each part of the design that describes the built system into `docs/architecture/`.
-2. Write each spike finding that still constrains the system as a sentence in the architecture doc
-   that owns it.
-3. Point each decision record's design link at the architecture doc instead.
-4. Delete the design folder, spikes included.
-
-## Decision records
-
-Write a decision record for a choice between alternatives that the user approved, in a design
-session, a ticket or a PR. Never write one for a choice you made alone. You may write it later, from
-the session where the user decided. Never delete one.
-
-Name it `NNNN-<slug>.md`, with the next free number, and open it like this:
-
-```markdown
-# 0007: The durable layer
-
-- Date: 2026-10-07
-- Updated: 2026-10-15
-- Status: decided
-- Design: [event log](../design/core/event-log.md)
-```
-
-`decided` is the only status. Add the `Updated` line only when the decision changes.
-
-The record states the choice and the alternatives it rejected, with why, and never how the system
-works now: the architecture doc owns that. When a decision changes, edit the record in place:
-
-1. Keep its number, and state the decision as it now stands.
-2. Add or change the `Updated` line in its header.
-3. Add a line to the `## Changes` list at its end, with the date and a one-line summary.
+Load the [design-docs](../../design-docs/SKILL.md) skill before you write a design or a decision
+record. It sets where a design lives, its shape, and when a decision record is written and how it
+changes. A design in `docs/design/<work>/` is deleted once its code is built, and a decision record
+is never deleted.
 
 ## Spikes
 
