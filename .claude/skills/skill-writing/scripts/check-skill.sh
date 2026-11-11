@@ -9,7 +9,7 @@
 # Fails on: a missing name or description, a name that differs from the folder or breaks the name
 # format, a description over 1,024 characters, a plain description that holds a colon YAML reads as a
 # key, frontmatter that Bun.YAML.parse refuses (at the line it fails on), a link with a line anchor outside code, a
-# coined term outside code, such as "lane" or "the unit run", and a SKILL.md body over 1,700 words.
+# coined term outside code, such as "the unit limit", and a SKILL.md body over 1,700 words.
 # Warns on: a SKILL.md body over 1,500 words, a SKILL.md over 500
 # lines, a reference that SKILL.md does not list under ## References, a reference over 100 lines
 # with two or more headings and no contents list near its top, a code-formatted span outside a table that names an existing repo file, and a bullet in
@@ -78,9 +78,9 @@ my ($errors, $warnings) = (0, 0);
 
 # Each coined term a skill may not use, with the plain wording that its error names. A term may
 # wrap onto the next line, so a space in it matches any run of white space.
+# A term that the README of @zgeoff/rig defines, such as "lane" or "the unit run", is the plain name
+# of a thing rig runs, so it never joins this list.
 my @coined_terms = (
-  [qr/\blanes?\b/i, "write the command that runs those tests, such as `bun run test:e2e`, or the folder or file suffix that holds them"],
-  [qr/(?<![\w-])unit(?:-|\s+)runs?\b/i, "write the command that runs the tests, `bun run test`"],
   [qr/\bunit\s+limit\b/i, "write the timeout and the command it applies to, such as \"the 5 s timeout of `bun run test`\""],
 );
 
