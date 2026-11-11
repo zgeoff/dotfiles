@@ -53,6 +53,25 @@ test('it gives the cloud profile write access to the fleet vault', () => {
   expect(ctx.readCalls()).toInclude('--vault cloud:read_items,write_items --vault cloud-deploy:read_items,write_items --vault imp:read_items,write_items --vault fleet:read_items,write_items --format=json');
 });
 
+test('it mints the boxxy profile with write access to the boxxy vault, into the repo settings', () => {
+  const ctx = setupTest();
+  const repo = ctx.makeRepo('boxxy');
+
+  const result = ctx.mint('boxxy');
+
+  expect(result.code).toBe(0);
+  expect(ctx.readCalls()).toMatch(/^service-account create claude-boxxy-\d{8} --expires-in=7d --vault boxxy:read_items,write_items --format=json\n$/u);
+  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({ env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle' } });
+});
+
+test('it lists the boxxy profile with its vault and settings file', () => {
+  const ctx = setupTest();
+
+  const result = ctx.mint('--list');
+
+  expect(result.stdout).toInclude(`boxxy        --vault boxxy:read_items,write_items\n             -> ${ctx.home}/projects/boxxy/.claude/settings.local.json\n`);
+});
+
 test('it lists the hq profile with its vault and settings file', () => {
   const ctx = setupTest();
 
