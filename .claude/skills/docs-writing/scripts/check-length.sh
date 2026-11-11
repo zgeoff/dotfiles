@@ -105,6 +105,7 @@ while IFS= read -r doc; do
   [ -n "$doc" ] || continue
   cap=250
   case /$doc in */runbooks/*) cap=300 ;; esac
+  case /$doc in */design/*) cap=400 ;; esac
   lines=$(count_lines "$doc")
 
   if [ "$lines" -gt "$cap" ]; then
