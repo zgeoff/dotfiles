@@ -125,8 +125,8 @@ Each of these has another owner, and a copy here would go out of date:
 - **Design the code doesn't implement yet.** It goes under `docs/design/`. When a built part came
   from a design, link the design in one sentence.
 - **What someone who uses the product sees and does.** That goes in a guide, in `docs/guides/`.
-- **The alternatives you rejected, and the history of the design.** When the user approved the
-  choice, those go in a [decision record](./docs-tree.md#designs-and-decision-records), a numbered
-  file in `docs/decisions/`. Otherwise they go in the PR description.
+- **The alternatives you rejected, and the history of the design.** When the choice passes the tests
+  for a [decision record](./docs-tree.md#designs-and-decision-records), they go in a numbered file
+  in `docs/decisions/`. Otherwise they go in the PR description.
 - **Reference for internals**, such as one entry per protocol method, config key or module. That
   stays in the code, or in reference generated from it.
