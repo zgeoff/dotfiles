@@ -56,7 +56,7 @@ these:
 Load the [design-docs](../../design-docs/SKILL.md) skill before you write a design or a decision
 record. It sets where a design lives, its shape, and when a decision record is written and how it
 changes. A design in `docs/design/<work>/` is deleted once its code is built, and a decision record
-is never deleted.
+stays until its decision is dropped.
 
 ## Spikes
 
