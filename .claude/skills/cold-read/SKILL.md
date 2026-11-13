@@ -18,7 +18,8 @@ Tell it nothing about what the file is for. If you do, it reads the file the way
 context filling the gaps.
 
 When it reports, redraft each section you fix, never just the sentences it quoted. When you fixed
-anything, run one more cold read, and stop.
+anything, run one more cold read. Then run the [deslop](../deslop/SKILL.md) skill on each section
+you changed, and the scripted checks again.
 
 Hand back:
 
@@ -34,7 +35,8 @@ Hand back:
 - [Run it](#run-it): one fresh subagent per file, never a fork, told nothing about the change.
 - [Act on it](#act-on-it): a call on every finding, and a redraft of each section with a fix or a
   gap.
-- [Read it again](#read-it-again): one more cold read when you fixed anything, then stop.
+- [Read it again](#read-it-again): one more cold read when you fixed anything, then deslop what you
+  changed and run the checks again.
 - [Show the user, when asked](#show-the-user-when-asked): the findings as a table with your call on
   each.
 
@@ -106,17 +108,19 @@ rule break:
 
 Redraft every section with a fix or a gap. Start from what the section needs to say, and write it
 fresh. If you start from the sentences the cold reader quoted, you keep the shape that got it stuck.
-Then run the [deslop](../deslop/SKILL.md) skill on each section you redrafted.
 
 ## Read it again
 
-If you fixed nothing after the first read, stop. Otherwise give each file you changed one more cold
-read, of the whole file, with a fresh subagent, even when your fix changed one sentence. Act on its
-findings the same way. Then stop. No third read, whatever the second read finds.
-
-When the second read gets stuck in a section you redrafted, restructure that section: empty it,
-write it again in a new order, and hand it back as restructured. Fix a guess or a rule break there
-as you would any other.
+1. If you fixed nothing after the first read, stop.
+2. Otherwise give each file you changed one more cold read, of the whole file, with a fresh
+   subagent, even when your fix changed one sentence. Run no third read, whatever the second read
+   finds.
+3. Act on the second read's findings the same way. When it gets stuck in a section you redrafted,
+   restructure that section: empty it, and write it again in a new order. Name it as restructured in
+   your reply.
+4. Run the [deslop](../deslop/SKILL.md) skill on each section you changed after either read. Your
+   fixes add words, and some of them are padding.
+5. Run the scripted checks from [Run it](#run-it) again, and stop.
 
 ## Show the user, when asked
 
