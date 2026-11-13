@@ -51,7 +51,7 @@ Output: <the line> — <result>   the output that proves the line
 Rerun: <the line>               the command or script that reproduces it
 
 Link anything longer, or of any other kind, with `cloud up --md`.
-Paste `bun verify report --human` last, untouched.
+Run `bun verify publish` last.
 -->
 
 - [ ] New or changed code has a test, or this line holds the reason it has none
