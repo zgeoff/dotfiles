@@ -41,7 +41,6 @@ test('it adds the op-mint rules after the allow rules the machine already has', 
         'Bash(git status)',
         'WebFetch(domain:kite.example)',
         'Bash(op-mint --list)',
-        'Bash(op-mint hq)',
         'Bash(op-mint imp)',
         'Bash(op-mint nixie)',
         'Bash(op-mint noslop)',
@@ -65,7 +64,6 @@ test('it adds the op-mint rules to a settings file with no permissions', async (
   expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
     allow: [
       'Bash(op-mint --list)',
-      'Bash(op-mint hq)',
       'Bash(op-mint imp)',
       'Bash(op-mint nixie)',
       'Bash(op-mint noslop)',
@@ -87,12 +85,30 @@ test('it keeps one copy of an op-mint rule the machine already has, in its place
     'Bash(op-mint vers)',
     'Bash(git status)',
     'Bash(op-mint --list)',
-    'Bash(op-mint hq)',
     'Bash(op-mint imp)',
     'Bash(op-mint nixie)',
     'Bash(op-mint noslop)',
     'Bash(op-mint osrs)',
     'Bash(op-mint pepys)',
+    'Bash(op-mint wow-forever)',
+  ]);
+});
+
+test('it drops the allow rule of a profile that op-mint no longer has', async () => {
+  const ctx = setupTest();
+  const live = { permissions: { allow: ['Bash(op-mint hq)', 'Bash(git status)'] } };
+
+  const result = await ctx.applySettings(live, { personal: false, decrypted: {} });
+
+  expect(JSON.parse(result.stdout.toString()).permissions.allow).toStrictEqual([
+    'Bash(git status)',
+    'Bash(op-mint --list)',
+    'Bash(op-mint imp)',
+    'Bash(op-mint nixie)',
+    'Bash(op-mint noslop)',
+    'Bash(op-mint osrs)',
+    'Bash(op-mint pepys)',
+    'Bash(op-mint vers)',
     'Bash(op-mint wow-forever)',
   ]);
 });
@@ -120,7 +136,6 @@ test('it adds the op-mint rules on a personal machine', async () => {
       allow: [
         'Bash(git status)',
         'Bash(op-mint --list)',
-        'Bash(op-mint hq)',
         'Bash(op-mint imp)',
         'Bash(op-mint nixie)',
         'Bash(op-mint noslop)',

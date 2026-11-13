@@ -33,16 +33,6 @@ function setupTest() {
   };
 }
 
-test('it mints the hq profile with read-only access to the fleet vault, into a file outside any repo', () => {
-  const ctx = setupTest();
-
-  const result = ctx.mint('hq');
-
-  expect(result).toStrictEqual({ code: 0, stdout: expect.stringContaining(`-> ${ctx.home}/.config/hq/slots-op.json`), stderr: '' });
-  expect(ctx.readCalls()).toMatch(/^service-account create claude-hq-\d{8} --expires-in=7d --vault fleet:read_items --format=json\n$/u);
-  expect(JSON.parse(readFileSync(join(ctx.home, '.config/hq/slots-op.json'), 'utf8'))).toStrictEqual({ env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle' } });
-});
-
 test('it gives the cloud profile write access to the fleet vault', () => {
   const ctx = setupTest();
   ctx.makeRepo('cloud');
@@ -70,12 +60,4 @@ test('it lists the boxxy profile with its vault and settings file', () => {
   const result = ctx.mint('--list');
 
   expect(result.stdout).toInclude(`boxxy        --vault boxxy:read_items,write_items\n             -> ${ctx.home}/projects/boxxy/.claude/settings.local.json\n`);
-});
-
-test('it lists the hq profile with its vault and settings file', () => {
-  const ctx = setupTest();
-
-  const result = ctx.mint('--list');
-
-  expect(result.stdout).toInclude(`hq           --vault fleet:read_items\n             -> ${ctx.home}/.config/hq/slots-op.json\n`);
 });
