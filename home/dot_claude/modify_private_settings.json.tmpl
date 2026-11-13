@@ -59,10 +59,12 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 }' '. * $owned
   | if $automode != null then .autoMode = $automode else . end
   | .permissions.allow |= reduce (
-      "Bash(op-mint --list)", "Bash(op-mint hq)", "Bash(op-mint imp)", "Bash(op-mint nixie)",
+      "Bash(op-mint --list)", "Bash(op-mint imp)", "Bash(op-mint nixie)",
       "Bash(op-mint noslop)", "Bash(op-mint osrs)", "Bash(op-mint pepys)", "Bash(op-mint vers)",
       "Bash(op-mint wow-forever)"
     ) as $rule (. // []; if any(.[]; . == $rule) then . else . + [$rule] end)
+  # drop the rule for a profile that op-mint no longer has
+  | .permissions.allow -= ["Bash(op-mint hq)"]
   # agents use the saved gh login and the default git SSH key, so drop the
   # machine-user token and key override that agent-identity or an earlier render wrote
   | del(.env.GH_TOKEN, .env.GITHUB_TOKEN, .env.GIT_SSH_COMMAND)
