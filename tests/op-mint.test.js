@@ -61,3 +61,14 @@ test('it lists the boxxy profile with its vault and settings file', () => {
 
   expect(result.stdout).toInclude(`boxxy        --vault boxxy:read_items,write_items\n             -> ${ctx.home}/projects/boxxy/.claude/settings.local.json\n`);
 });
+
+test('it mints the atc profile with write access to the atc vault, into the repo settings', () => {
+  const ctx = setupTest();
+  const repo = ctx.makeRepo('atc');
+
+  const result = ctx.mint('atc');
+
+  expect(result.code).toBe(0);
+  expect(ctx.readCalls()).toMatch(/^service-account create claude-atc-\d{8} --expires-in=7d --vault atc:read_items,write_items --format=json\n$/u);
+  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({ env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle' } });
+});
