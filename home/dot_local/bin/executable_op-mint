@@ -4,7 +4,7 @@
 # the `env.OP_SERVICE_ACCOUNT_TOKEN` of the matching settings file. Each profile
 # gets only the vaults it needs; project settings override the global one.
 #
-#   op-mint <profile>     # global | vers | cloud | boxxy | nixie | noslop | osrs | pepys | wow-forever | imp
+#   op-mint <profile>     # global | vers | cloud | boxxy | nixie | noslop | osrs | pepys | wow-forever | imp | atc
 #   op-mint --list
 
 set -eu
@@ -23,6 +23,7 @@ profile_vaults() {
     wow-forever) echo "--vault wow-forever:read_items,write_items" ;;
     # imp's e2e tailnet credential only; vault imp is the imps' Connect vault
     imp) echo "--vault imp-e2e:read_items,write_items" ;;
+    atc) echo "--vault atc:read_items,write_items" ;;
     *) return 1 ;;
   esac
 }
@@ -38,7 +39,7 @@ profile_settings() {
 
 op_mint() {
   if [ "${1:-}" = "--list" ]; then
-    for p in global vers cloud boxxy nixie noslop osrs pepys wow-forever imp; do
+    for p in global vers cloud boxxy nixie noslop osrs pepys wow-forever imp atc; do
       printf '%-12s %s\n             -> %s\n' "$p" "$(profile_vaults "$p")" "$(profile_settings "$p")"
     done
     return
