@@ -50,6 +50,18 @@ lines or fewer, trimmed to what it shows:
 Output: <the line> — <result>   the output that proves the line
 Rerun: <the line>               the command or script that reproduces it
 
+Add the lines for the kind of work, after the Acceptance lines:
+
+Bug:        the reproduction, before the fix and after
+Feature:    each feature driven as a user, the command and the end state
+Chore:      the features you drove on both branches, and the result
+Refactor:   the tests that pin the behaviour, and what got simpler
+Perf:       the path, before, after, the runs and their spread, and
+            each fix tried, kept or reverted
+Hillclimb:  the metric, target, baseline and final value, the attempt
+            log in a <details> block, a link to the raw output, and
+            the next guess
+
 Link anything longer, or of any other kind, with `cloud up --md`.
 Run `bun verify publish` last.
 -->
