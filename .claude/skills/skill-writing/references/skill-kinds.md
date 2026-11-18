@@ -25,6 +25,14 @@ skill's `scripts/` folder. Put the script's test beside it, such as `check.test.
 `check.sh`. Make sure the repo's test command runs that test. Tell the agent to run the script, not
 read it.
 
+## The frontmatter
+
+Write the `description` in the third person: the agent reads it as a label, not an order. The
+description is all the agent sees when it picks a skill, so say what the skill does and when to load
+it, in the words a task would use.
+[`chex skill`](https://github.com/zgeoff/tools/tree/main/packages/chex) fails when the `name`
+differs from the skill's folder name.
+
 ## A machinery skill
 
 Write a machinery skill in the repo it covers, at `.claude/skills/<name>/SKILL.md`. Say what it
@@ -101,8 +109,9 @@ order:
    project-docs-writing.
 2. Write `## Departures`, with one bullet for each shared rule the repo replaces. Open each bullet
    with what the repo does, link the shared rule's section, and give the reason. Write "None." when
-   the repo follows every rule. In project-code-style only, write these two sections another way,
-   because the [code-style](../../code-style/SKILL.md) skill allows a repo to add rules:
+   the repo follows every rule. In project-code-style only, follow the two bullets below in place of
+   the Departures rule. The [code-style](../../code-style/SKILL.md) skill allows a repo to add
+   rules:
    - Put each stricter rule in a topic section from step 3, never under Departures.
    - List a departure only for code whose shape another tool sets, such as a plugin whose shape a
      host's API decides.
