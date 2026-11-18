@@ -3,13 +3,19 @@ name: code-style
 description:
   "Code style for zgeoff TypeScript repos: file layout, names, state, unions, types, structure,
   errors, comments, and the function-name verb table. Load it before you write, review or rename
-  TypeScript, with the repo's project-code-style skill beside it, for its stricter rules and its
-  departures."
+  TypeScript. Load the repo's project-code-style skill beside it, for that repo's stricter rules and
+  its departures."
 metadata:
   kind: rule-set
 ---
 
 # Code style
+
+## References
+
+- [State, waiting and file locks](./references/state-and-waiting.md): writing code that saves or
+  sends a status, keeps a long-lived object with states, sleeps, waits for an event or a promise, or
+  locks a file across processes.
 
 ## Files and modules
 
@@ -30,22 +36,6 @@ metadata:
   - `x` and `y` for coordinates, `z` for zod, `$` for Bun's shell, `_` for an unused value;
   - `ctx`, `id`, `db`, `args`, `params`, `repo` and `info`.
 - End a name with its unit: `timeoutMs`, never `ms` alone.
-
-## State
-
-- When a status is saved outside the process or sent to another process, write a transition table
-  for it: its states, the moves allowed between them, and one function that checks a move. Keep all
-  three in the only module that writes the status.
-- Build a long-lived object whose states live only in memory, such as a reconnecting client, as an
-  xstate machine.
-
-## Waiting
-
-- Sleep with `Bun.sleep` in Bun-only code, and with `setTimeout` from `node:timers/promises` in code
-  that ships to Node.
-- Wait for one event with `events.once`. When code outside the promise's executor settles the
-  promise, make it with `Promise.withResolvers()`.
-- Write `new Promise` by hand only when none of these fits.
 
 ## Unions
 
@@ -78,10 +68,6 @@ metadata:
 - Write the pure function first, from the values you will read, then the thin one around it. You
   then test each edge case with one `test.each` row of plain data. In one combined function, each
   case needs a stand-in for every read and write, so the edges go untested.
-- Lock a file across processes only with `withFileLock` from `@zgeoff/std/with-file-lock`, imported
-  directly in the thin function. Read, decide and write in its callback, so the lock spans all
-  three. Write your own lock only for a need it can't meet, such as a lock readers share, and name
-  the need in a comment.
 - Reach I/O through dependencies the caller passes in. Create real clients only in the entry point.
 - Never write a wrapper that only passes its arguments on.
 - Never add an option, a parameter or an extension point before a caller passes it.

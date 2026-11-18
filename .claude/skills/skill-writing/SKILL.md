@@ -43,8 +43,9 @@ hand back each finding with its line and the rule it breaks, quoted.
 
 ## References
 
-- [Kinds of skill](./references/skill-kinds.md): writing a new skill, a rule set or a project skill,
-  or adding a command, a mistake to avoid, a step or a reply line to any skill.
+- [Kinds of skill](./references/skill-kinds.md): writing a new skill or its `description`; writing a
+  rule set or a project skill; adding a command, a mistake to avoid, a step or a reply line to any
+  skill.
 - [Writing a reference](./references/writing-references.md): writing or editing a file in a skill's
   `references/`, a subagent's brief included.
 
@@ -88,12 +89,8 @@ Shape a rule set as [A rule set](./references/skill-kinds.md#a-rule-set) says.
 
 ## What goes in
 
-For the parts each kind of skill needs, read [Kinds of skill](./references/skill-kinds.md).
-
-Write the `description` in the third person: the agent reads it as a label, not an order. The
-description is all the agent sees when it picks a skill, so say what the skill does and when to load
-it, in the words a task would use. `chex skill` fails when the `name` differs from the skill's
-folder name.
+For the parts each kind of skill needs, and the frontmatter, read
+[Kinds of skill](./references/skill-kinds.md).
 
 When several repos may use a skill, invent every example, and never use a term only one repo or team
 knows. A reader in another repo can't open a file the example names, or doesn't know the word.
