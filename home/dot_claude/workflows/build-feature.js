@@ -372,12 +372,14 @@ const prBodySpec = `Write the PR body from the branch's actual final diff (\`git
 const prAction = prNumber
   ? `Update the existing PR #${prNumber}: refresh its body with \`gh pr edit ${prNumber}\` and mark it ready for review with \`gh pr ready ${prNumber}\`. Return its URL and number.`
   : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`. Return the new PR's URL and number.`;
+// gh picks its repo from the shell's folder, which can be another checkout.
+const ghFromWorktree = `Run each \`gh\` command from inside the worktree (\`cd ${worktree} && gh ...\`), so gh resolves the worktree's repo and not the folder your shell starts in.`;
 const pr = await agent(
   `Publish the feature branch in the worktree at ${worktree} as a PR against ${base}.
 
 1. Bring the branch up to date: \`git -C ${worktree} fetch origin\` then \`git -C ${worktree} rebase origin/${base}\`. If the rebase hits conflicts, resolve them faithfully to both sides' intent (reinstall dependencies in the worktree if their manifests changed) and return resolvedConflicts=true; if it was clean or a no-op, return resolvedConflicts=false.
 2. Push with \`git -C ${worktree} push -u origin ${branch}\`, adding \`--force-with-lease\` only if the rebase rewrote commits that were already pushed.
-3. ${prAction}
+3. ${prAction} ${ghFromWorktree}
 
 ${prBodySpec}`,
   {
@@ -397,14 +399,28 @@ if (!pr)
 let rebaseConflicts = Boolean(pr.resolvedConflicts);
 log(`${prNumber ? 'PR readied' : 'PR opened'}: ${pr.url}`);
 
+// Every later gh call names the PR's repo, since the agent's shell starts in
+// the session's folder, which can be another repo's checkout.
+const prRepoMatch = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/\d+/.exec(pr.url || '');
+if (!prRepoMatch)
+  return {
+    status: 'failed',
+    stage: 'open-pr',
+    branch,
+    worktree,
+    pr: pr.url,
+    reason: `PR URL ${JSON.stringify(pr.url)} does not name a GitHub repo`,
+  };
+const prRepo = prRepoMatch[1];
+
 phase('Watch CI');
 for (let round = 0; ; round++) {
   const ci = await agent(
-    `Watch CI for PR #${pr.number} in this repo until every check completes. Run \`gh pr checks ${pr.number} --watch\` with a 600000ms timeout; if the command times out while checks are still pending, simply run it again — loop until it exits on its own.
+    `Watch CI for PR #${pr.number} in ${prRepo} until every check completes. Pass \`-R ${prRepo}\` to every \`gh\` command: your shell may start in another repo's folder. Run \`gh pr checks ${pr.number} -R ${prRepo} --watch\` with a 600000ms timeout; if the command times out while checks are still pending, simply run it again — loop until it exits on its own.
 
-If \`gh pr checks\` reports no checks at all (it can exit immediately), do NOT assume green: run \`gh pr view ${pr.number} --json mergeable,mergeStateStatus\`. If the PR is CONFLICTING, return conclusion=red with a single failures entry using check "merge-conflict" and what gh reported as the summary. If it is mergeable and checks simply have not started yet, wait briefly and watch again. If the repo has no CI at all, return conclusion=green.
+If \`gh pr checks\` reports no checks at all (it can exit immediately), do NOT assume green: run \`gh pr view ${pr.number} -R ${prRepo} --json mergeable,mergeStateStatus\`. If the PR is CONFLICTING, return conclusion=red with a single failures entry using check "merge-conflict" and what gh reported as the summary. If it is mergeable and checks simply have not started yet, wait briefly and watch again. If the repo has no CI at all, return conclusion=green.
 
-When all checks have completed: if everything passed, return conclusion=green with an empty failures array. If anything failed, pull the failing logs (\`gh run view <run-id> --log-failed\`, run ids via \`gh pr checks ${pr.number}\` / \`gh run list --branch ${branch}\`) and return one failures entry per failing check with the decisive log lines as the excerpt. Do not attempt any fixes.`,
+When all checks have completed: if everything passed, return conclusion=green with an empty failures array. If anything failed, pull the failing logs (\`gh run view <run-id> -R ${prRepo} --log-failed\`, run ids via \`gh pr checks ${pr.number} -R ${prRepo}\` / \`gh run list -R ${prRepo} --branch ${branch}\`) and return one failures entry per failing check with the decisive log lines as the excerpt. Do not attempt any fixes.`,
     {
       label: `watch-ci-${round + 1}`,
       model: 'haiku',
@@ -442,7 +458,7 @@ When all checks have completed: if everything passed, return conclusion=green wi
     `CI red (${ci.failures.map((f) => f.check).join(', ')}), dispatching fixer (round ${round + 1})`,
   );
   const fix = await agent(
-    `CI is failing on PR #${pr.number} (branch ${branch}, worktree at ${worktree}). Diagnose and fix these failures — reproduce locally where possible before changing code, and fix causes, not symptoms:
+    `CI is failing on PR #${pr.number} in ${prRepo} (branch ${branch}, worktree at ${worktree}). Pass \`-R ${prRepo}\` to every \`gh\` command, such as \`gh run view <run-id> -R ${prRepo} --log-failed\`: your shell may start in another repo's folder. Diagnose and fix these failures — reproduce locally where possible before changing code, and fix causes, not symptoms:
 ${REPO_RULES}
 ${JSON.stringify(ci.failures, null, 2)}
 

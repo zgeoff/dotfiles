@@ -145,3 +145,61 @@ describe('build-feature review loop', () => {
     }
   });
 });
+
+describe('build-feature gh repo', () => {
+  // A red first CI round sends the fixer, so every prompt after the PR runs.
+  async function runWithRedCi() {
+    const calls = [];
+    const agent = async (prompt, opts) => {
+      calls.push({ label: opts.label, prompt });
+      if (opts.label === 'implement') return { status: 'done', summary: 'Adds a quota check.', commits: [] };
+      if (opts.label === 'open-pr') {
+        return { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
+      }
+      if (opts.label === 'watch-ci-1') {
+        return { conclusion: 'red', failures: [{ check: 'test', summary: 'quota test failed', excerpt: '' }] };
+      }
+      if (opts.label === 'fix-ci-1') return { status: 'done', summary: 'Fixed.' };
+      if (opts.label === 'watch-ci-2') return { conclusion: 'green', failures: [] };
+      throw new Error(`unexpected agent ${opts.label}`);
+    };
+    const result = await loadWorkflow()(
+      { plan: 'Add a quota check to checkout.', branch: 'quota-check' },
+      agent,
+      () => {},
+      () => {},
+    );
+    return { result, prompt: (label) => calls.find((c) => c.label === label).prompt };
+  }
+
+  test('the CI watcher names the PR repo in every gh command', async () => {
+    const run = await runWithRedCi();
+    expect(run.result).toMatchObject({ status: 'ready' });
+    const prompt = run.prompt('watch-ci-1');
+    expect(prompt).toContain('gh pr checks 7 -R example/shop --watch');
+    expect(prompt).toContain('gh pr view 7 -R example/shop --json');
+    expect(prompt).toContain('gh run view <run-id> -R example/shop --log-failed');
+    expect(prompt).toContain('gh run list -R example/shop --branch quota-check');
+    expect(prompt).not.toMatch(/gh pr (checks|view) 7 --/);
+  });
+
+  test('the CI fixer names the PR repo', async () => {
+    const run = await runWithRedCi();
+    expect(run.prompt('fix-ci-1')).toContain('Pass `-R example/shop` to every `gh` command');
+  });
+
+  test('the PR opener runs gh from inside the worktree', async () => {
+    const run = await runWithRedCi();
+    expect(run.prompt('open-pr')).toContain('cd .worktrees/quota-check && gh');
+  });
+
+  test('a PR URL with no GitHub repo stops the run before CI', async () => {
+    const agent = async (_prompt, opts) => {
+      if (opts.label === 'implement') return { status: 'done', summary: 'Adds a quota check.', commits: [] };
+      if (opts.label === 'open-pr') return { url: 'PR #7', number: 7, resolvedConflicts: false };
+      throw new Error(`unexpected agent ${opts.label}`);
+    };
+    const result = await loadWorkflow()({ plan: 'Add a quota check.', branch: 'quota-check' }, agent, () => {}, () => {});
+    expect(result).toMatchObject({ status: 'failed', stage: 'open-pr' });
+  });
+});
