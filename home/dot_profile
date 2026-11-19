@@ -6,6 +6,6 @@
 # shellcheck source=.aliases
 . "$HOME/.aliases"
 
-if command -v mpd > /dev/null && ! pgrep -x mpd > /dev/null; then
+if command -v mpd >/dev/null && ! pgrep -x mpd >/dev/null; then
   mpd
 fi
