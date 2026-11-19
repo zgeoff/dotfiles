@@ -2,7 +2,9 @@
 
 # Mint a scoped 1Password service-account token for Claude Code and write it to
 # the `env.OP_SERVICE_ACCOUNT_TOKEN` of the matching settings file. Each profile
-# gets only the vaults it needs; project settings override the global one.
+# gets only the vaults it needs; project settings override the global one. The
+# same file's `env.PR_EVIDENCE_TOKEN_PATH` points the pr-evidence upload at the
+# profile's own files-upload-token item, which that token can read.
 #
 #   op-mint <profile>     # global | vers | cloud | boxxy | nixie | noslop | osrs | pepys | wow-forever | imp | atc
 #   op-mint --list
@@ -25,6 +27,15 @@ profile_vaults() {
     imp) echo "--vault imp-e2e:read_items,write_items" ;;
     atc) echo "--vault atc:read_items,write_items" ;;
     *) return 1 ;;
+  esac
+}
+
+# the vault that holds the profile's files-upload-token item
+profile_upload_vault() {
+  case "$1" in
+    global) echo zgeoff ;;
+    imp) echo imp-e2e ;;
+    *) echo "$1" ;;
   esac
 }
 
@@ -70,7 +81,9 @@ op_mint() {
 
   [ -f "$settings" ] || echo '{}' > "$settings"
   tmp="$settings.tmp.$$"
-  (umask 077 && jq --arg t "$token" '.env.OP_SERVICE_ACCOUNT_TOKEN = $t' "$settings" > "$tmp")
+  upload_path="$(profile_upload_vault "$profile")/files-upload-token/credential"
+  (umask 077 && jq --arg t "$token" --arg p "$upload_path" \
+    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.PR_EVIDENCE_TOKEN_PATH = $p' "$settings" > "$tmp")
   mv "$tmp" "$settings"
   chmod 600 "$settings"
 

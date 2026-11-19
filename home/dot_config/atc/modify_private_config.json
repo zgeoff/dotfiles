@@ -5,7 +5,9 @@
 # agents.claude.env to every Claude session it starts, local and imp alike.
 # The token path is <vault>/<item>/<field> of a 1Password item, never the token. It has no op://
 # prefix: `op run` resolves every op:// value in its environment, and fails when the session's token
-# can't read the vault.
+# can't read the vault. The path names the imp vault, the one vault an imp's Connect server reads. A
+# local session's Claude settings set their own path, which op-mint points at the repo's vault and
+# which wins over this one.
 set -eu
 current=$(cat)
 [ -n "$current" ] || current='{}'
@@ -14,7 +16,7 @@ printf '%s' "$current" | jq --indent 2 'del(.agents.claude.env.PR_EVIDENCE_TOKEN
     "claude": {
       "env": {
         "PR_EVIDENCE_URL": "https://files.geoff.cloud/api/files",
-        "PR_EVIDENCE_TOKEN_PATH": "zgeoff/files-agent-token/credential"
+        "PR_EVIDENCE_TOKEN_PATH": "imp/files-upload-token/credential"
       }
     }
   }

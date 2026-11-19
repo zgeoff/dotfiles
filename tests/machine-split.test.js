@@ -29,7 +29,7 @@ function setupTest() {
       sharedFiles
         .filter((file) => file.target !== '.claude/settings.json')
         .flatMap((file) =>
-          (file.text?.match(/op-mint|geoff\.cloud|op:\/\/|vault[ =]zgeoff|zgeoff\/files-agent-token/g) ?? []).map(
+          (file.text?.match(/op-mint|geoff\.cloud|op:\/\/|vault[ =]zgeoff|zgeoff\/files-(?:agent|upload)-token/g) ?? []).map(
             (reference) => `${file.target}: ${reference}`,
           ),
         ),
