@@ -92,9 +92,9 @@ Hand back:
 
 Unless the user asked to see the findings, act on them. A bare `/cold-read <path>` means act.
 
-For a skill, the cold reader answers three questions about the top of the file: does it give the
-job, the mistakes to avoid, and what to hand back? If any answer is "no", fix the opening first. An
-agent decides what to do from the top.
+For a skill, the cold reader answers two questions about the top of the file: does it give the job
+and what to hand back? If any answer is "no", fix the opening first. An agent decides what to do
+from the top.
 
 Then make a call on every item in the report, whether the cold reader got stuck, guessed, or found a
 rule break:
@@ -133,7 +133,7 @@ When the user asks to see the findings, show them before you act, one row per fi
 
 - **Rule** is the rules file and the section heading, or "(none)" when no rule applies.
 - **My call** is fix, decline or gap, with a reason for a decline.
-- For a skill, put the cold reader's task and its three answers above the table.
+- For a skill, put the cold reader's task and its two answers above the table.
 
 Then ask which calls to change. Act on the answer, then go on to [Read it again](#read-it-again).
 

@@ -11,7 +11,7 @@ head, so they can't see where the file leans on them. You can.
 Find the places a reader gets stuck: you read a sentence twice, read it wrong, can't tell what a
 word refers to, or think "nobody writes like this".
 
-The main mistakes to avoid:
+Avoid these:
 
 - Opening the rules before you've read the file. Read it as its reader would, first.
 - Making up a rule, or stretching one to fit. Quote each rule word for word, or report the place as
@@ -72,15 +72,14 @@ You can't see that in the text, so leave those rules out.
    sentence.
 2. Read the top of the file and stop. The top ends after `## Key rules` and `## References`. When
    the file has neither, it ends at the first `##`.
-3. Answer three questions yes or no, with a line on why:
+3. Answer two questions yes or no, with a line on why:
    - Do you know what the job is?
-   - Do you know the mistakes to avoid?
    - Do you know what to hand back, and when you're done? Answer no if either part is missing.
 
-   For a file in a skill's `references/` folder, skip the third question and write "skipped" in the
+   For a file in a skill's `references/` folder, skip the second question and write "skipped" in the
    report. Answer it when the file is a brief for a subagent, such as this one: a brief gives its
-   own return format. For a rule set (`kind: rule-set` under `metadata`), skip the first and third
-   questions: a rule set opens with its first rule, not a job.
+   own return format. For a rule set (`kind: rule-set` under `metadata`), skip both questions: a
+   rule set opens with its first rule, not a job.
 
 4. Read the rest as if you're doing your task. Write down each place you get stuck, and each point
    where you'd have to guess what to do next. Write down a guess even when the sentence reads fine.
@@ -118,7 +117,6 @@ Stuck: <n>. Stuck, no rule: <u>. Guesses: <g>. Rule breaks: <m>. Left out: <stuc
 ### Top of the file (skill only)
 
 - The job: <yes or no>. <why>
-- The mistakes to avoid: <yes or no>. <why>
 - What to hand back: <yes, no or skipped>. <why>
 
 ### Stuck
