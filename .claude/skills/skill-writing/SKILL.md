@@ -16,7 +16,6 @@ So give it what the code can't:
 
 - when to reach for the skill;
 - which commands to run, and what each needs;
-- the mistakes that cost an hour;
 - the reasons behind rules that look arbitrary.
 
 Don't copy the code into the skill: the copy goes stale without the agent knowing. Keep the skill
@@ -75,9 +74,9 @@ skill, this skill wins.
 Every skill but a rule set opens the same way, because the agent decides what to do from the top of
 a skill:
 
-1. A paragraph or two: the job, what the agent hands back, if anything, and the main mistakes to
-   avoid. Write them for this skill, with no stock opener, and name the mistakes without counting
-   them. When a skill hands something back, repeat it in a `**Reply:**` line at the end.
+1. A paragraph or two: the job and what the agent hands back, if anything. Write them for this
+   skill, with no stock opener. When a skill hands something back, repeat it in a `**Reply:**` line
+   at the end.
 2. `## Key rules`: one line per `##` section, with a link and the rule in a phrase. Leave
    `## Key rules`, `## References` and each `###` out of the list.
 3. `## References`, when the skill has any: one line per file in `references/`, with the task that
@@ -129,6 +128,9 @@ keep a short bullet for the rule too, as [A rule set](./references/skill-kinds.m
 When an agent gets something wrong, fix the rule that covers the mistake. A near-copy of the rule
 leaves the agent unsure which one to follow. Call each thing by one name: the agent reads a second
 word as a second thing.
+
+Add a mistake to a skill only after an agent made it, and cite where: the session, the PR or the
+review.
 
 Leave out anything time-bound, like "until the next release": it goes false unnoticed.
 

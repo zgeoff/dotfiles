@@ -2,8 +2,8 @@
 
 ## A reference the main agent reads
 
-- Give it a `#` title, then start it with the facts and the mistakes to avoid that its reader needs
-  first. Leave out when to read it: the line in SKILL.md that links the reference already says when.
+- Give it a `#` title, then start it with the facts that its reader needs first. Leave out when to
+  read it: the line in SKILL.md that links the reference already says when.
 - Use the terms SKILL.md sets up without explaining them again. The agent reads SKILL.md first.
 - Keep what the agent hands back to its caller in SKILL.md.
 
@@ -12,7 +12,7 @@
 Write a subagent's brief, its instructions, as a reference, and have the agent hand the subagent
 that file. The subagent never sees SKILL.md, so put in the brief what it would find there:
 
-- Give the subagent's job and the mistakes it must avoid.
+- Give the subagent's job.
 - Define every term you use.
 - Give the subagent's return format.
 
