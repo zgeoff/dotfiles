@@ -368,7 +368,7 @@ if (reviewer === 'none') {
 }
 
 phase('Open PR');
-const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries${issue ? `, starting with \`Closes #${issue}\`` : ''}. For orientation only, the implementer summarized the work as: ${impl.summary}`;
+const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries${issue ? `, starting with \`Closes #${issue}\`` : ''}. Hold the body in a file only this run uses: create it with \`mktemp\` and pass it with \`--body-file\`. Never write it to a fixed path such as \`/tmp/body.md\`: other runs write there at the same time, and a PR can get another run's body. For orientation only, the implementer summarized the work as: ${impl.summary}`;
 const prAction = prNumber
   ? `Update the existing PR #${prNumber}: refresh its body with \`gh pr edit ${prNumber}\` and mark it ready for review with \`gh pr ready ${prNumber}\`. Return its URL and number.`
   : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`. Return the new PR's URL and number.`;
