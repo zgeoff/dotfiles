@@ -54,6 +54,20 @@ test('it cuts a personal-only block from a file', () => {
   ]);
 });
 
+test('it keeps the else branch of a personal-only block', () => {
+  const sourceFiles = [
+    {
+      path: 'dot_lamp.tmpl',
+      text: '{{ if and (hasKey . "personal") .personal }}kite=red{{ else }}kite=grey{{ end }}\n',
+    },
+  ];
+  const ignoreText = '{{ if not (and (hasKey . "personal") .personal) }}\n{{ end }}\n';
+
+  expect(collectSharedFiles(sourceFiles, ignoreText)).toStrictEqual([
+    { target: '.lamp', text: 'kite=grey\n' },
+  ]);
+});
+
 test('it writes a shared template in where a file calls it, and leaves out a template called from a personal-only block', () => {
   const sourceFiles = [
     { path: '.chezmoitemplates/rules/shared.md', text: 'Keep the lamp on.' },

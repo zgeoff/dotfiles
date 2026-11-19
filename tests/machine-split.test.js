@@ -29,7 +29,7 @@ function setupTest() {
       sharedFiles
         .filter((file) => file.target !== '.claude/settings.json')
         .flatMap((file) =>
-          (file.text?.match(/op-mint|geoff\.cloud|op:\/\/zgeoff|vault[ =]zgeoff|zgeoff\/files-agent-token/g) ?? []).map(
+          (file.text?.match(/op-mint|geoff\.cloud|op:\/\/|vault[ =]zgeoff|zgeoff\/files-agent-token/g) ?? []).map(
             (reference) => `${file.target}: ${reference}`,
           ),
         ),
@@ -67,7 +67,7 @@ test('it gives a machine that is not personal only the listed skills', () => {
   expect(ctx.listSharedNames('.claude/skills')).toStrictEqual(['build-feature']);
 });
 
-test('it keeps personal vault and host names out of each file a machine that is not personal gets', () => {
+test('it keeps 1Password references and personal host names out of each file a machine that is not personal gets', () => {
   const ctx = setupTest();
 
   expect(ctx.findPersonalReferences()).toStrictEqual([]);

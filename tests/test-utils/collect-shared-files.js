@@ -1,16 +1,16 @@
 const templateDir = '.chezmoitemplates/';
 const personalOnlyIgnoreBlock =
   /\{\{-? if not \(and \(hasKey \. "personal"\) \.personal\) -?\}\}([\s\S]*?)\{\{-? end -?\}\}/;
-const personalOnlyBlock =
-  /\{\{-? if and \(hasKey \. "personal"\) \.personal -?\}\}[\s\S]*?\{\{-? end -?\}\}/g;
+const personalBlock =
+  /\{\{-? if and \(hasKey \. "personal"\) \.personal -?\}\}[\s\S]*?(?:\{\{-? else -?\}\}([\s\S]*?))?\{\{-? end -?\}\}/g;
 const templateCall = /\{\{-? template "([^"]+)" \. -?\}\}/g;
 const sourceAttributes =
   /^(?:after_|before_|create_|empty_|encrypted_|exact_|executable_|literal_|modify_|once_|onchange_|private_|readonly_|remove_|run_|symlink_)+/;
 
 // The files that a machine with `personal` false gets, as { target, text }. `sourceFiles` holds each
 // file under home/ as { path, text }, with the path relative to home/. A personal-only block is cut
-// from each text, and a shared template is written in where a file calls it. An encrypted file has
-// no text.
+// from each text, down to its else branch, and a shared template is written in where a file calls
+// it. An encrypted file has no text.
 export function collectSharedFiles(sourceFiles, ignoreText) {
   const personalOnlyPaths = collectPersonalOnlyPaths(ignoreText);
   const templates = new Map(
@@ -58,7 +58,7 @@ function isPersonalOnly(target, personalOnlyPaths) {
 }
 
 function expandSharedText(text, templates) {
-  return text.replace(personalOnlyBlock, '').replace(templateCall, (_call, name) => {
+  return text.replace(personalBlock, (_block, otherwise) => otherwise ?? '').replace(templateCall, (_call, name) => {
     if (!templates.has(name)) {
       throw new Error(`collectSharedFiles: no template named ${name}`);
     }

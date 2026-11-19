@@ -75,6 +75,6 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {{- if not (and (hasKey . "personal") .personal) }}
   # op-mint is not installed here, so drop the rules an earlier render added
   | if (.permissions.allow | type) == "array"
-    then .permissions.allow |= map(select((type == "string" and startswith("Bash(op-mint ")) | not))
+    then .permissions.allow |= map(select((type == "string" and test("^Bash\\(op-mint[ :)]")) | not))
     else . end
 {{- end }}'

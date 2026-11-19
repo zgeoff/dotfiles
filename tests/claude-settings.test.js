@@ -177,7 +177,14 @@ test('it removes the op-mint rules from a machine that is not personal', async (
   const ctx = setupTest();
   const live = {
     permissions: {
-      allow: ['Bash(git status)', 'Bash(op-mint --list)', 'Bash(op-mint vers)'],
+      allow: [
+        'Bash(git status)',
+        'Bash(op-mint --list)',
+        'Bash(op-mint vers)',
+        'Bash(op-mint)',
+        'Bash(op-mint:*)',
+        'Bash(op-minted report)',
+      ],
       defaultMode: 'auto',
     },
   };
@@ -185,7 +192,7 @@ test('it removes the op-mint rules from a machine that is not personal', async (
   const result = await ctx.applySettings(live, { personal: false, decrypted: {} });
 
   expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
-    allow: ['Bash(git status)'],
+    allow: ['Bash(git status)', 'Bash(op-minted report)'],
     defaultMode: 'auto',
   });
 });
