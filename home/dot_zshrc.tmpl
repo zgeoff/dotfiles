@@ -119,11 +119,16 @@ source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
 
-# pnpm
+# pnpm. Version 11 puts the commands from `pnpm add -g` in $PNPM_HOME/bin, and
+# earlier versions put them in $PNPM_HOME.
 export PNPM_HOME="$HOME/Library/pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
 esac
 {{- end }}
 
