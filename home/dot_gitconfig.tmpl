@@ -58,5 +58,7 @@
 	helper = !gh auth git-credential
 [rebase]
   updateRefs = true
-[beads]
-  role = maintainer
+{{- if and (hasKey . "work") .work }}
+[url "git@github.com:"]
+	insteadOf = https://github.com/
+{{- end }}

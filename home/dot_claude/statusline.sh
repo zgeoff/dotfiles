@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Delivery statusline for Claude Code.
 # Reads the session JSON payload on stdin and renders a single tuned line:
-#   model·effort [think]  folder dir  branch [dirty] +add-rem   PR#n state   ctx-bar   [rate]
+#   folder  branch [dirty] | PR#n state | used/size pct% | 7d pct%·reset | model·effort [think]
+# Set STATUSLINE_NERD_FONT=0 in a terminal with no Nerd Font, for labels in place of the glyphs.
 # Nerd Font glyphs are emitted as \uXXXX escapes so the source file stays pure
 # ASCII (nothing to mangle in transit); bash expands them at runtime.
 
@@ -16,6 +17,16 @@ G_X=$''
 G_THINK=$'✳'
 DIRTY=$'●' # ●
 SEP=$'│'   # │  faint segment divider
+if [ "${STATUSLINE_NERD_FONT:-1}" = "0" ]; then
+  G_FOLDER='dir'
+  G_BRANCH='git'
+  G_PR='PR'
+  G_CHECK='ok'
+  G_X='changes'
+  G_THINK='think'
+  DIRTY='*'
+  SEP='|'
+fi
 
 # --- ANSI 256-color helpers ---
 R=$'\033[0m'
@@ -41,14 +52,13 @@ while IFS= read -r line; do F+=("$line"); done < <(
     , (.thinking.enabled // false | tostring)
     , .workspace.current_dir // .cwd // ""
     , .worktree.branch // ""
-    , (.cost.total_lines_added // 0 | tostring)
-    , (.cost.total_lines_removed // 0 | tostring)
     , (.pr.number // "" | tostring)
     , .pr.review_state // ""
     , (.context_window.used_percentage // -1 | floor | tostring)
     , (.exceeds_200k_tokens // false | tostring)
-    , (.rate_limits.five_hour.used_percentage // -1 | floor | tostring)
     , (.rate_limits.seven_day.used_percentage // -1 | floor | tostring)
+    , (.rate_limits.seven_day.resets_at // -1 | floor | tostring)
+    , (.context_window.context_window_size // 0 | floor | tostring)
     , ( .context_window.current_usage as $c
         | if $c == null
           then (.context_window.total_input_tokens // 0)
@@ -61,15 +71,14 @@ effort=${F[1]}
 thinking=${F[2]}
 cwd=${F[3]}
 wt_branch=${F[4]}
-added=${F[5]}
-removed=${F[6]}
-pr_num=${F[7]}
-pr_state=${F[8]}
-ctx=${F[9]}
-over200=${F[10]}
-rl5=${F[11]}
-rl7=${F[12]}
-tokens=${F[13]}
+pr_num=${F[5]}
+pr_state=${F[6]}
+ctx=${F[7]}
+over200=${F[8]}
+rl7=${F[9]}
+rl7_resets_at=${F[10]}
+window=${F[11]}
+tokens=${F[12]}
 
 out=""
 add_seg() {
@@ -91,11 +100,6 @@ if [ -n "$branch" ]; then
 fi
 add_seg "$seg"
 
-# --- lines changed (hidden when zero) ---
-if [ "$added" != "0" ] || [ "$removed" != "0" ]; then
-  add_seg "${GREEN}+${added}${R} ${RED}-${removed}${R}"
-fi
-
 # --- pull request + review state ---
 if [ -n "$pr_num" ]; then
   case "$pr_state" in
@@ -114,35 +118,55 @@ if [ -n "$pr_num" ]; then
   add_seg "${MAG}${G_PR} #${pr_num}${R} ${st}"
 fi
 
-# --- context window: token count · percent full ---
+# Token count in its short form: 950, 182k, 1M, 1.5M.
+fmt_tok() {
+  if [ "$1" -ge 1000000 ]; then
+    if [ $(($1 % 1000000)) -eq 0 ]; then
+      printf '%dM' $(($1 / 1000000))
+    else
+      awk -v t="$1" 'BEGIN { printf "%.1fM", t / 1000000 }'
+    fi
+  elif [ "$1" -ge 1000 ]; then
+    printf '%dk' $((($1 + 500) / 1000))
+  else
+    printf '%d' "$1"
+  fi
+}
+
+# Seconds in the two largest units: 3d11h, 2h30m, 42m.
+fmt_dur() {
+  local s=$1
+  [ "$s" -lt 0 ] && s=0
+  local d=$((s / 86400)) h=$((s % 86400 / 3600)) m=$((s % 3600 / 60))
+  if [ "$d" -gt 0 ]; then
+    printf '%dd%dh' "$d" "$h"
+  elif [ "$h" -gt 0 ]; then
+    printf '%dh%02dm' "$h" "$m"
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+# --- context window: tokens used / window size, percent full ---
 if [ "$ctx" -ge 0 ] 2> /dev/null; then
   ccol=$GREEN
   [ "$ctx" -ge 50 ] && ccol=$YELLOW
   [ "$ctx" -ge 75 ] && ccol=$RED
   [ "$over200" = "true" ] && ccol=$RED
-  if [ "${tokens:-0}" -ge 1000 ] 2> /dev/null; then
-    tok="$(((tokens + 500) / 1000))k"
-  else
-    tok="${tokens:-0}"
-  fi
-  add_seg "${ccol}${tok} ${DIM}·${R} ${ccol}${ctx}%${R}"
+  tok=$(fmt_tok "${tokens:-0}")
+  [ "${window:-0}" -gt 0 ] 2> /dev/null && tok+="${DIM}/${R}${ccol}$(fmt_tok "$window")"
+  add_seg "${ccol}${tok} ${ctx}%${R}"
 fi
 
-# --- usage caps: 5-hour + 7-day rolling windows, each colored by its own load ---
-ratecol() {
-  if [ "$1" -ge 75 ]; then
-    printf '%s' "$RED"
-  elif [ "$1" -ge 50 ]; then
-    printf '%s' "$YELLOW"
-  else printf '%s' "$GREEN"; fi
-}
-rate=""
-[ "$rl5" -ge 0 ] 2> /dev/null && rate="${GRAY}5h${R} $(ratecol "$rl5")${rl5}%${R}"
+# --- usage cap: the 7-day rolling window, colored by its load, with the time until it resets ---
 if [ "$rl7" -ge 0 ] 2> /dev/null; then
-  [ -n "$rate" ] && rate+="  ${DIM}·${R}  "
-  rate+="${GRAY}7d${R} $(ratecol "$rl7")${rl7}%${R}"
+  rcol=$GREEN
+  [ "$rl7" -ge 50 ] && rcol=$YELLOW
+  [ "$rl7" -ge 75 ] && rcol=$RED
+  rate="${GRAY}7d${R} ${rcol}${rl7}%${R}"
+  [ "$rl7_resets_at" -ge 0 ] 2> /dev/null && rate+="${DIM}·$(fmt_dur $((rl7_resets_at - $(date +%s))))${R}"
+  add_seg "$rate"
 fi
-[ -n "$rate" ] && add_seg "$rate"
 
 # --- model · effort · thinking (final segment) ---
 mseg="${CYAN}${model}${R}"
