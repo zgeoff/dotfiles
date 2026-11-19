@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: zgeoff/tools/.github/workflows/bun-checks.yml@aab674331c04de49816c03f734a3f373da61bbd1 # main
+    uses: zgeoff/tools/.github/workflows/bun-checks.yml@5ac165f77432e98e9fb28e8936752cebad79c0ef # main
     with:
       scripts: ${{ vars.BUN_CHECK_SCRIPTS }}
       node-version: ${{ vars.NODE_VERSION }}
