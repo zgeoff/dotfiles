@@ -44,8 +44,7 @@ the table, such as `fetch` or `process`.
 - Keep a pure function pure all the way down: a `build` that calls a `read` does I/O. No lint rule
   checks the verbs in a repo without a code-style skill, so check each one by hand.
 - Start a boolean function with `is`, `has`, `can` or `should` even when another verb reads well.
-  Three kinds of boolean function keep their own verb:
-  - a yes/no answer that needs I/O, which starts with `probe`;
+  Two kinds of boolean function keep their own verb:
   - a function with an I/O verb that returns a success flag, such as `removeFile`;
   - a function whose name starts with `use`, `on` or `handle`.
 - Never use `make`, `with`, `use`, `on` or `to` as a whole name. Follow it with a noun, such as
