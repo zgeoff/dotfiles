@@ -51,7 +51,23 @@ test('it mints the boxxy profile with write access to the boxxy vault, into the 
 
   expect(result.code).toBe(0);
   expect(ctx.readCalls()).toMatch(/^service-account create claude-boxxy-\d{8} --expires-in=7d --vault boxxy:read_items,write_items --format=json\n$/u);
-  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({ env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle' } });
+  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
+    env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle', PR_EVIDENCE_TOKEN_PATH: 'boxxy/files-upload-token/credential' },
+  });
+});
+
+test.each([
+  ['global', 'zgeoff/files-upload-token/credential'],
+  ['imp', 'imp-e2e/files-upload-token/credential'],
+])('it points the %s profile upload at the token in its own vault', (profile, path) => {
+  const ctx = setupTest();
+  const settings =
+    profile === 'global' ? join(ctx.home, '.claude/settings.json') : join(ctx.makeRepo('impz'), '.claude/settings.local.json');
+
+  const result = ctx.mint(profile);
+
+  expect(result.code).toBe(0);
+  expect(JSON.parse(readFileSync(settings, 'utf8')).env.PR_EVIDENCE_TOKEN_PATH).toBe(path);
 });
 
 test('it lists the boxxy profile with its vault and settings file', () => {
@@ -70,5 +86,7 @@ test('it mints the atc profile with write access to the atc vault, into the repo
 
   expect(result.code).toBe(0);
   expect(ctx.readCalls()).toMatch(/^service-account create claude-atc-\d{8} --expires-in=7d --vault atc:read_items,write_items --format=json\n$/u);
-  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({ env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle' } });
+  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
+    env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle', PR_EVIDENCE_TOKEN_PATH: 'atc/files-upload-token/credential' },
+  });
 });

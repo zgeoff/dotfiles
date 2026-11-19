@@ -21,7 +21,7 @@ test('it adds the pr-evidence address and token path to the claude agent env', a
           env: {
             HARBOUR_MODE: 'calm',
             PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-            PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+            PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-upload-token/credential',
           },
         },
       },
@@ -36,7 +36,7 @@ test('it removes the op:// token reference that op run would try to resolve', as
       claude: {
         env: {
           PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-          PR_EVIDENCE_TOKEN_REF: 'op://zgeoff/files-agent-token/credential',
+          PR_EVIDENCE_TOKEN_REF: 'op://zgeoff/files-upload-token/credential',
         },
       },
     },
@@ -46,7 +46,7 @@ test('it removes the op:// token reference that op run would try to resolve', as
 
   expect(JSON.parse(result.stdout.toString()).agents.claude.env).toStrictEqual({
     PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-    PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+    PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-upload-token/credential',
   });
 });
 
@@ -70,7 +70,7 @@ test('it keeps every key it does not own', async () => {
         env: {
           HARBOUR_MODE: 'calm',
           PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-          PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+          PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-upload-token/credential',
         },
       },
       lantern: { kind: 'claude', env: { LANTERN_COLOUR: 'amber' } },
@@ -105,7 +105,7 @@ test('it starts from an empty object when the live file is absent', async () => 
         claude: {
           env: {
             PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-            PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-agent-token/credential',
+            PR_EVIDENCE_TOKEN_PATH: 'zgeoff/files-upload-token/credential',
           },
         },
       },

@@ -14,7 +14,7 @@ printf '%s' "$current" | jq --indent 2 'del(.agents.claude.env.PR_EVIDENCE_TOKEN
     "claude": {
       "env": {
         "PR_EVIDENCE_URL": "https://files.geoff.cloud/api/files",
-        "PR_EVIDENCE_TOKEN_PATH": "zgeoff/files-agent-token/credential"
+        "PR_EVIDENCE_TOKEN_PATH": "zgeoff/files-upload-token/credential"
       }
     }
   }
