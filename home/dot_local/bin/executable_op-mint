@@ -84,7 +84,7 @@ op_mint() {
   tmp="$settings.tmp.$$"
   upload_ref="op://$(profile_upload_vault "$profile")/files-upload-token/credential"
   (umask 077 && jq --arg t "$token" --arg r "$upload_ref" \
-    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.VERIFY_UPLOAD_TOKEN_REF = $r | .env |= with_entries(select(.key | startswith("PR_EVIDENCE") | not))' "$settings" > "$tmp")
+    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.VERIFY_UPLOAD_TOKEN_REF = $r | del(.env.PR_EVIDENCE_URL, .env.PR_EVIDENCE_TOKEN_PATH, .env.PR_EVIDENCE_TOKEN_REF)' "$settings" > "$tmp")
   mv "$tmp" "$settings"
   chmod 600 "$settings"
 

@@ -30,17 +30,15 @@ test('it adds the verify upload address and token reference to the claude agent 
   });
 });
 
-const oldPrefix = 'PR_EVIDENCE';
-
 test('it deletes the old pr evidence keys so an existing config migrates', async () => {
   const live = {
     agents: {
       claude: {
         env: {
           HARBOUR_MODE: 'calm',
-          [`${oldPrefix}_URL`]: 'https://files.example.test/api/files',
-          [`${oldPrefix}_TOKEN_PATH`]: 'imp/files-upload-token/credential',
-          [`${oldPrefix}_TOKEN_REF`]: 'op://zgeoff/files-upload-token/credential',
+          PR_EVIDENCE_URL: 'https://files.example.test/api/files',
+          PR_EVIDENCE_TOKEN_PATH: 'imp/files-upload-token/credential',
+          PR_EVIDENCE_TOKEN_REF: 'op://zgeoff/files-upload-token/credential',
         },
       },
     },
@@ -50,6 +48,18 @@ test('it deletes the old pr evidence keys so an existing config migrates', async
 
   expect(JSON.parse(result.stdout.toString()).agents.claude.env).toStrictEqual({
     HARBOUR_MODE: 'calm',
+    VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
+    VERIFY_UPLOAD_TOKEN_REF: 'op://imp/files-upload-token/credential',
+  });
+});
+
+test('it keeps a key whose name only starts like an old pr evidence key', async () => {
+  const live = { agents: { claude: { env: { PR_EVIDENCEFUL_MODE: 'lighthouse' } } } };
+
+  const result = await $`sh ${scriptPath} < ${Response.json(live)}`.nothrow().quiet();
+
+  expect(JSON.parse(result.stdout.toString()).agents.claude.env).toStrictEqual({
+    PR_EVIDENCEFUL_MODE: 'lighthouse',
     VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
     VERIFY_UPLOAD_TOKEN_REF: 'op://imp/files-upload-token/credential',
   });

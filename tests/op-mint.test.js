@@ -91,8 +91,6 @@ test('it mints the atc profile with write access to the atc vault, into the repo
   });
 });
 
-const oldPrefix = 'PR_EVIDENCE';
-
 test('it drops the old pr evidence keys from a settings file it rewrites', () => {
   const ctx = setupTest();
   const repo = ctx.makeRepo('boxxy');
@@ -102,9 +100,9 @@ test('it drops the old pr evidence keys from a settings file it rewrites', () =>
     JSON.stringify({
       env: {
         HARBOUR_MODE: 'calm',
-        [`${oldPrefix}_URL`]: 'https://files.example.test/api/files',
-        [`${oldPrefix}_TOKEN_PATH`]: 'boxxy/files-upload-token/credential',
-        [`${oldPrefix}_TOKEN_REF`]: 'op://boxxy/files-upload-token/credential',
+        PR_EVIDENCE_URL: 'https://files.example.test/api/files',
+        PR_EVIDENCE_TOKEN_PATH: 'boxxy/files-upload-token/credential',
+        PR_EVIDENCE_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
       },
     }),
   );
@@ -115,6 +113,27 @@ test('it drops the old pr evidence keys from a settings file it rewrites', () =>
   expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
     env: {
       HARBOUR_MODE: 'calm',
+      OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
+      VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+    },
+  });
+});
+
+test('it keeps a key whose name only starts like an old pr evidence key', () => {
+  const ctx = setupTest();
+  const repo = ctx.makeRepo('boxxy');
+  mkdirSync(join(repo, '.claude'), { recursive: true });
+  writeFileSync(
+    join(repo, '.claude/settings.local.json'),
+    JSON.stringify({ env: { PR_EVIDENCEFUL_MODE: 'lighthouse' } }),
+  );
+
+  const result = ctx.mint('boxxy');
+
+  expect(result.code).toBe(0);
+  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
+    env: {
+      PR_EVIDENCEFUL_MODE: 'lighthouse',
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
       VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
     },
