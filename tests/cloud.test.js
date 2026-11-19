@@ -301,13 +301,13 @@ describe('cloud token', () => {
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
   });
 
-  test('with a service-account token, op reads the upload token at PR_EVIDENCE_TOKEN_PATH in place of the config', async () => {
+  test('with a service-account token, op reads the upload token at VERIFY_UPLOAD_TOKEN_REF in place of the config', async () => {
     const { code, opCalls } = await cloud(['ls'], {
       env: {
         CLOUD_CLI_CONFIG: configPath,
         CLOUD_FILES_TOKEN: '',
         OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in',
-        PR_EVIDENCE_TOKEN_PATH: 'vault-b/files-upload-token/credential',
+        VERIFY_UPLOAD_TOKEN_REF: 'op://vault-b/files-upload-token/credential',
       },
       opTokens: { 'op://vault-b/files-upload-token/credential': token },
       onPath: ['op', 'op-win'],
@@ -318,13 +318,13 @@ describe('cloud token', () => {
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
   });
 
-  test('on an imp, op reads the upload token at PR_EVIDENCE_TOKEN_PATH without a config', async () => {
+  test('on an imp, op reads the upload token at VERIFY_UPLOAD_TOKEN_REF without a config', async () => {
     const { code, opCalls } = await cloud(['ls'], {
       env: {
         CLOUD_CLI_CONFIG: join(scratch, 'absent.toml'),
         CLOUD_FILES_TOKEN: '',
         OP_CONNECT_HOST: 'http://connect.example.test',
-        PR_EVIDENCE_TOKEN_PATH: 'vault-c/files-upload-token/credential',
+        VERIFY_UPLOAD_TOKEN_REF: 'op://vault-c/files-upload-token/credential',
       },
       opTokens: { 'op://vault-c/files-upload-token/credential': token },
       onPath: ['op'],
@@ -334,9 +334,9 @@ describe('cloud token', () => {
     expect(opCalls).toEqual(['op read op://vault-c/files-upload-token/credential']);
   });
 
-  test('without a service-account token, op-win reads the config and ignores PR_EVIDENCE_TOKEN_PATH', async () => {
+  test('without a service-account token, op-win reads the config and ignores VERIFY_UPLOAD_TOKEN_REF', async () => {
     const { code, opCalls } = await cloud(['ls'], {
-      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '', PR_EVIDENCE_TOKEN_PATH: 'vault-b/files-upload-token/credential' },
+      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '', VERIFY_UPLOAD_TOKEN_REF: 'op://vault-b/files-upload-token/credential' },
       opTokens: { 'op://vault-a/files-token/credential': token },
       onPath: ['op', 'op-win'],
     });

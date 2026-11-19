@@ -99,7 +99,7 @@ async function opRead(command, ref, env) {
 }
 
 // $CLOUD_FILES_TOKEN when set; then, for an agent with a service-account token or a Connect
-// server, the upload token at $PR_EVIDENCE_TOKEN_PATH, which op-mint points at the vault of the
+// server, the upload token at $VERIFY_UPLOAD_TOKEN_REF, which op-mint points at the vault of the
 // agent's own repo; otherwise a read of the config's token_ref through opCommandFor's CLI.
 // 1Password is not asked when the variable is set, so an agent with the token in its environment
 // needs no 1Password access. The token stays in memory only.
@@ -107,8 +107,8 @@ export async function readToken({ env, configPath, config, runOp = opRead, which
   if (env.CLOUD_FILES_TOKEN) {
     return env.CLOUD_FILES_TOKEN;
   }
-  if ((env.OP_SERVICE_ACCOUNT_TOKEN || env.OP_CONNECT_HOST) && env.PR_EVIDENCE_TOKEN_PATH) {
-    return readTokenRef('op', `op://${env.PR_EVIDENCE_TOKEN_PATH.replace(/^op:\/\//, '')}`, env, runOp);
+  if ((env.OP_SERVICE_ACCOUNT_TOKEN || env.OP_CONNECT_HOST) && env.VERIFY_UPLOAD_TOKEN_REF) {
+    return readTokenRef('op', env.VERIFY_UPLOAD_TOKEN_REF, env, runOp);
   }
   if (config === undefined) {
     fail([`CLOUD_FILES_TOKEN is not set and there is no config at ${configPath}`, '', createConfigHelp(configPath)].join('\n'));
@@ -400,7 +400,7 @@ function help(_args, deps) {
     'ls lists the uploads that have not expired; --all adds the expired ones, --expired shows only them.',
     '',
     'token: $CLOUD_FILES_TOKEN if set; for an agent with OP_SERVICE_ACCOUNT_TOKEN or OP_CONNECT_HOST, an op',
-    'read of $PR_EVIDENCE_TOKEN_PATH (<vault>/<item>/<field>) when set; otherwise a 1Password read of',
+    'read of $VERIFY_UPLOAD_TOKEN_REF (op://<vault>/<item>/<field>) when set; otherwise a 1Password read of',
     'token_ref in the config: through op when OP_SERVICE_ACCOUNT_TOKEN is set, otherwise through op-win',
     '(one approval in 1Password).',
     `config: ${configPath}${existsSync(configPath) ? '' : yellow(' (missing)')}`,

@@ -3,8 +3,9 @@
 # Mint a scoped 1Password service-account token for Claude Code and write it to
 # the `env.OP_SERVICE_ACCOUNT_TOKEN` of the matching settings file. Each profile
 # gets only the vaults it needs; project settings override the global one. The
-# same file's `env.PR_EVIDENCE_TOKEN_PATH` points the pr-evidence upload at the
-# profile's own files-upload-token item, which that token can read.
+# same file's `env.VERIFY_UPLOAD_TOKEN_REF` points the verify upload at the
+# profile's own files-upload-token item, which that token can read. The atc config owns
+# `VERIFY_UPLOAD_URL`; op-mint never sets it.
 #
 #   op-mint <profile>     # global | vers | cloud | boxxy | nixie | noslop | osrs | pepys | wow-forever | imp | atc
 #   op-mint --list
@@ -81,9 +82,9 @@ op_mint() {
 
   [ -f "$settings" ] || echo '{}' > "$settings"
   tmp="$settings.tmp.$$"
-  upload_path="$(profile_upload_vault "$profile")/files-upload-token/credential"
-  (umask 077 && jq --arg t "$token" --arg p "$upload_path" \
-    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.PR_EVIDENCE_TOKEN_PATH = $p' "$settings" > "$tmp")
+  upload_ref="op://$(profile_upload_vault "$profile")/files-upload-token/credential"
+  (umask 077 && jq --arg t "$token" --arg r "$upload_ref" \
+    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.VERIFY_UPLOAD_TOKEN_REF = $r | del(.env.PR_EVIDENCE_URL, .env.PR_EVIDENCE_TOKEN_PATH, .env.PR_EVIDENCE_TOKEN_REF)' "$settings" > "$tmp")
   mv "$tmp" "$settings"
   chmod 600 "$settings"
 
