@@ -10,14 +10,11 @@ metadata:
 
 # Function naming
 
-A function's first word tells the reader whether it does I/O and whether it can miss, before they
-open it. This table is the one in the `code-style` skill of the zgeoff repos. In a repo that has
-that skill, load it and follow it.
-
+## Function names
 
 When a function's job has a row, start its name with that row's verb, and keep the row's guarantee.
-Give any other function any verb that fits, except a banned verb from the last bullet of this
-section, such as `fetch` or `process`.
+Give any other function any verb that fits, except a banned verb from the last bullet under
+the table, such as `fetch` or `process`.
 
 | Job                                                                                                       | Verb                         | Guarantee                                                                      |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
