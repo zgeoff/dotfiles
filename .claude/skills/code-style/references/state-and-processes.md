@@ -1,4 +1,8 @@
-# State, waiting and file locks
+# State, waiting and processes
+
+Use the tool or pattern each section names when you save or send a status, wait, lock a file, or
+send data to another process or package. Avoid writing one status from two modules, and writing your
+own lock, wait or parser in place of the one named.
 
 ## State
 
@@ -21,6 +25,12 @@
 - Lock a file across processes only with `withFileLock` from `@zgeoff/std/with-file-lock`. Read,
   decide and write in its callback, so the lock spans all three.
 - Import `withFileLock` directly in the thin function that [Structure](../SKILL.md#structure)
-  describes. Structure has the caller pass in every other piece of I/O.
+  describes. Have the thin function's caller pass in every other piece of I/O, as Structure says.
 - Write your own lock only for a need `withFileLock` can't meet, such as a shared read lock, and
   name the need in a comment.
+
+## Data between processes and packages
+
+- Send data between processes or packages through a typed interface the repo already has, such as
+  its RPC layer, a shared schema or its CLI parser. Never match a route, parse a body or read
+  arguments by hand.
