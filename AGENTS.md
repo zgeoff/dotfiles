@@ -15,12 +15,22 @@ home/                 chezmoi source state; each name maps to its target through
   dot_claude/         ~/.claude: skills, agents, workflows, output styles, settings
   dot_codex/          ~/.codex: global rules and config
   dot_local/bin/      personal CLIs
-tests/                bun tests for the CLIs in home/dot_local/bin/ and the atc config and Claude
-                      settings modify_ scripts; run them with `bun test`
+tests/                bun tests for the CLIs in home/dot_local/bin/, the atc config and Claude
+                      settings modify_ scripts, and the split between personal machines and the
+                      rest; run them with `bun test`
 ```
 
 ## This repo
 
+- Each machine answers two questions on `chezmoi init`: `personal` and `work`. A machine that
+  answers no to both gets only the shared files.
+- Keep a file that reaches a personal vault or host to personal machines: add its target to the
+  block for machines that are not personal in `home/.chezmoiignore`. In a template, wrap the lines
+  in `{{- if and (hasKey . "personal") .personal }}`.
+- Give a work-only rule or setting to work machines with `{{- if and (hasKey . "work") .work }}`.
+- When you add a CLI to `home/dot_local/bin/` or a skill to `home/dot_claude/skills/`,
+  `tests/machine-split.test.js` fails until you list it there as shared, or keep it to personal
+  machines.
 - A package script re-runs when its manifest changes. The Yayfile sync installs only the packages
   the repos offer and skips the rest, so check its `not available, skipped` stderr when a package
   seems absent.
