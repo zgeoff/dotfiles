@@ -64,7 +64,7 @@ test('it gives a machine that is not personal only the listed CLIs', () => {
 test('it gives a machine that is not personal only the listed skills', () => {
   const ctx = setupTest();
 
-  expect(ctx.listSharedNames('.claude/skills')).toStrictEqual(['build-feature']);
+  expect(ctx.listSharedNames('.claude/skills')).toStrictEqual(['build-feature', 'function-naming']);
 });
 
 test('it keeps 1Password references and personal host names out of each file a machine that is not personal gets', () => {

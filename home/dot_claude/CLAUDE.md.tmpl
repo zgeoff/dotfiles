@@ -2,6 +2,7 @@
 {{ template "agents/core.md" . }}
 {{- if and (hasKey . "personal") .personal }}
 {{ template "agents/personal.md.tmpl" . }}
-{{ template "agents/delegation.md" . }}
 {{- end }}
-{{- template "agents/work.md.tmpl" . }}
+{{ template "agents/claude.md" . }}
+{{ template "agents/delegation.md" . -}}
+{{ template "agents/work.md.tmpl" . }}

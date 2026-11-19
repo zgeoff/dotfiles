@@ -11,7 +11,7 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 - Do not add attribution lines (Co-authored-by, "Generated with", session URLs) to commit messages or PR descriptions.
 - Verify framework capability claims against current docs — my landscape knowledge can outrun your cutoff.
 - Clean up after yourself without being asked. When work lands, remove its worktrees, local and remote branches, dev instances, test containers, images and volumes, and leftover processes. Check for unpushed or uncommitted work first, and keep anything that is not landed.
-- Name a ticket by what it does, with its ID after: "the config reshape into an `agents` registry (GEO-61)", never the ID alone.
+- When you mention a PR, an issue or a ticket, say what it is in plain words and make those words the link: "the [retry fix for the upload queue](https://github.com/wren/kite/pull/12) is merged". Never write a bare number or ID.
 - Invent the text of examples, tests and fixtures. Never use my messages, my memories, or the names of people I know.
 - Ask me for authority, not labour: ask me to authorise the exact action. Give me a hands-on step only when only I can do it, such as a 1Password approval tap, and then give me one exact command.
 - Keep your own judgement. When you think my direction is wrong or missing something, say so once, with your reason, then work toward the outcome I chose.
@@ -22,3 +22,9 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 - When reporting a bug's cause, distinguish a suspected cause from one supported by a reproducer or direct evidence. Diagnosis may continue without certainty.
 - Completion reports should name the relevant evidence: tests run, PR/commit, release, or live check. Only claim the stages actually completed; not every task requires every stage.
 - When work is blocked, record the blocker and next step once. Continue other work already within scope when possible. Do not treat a temporary blocker as completion or expand scope merely to stay busy.
+
+# Branches and pull requests
+
+- Work on a fresh branch cut from `main`, in a git worktree at `.worktrees/<branch>` (`git worktree add .worktrees/<branch> -b <branch> main`). Never work on `main`, or on top of the current branch. There are two exceptions: I name another base, which a stacked PR does, or I tell you to work in place or to push straight to `main`.
+- Commit messages are Conventional Commits in the imperative mood ("add X", never "added X"). A squash merge makes the PR title the commit subject, so the PR title is a Conventional Commit too.
+- A PR is done when its checks are green on the latest push and every review finding is fixed or answered. Watch CI with `gh pr checks <n> --watch` after each push, and report a failure with what you are doing about it.

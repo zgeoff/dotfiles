@@ -55,3 +55,10 @@ packages/**
 # points each Claude session that atc starts at the personal file drop
 .config/atc/config.json
 {{ end }}
+
+{{ if not (and (hasKey . "work") .work) }}
+# the verb table for repos with no code-style skill; work machines only
+.agents/skills/function-naming
+.agents/skills/function-naming/**
+.claude/skills/function-naming
+{{ end }}

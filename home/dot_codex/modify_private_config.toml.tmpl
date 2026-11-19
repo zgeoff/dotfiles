@@ -13,15 +13,15 @@ approvals_reviewer = "auto_review"
 
 model = "gpt-6.1-sol"
 model_reasoning_effort = "medium" # one step below Claude effortLevel = high, to cut Codex usage
-personality = "pragmatic"         # closest built-in to STE Direct; the full style is in developer_instructions
+personality = "pragmatic"         # closest built-in to Brief; the full style is in developer_instructions
 
 # Permissions: Claude skipAutoPermissionPrompt + autoMode  ->  sandboxed, no prompts except rule hits.
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 
-# Output style: STE Direct, rendered from ~/.claude/output-styles/ste-direct.md
+# Output style: Brief, rendered from ~/.claude/output-styles/brief.md
 developer_instructions = '''
-{{ regexReplaceAll `(?s)\A---\n.*?\n---\n\s*` (include "dot_claude/output-styles/ste-direct.md") "" | trim }}
+{{ regexReplaceAll `(?s)\A---\n.*?\n---\n\s*` (include "dot_claude/output-styles/brief.md") "" | trim }}
 '''
 
 [sandbox_workspace_write]
