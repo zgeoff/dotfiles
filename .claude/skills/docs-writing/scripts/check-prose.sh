@@ -45,6 +45,22 @@ for root in .agents/skills .claude/skills skills sync/skills; do
 done
 set -- "$@" ':(exclude,attr:linguist-vendored)' ':(exclude,attr:linguist-vendored=true)'
 
+if ! perl -e 1 > /dev/null 2>&1; then
+  echo "check-prose: perl is required and was not found on the PATH, so no doc was checked" >&2
+  exit 2
+fi
+
+failure_marker=$(mktemp) || exit 2
+rm -f "$failure_marker"
+trap 'rm -f "$failure_marker"' EXIT
+
+probe_status=0
+git grep -P -e x -- ':(exclude)*' > /dev/null 2>&1 || probe_status=$?
+if [ "$probe_status" -gt 1 ]; then
+  echo "check-prose: git was built without PCRE support, so no doc was checked" >&2
+  exit 2
+fi
+
 # The greps below read git's file list in pipelines, which drop git's exit status, so a git that
 # cannot list the files fails here once.
 if ! git ls-files --cached --others --exclude-standard -- "$@" > /dev/null; then
@@ -54,8 +70,51 @@ fi
 
 # Every grep reads untracked files too, so a new doc is checked before it is staged, and skips
 # binary files.
+# A git grep that fails for any reason but "no match" (status 1) writes the marker file, because the
+# greps run in command substitutions that drop their status. The script then fails instead of
+# printing "clean".
 grep_docs() {
-  git grep --untracked -I "$@"
+  local status=0
+  git grep --untracked -I "$@" || status=$?
+  if [ "$status" -gt 1 ]; then
+    echo "check-prose: git grep failed with status $status, so a check did not run" >&2
+    : > "$failure_marker"
+  fi
+  return 0
+}
+
+# macOS awk dies on a line that is not valid UTF-8 under a UTF-8 locale, so awk runs byte-wise.
+# A failed awk marks the run as incomplete, because the callers read it in command substitutions
+# that drop its status.
+run_awk() {
+  LC_ALL=C awk "$@" || : > "$failure_marker"
+}
+
+# Cuts byte-wise, for the same reason.
+run_cut() {
+  LC_ALL=C cut "$@" || : > "$failure_marker"
+}
+
+# Runs awk over the NUL-separated paths on stdin.
+xargs_awk() {
+  xargs -0 -r env LC_ALL=C awk "$@" || : > "$failure_marker"
+}
+
+# Prints the lines of stdin that match the Perl pattern $1 before the unit separator, ignoring case.
+# perl stands in for grep -P, which BSD grep lacks. It matches the line and the pattern decoded as
+# UTF-8, so word boundaries and case folding follow Unicode as GNU grep's do under a UTF-8 locale,
+# and an invalid byte becomes U+FFFD, so the rest of the line still matches. It prints the original bytes.
+grep_before_separator() {
+  CHECK_PROSE_PATTERN=$1 perl -MEncode -ne '
+    BEGIN {
+      my $pattern = $ENV{CHECK_PROSE_PATTERN};
+      utf8::decode($pattern);
+      $p = qr/^[^\x1f]*(?:$pattern)/iu;
+    }
+    my $line = $_;
+    $line = Encode::decode("UTF-8", $line, Encode::FB_DEFAULT);
+    print if $line =~ $p' ||
+    : > "$failure_marker"
 }
 
 # Prints the Markdown files the paths name, under the directory in $markdown_dir when it is set.
@@ -126,7 +185,7 @@ banned_words='\bsurfaces?\b|load-bearing|\bseams?\b|\bceilings?\b|(?<!code )\bfe
 report 'Banned words:' \
   "$(
     grep_docs -nPi "$banned_words" -- "$@" ':(exclude)*.md' ':(exclude)AGENTS.md' ':(exclude)agents'
-    list_markdown "$@" ':(exclude)AGENTS.md' ':(exclude)agents' | xargs -0 -r awk "$fence_awk"'
+    list_markdown "$@" ':(exclude)AGENTS.md' ':(exclude)agents' | xargs_awk "$fence_awk"'
     # Replaces each code span with a space. As in CommonMark, a span closes at the next backtick run
     # as long as the one that opens it, and a run that nothing closes stays as text.
     function strip_spans(s, out, start, n, rest, r, off, closed) {
@@ -171,7 +230,7 @@ report 'Banned words:' \
       gsub(/\037/, "", text)
       text = strip_spans(text)
       print text "\037" file_name()":"FNR":"$0
-    }' | grep -aPi "^[^\\x1f]*(?:$banned_words)" | cut -d $'\037' -f 2-
+    }' | grep_before_separator "$banned_words" | run_cut -d $'\037' -f 2-
   )"
 
 report 'Filler with no term-of-art use:' \
@@ -189,7 +248,7 @@ report '"Should succeed" in a procedure — state the expected outcome instead:'
 report 'Number joined to its unit ("64KB"; write "64 KB"; code blocks are exempt):' \
   "$(
     grep_docs -nP '\b[0-9]+(KB|MB|GB|TB|KiB|MiB|GiB|ms)\b' -- "$@" ':(exclude)*.md'
-    list_markdown "$@" | xargs -0 -r awk "$fence_awk"'
+    list_markdown "$@" | xargs_awk "$fence_awk"'
     {
       m = fence_marker($0)
       if (m != "") {
@@ -206,7 +265,7 @@ report 'Number joined to its unit ("64KB"; write "64 KB"; code blocks are exempt
 # reader types may hold a value. A bare s, d or h joined to its number is no unit here ("1990s",
 # "2d"); its spaced form is.
 report 'Values with units under docs/architecture (the code owns its values; code blocks are exempt):' \
-  "$(markdown_dir=docs/architecture/ list_markdown "$@" | xargs -0 -r awk "$fence_awk"'
+  "$(markdown_dir=docs/architecture/ list_markdown "$@" | xargs_awk "$fence_awk"'
     {
       m = fence_marker($0)
       if (m != "") {
@@ -224,11 +283,11 @@ report 'Values with units under docs/architecture (the code owns its values; cod
     }')"
 
 report 'Horizontal rules outside YAML frontmatter:' \
-  "$(list_markdown "$@" | xargs -0 -r awk \
+  "$(list_markdown "$@" | xargs_awk \
     'FNR==1{fm=($0=="---")} fm&&FNR>1&&$0=="---"{fm=0;next} !fm&&$0=="---"{print substr(FILENAME, 3)": "FNR}')"
 
 report 'Untagged code fences:' \
-  "$(list_markdown "$@" | xargs -0 -r awk "$fence_awk"'
+  "$(list_markdown "$@" | xargs_awk "$fence_awk"'
     {
       m = fence_marker($0)
       if (m == "") next
@@ -623,14 +682,14 @@ done < <(list_markdown "$@")
 
 paragraphs=
 if [ "${#paragraph_files[@]}" -gt 0 ]; then
-  paragraphs=$(awk -v warn="$paragraph_warn" "$fence_awk$paragraph_awk" "${paragraph_files[@]}")
+  paragraphs=$(run_awk -v warn="$paragraph_warn" "$fence_awk$paragraph_awk" "${paragraph_files[@]}")
 fi
 
 report "Paragraphs over $paragraph_fail words in a changed file (split each one; lists, tables and code blocks are exempt):" \
-  "$(awk -F: -v limit="$paragraph_fail" '$NF > limit { print $0" words" }' <<< "$paragraphs")"
+  "$(run_awk -F: -v limit="$paragraph_fail" '$NF > limit { print $0" words" }' <<< "$paragraphs")"
 
 candidate "Paragraphs over $paragraph_warn words in a changed file (warning; reread each one and split it where it defends a decision):" \
-  "$(awk -F: -v limit="$paragraph_fail" '$NF != "" && $NF <= limit { print $0" words" }' <<< "$paragraphs")"
+  "$(run_awk -F: -v limit="$paragraph_fail" '$NF != "" && $NF <= limit { print $0" words" }' <<< "$paragraphs")"
 
 candidate 'Candidates — filler words with term-of-art uses; cull the filler, keep the terms:' \
   "$(grep_docs -nPi '\b(naturally|cleanly|trivially|easy|simple|quick)\b' -- "$@")"
@@ -649,6 +708,11 @@ candidate 'Candidates — sentence-initial "A x is a" definitions; keep one only
 
 candidate 'Candidates — contrast frames, counted lists and stock openers; state the move, name the items, open with the job:' \
   "$(grep_docs -nPi ', not (a|an|the|its|their|from|for|to|in|on|by|only|just)\b|\brather than\b|\bis not the (job|point)\b|\b(two|three|four|five) (ways|traps|mistakes|things|rules)\b|^(This|The) skill (is|helps|lets|explains|finds|builds|shows)\b' -- "$@")"
+
+if [ -e "$failure_marker" ]; then
+  echo "check-prose: a check failed to run, so the result above is incomplete" >&2
+  exit 2
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo 'check-prose: clean (candidates above, if any, need judgment only)'

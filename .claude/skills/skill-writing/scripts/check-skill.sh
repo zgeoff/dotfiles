@@ -61,7 +61,8 @@ fi
 
 checked=()
 
-for dir in "${dirs[@]}"; do
+# An empty array is unbound under set -u in bash 3.2, so the expansion is guarded.
+for dir in ${dirs[@]+"${dirs[@]}"}; do
   is_vendored "$dir" || checked+=("$dir")
 done
 
