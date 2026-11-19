@@ -32,12 +32,33 @@ packages/**
 {{ end }}
 
 {{ if not (and (hasKey . "personal") .personal) }}
-# mints tokens against the personal 1Password account; personal machines only
+# Personal machines only. tests/machine-split.test.js reads this block.
+# mints tokens against the personal 1Password account
 .local/bin/op-mint
-# Codex delegation sends code to OpenAI; personal machines only
-.claude/skills/delegate
-.claude/skills/delegate/**
-# MCP headers helpers read the zgeoff vault; personal machines only
+# read the machine user's key and token from the personal 1Password account
+.local/bin/agent-identity
+.local/bin/agent-onboard
+# the personal file drop, and its config
+.local/bin/cloud
+.config/cloud
+.config/cloud/**
+# personal infrastructure
+.local/bin/nixie
+.config/nixie
+.config/nixie/**
+# rotates the personal Claude account slots
+.claude/skills/claude-account-switch
+.claude/skills/claude-account-switch/**
+# MCP headers helpers read the personal 1Password account
 .claude/mcp-helpers
 .claude/mcp-helpers/**
+# points each Claude session that atc starts at the personal file drop
+.config/atc/config.json
+{{ end }}
+
+{{ if not (and (hasKey . "work") .work) }}
+# the verb table for repos with no code-style skill; work machines only
+.agents/skills/function-naming
+.agents/skills/function-naming/**
+.claude/skills/function-naming
 {{ end }}

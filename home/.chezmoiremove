@@ -1,3 +1,4 @@
 .tool-versions
 .zcompletions
 .config/cloud/cli.example.toml
+.claude/output-styles/ste-direct.md

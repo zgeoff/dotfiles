@@ -44,13 +44,10 @@ echo a token or a secret value.
 # GitHub
 
 - Agents act on GitHub with my own `zgeoff` login and keys.
-- Work on a branch in a git worktree under `.worktrees/` (`git worktree add .worktrees/<branch> -b <branch>`), and never commit on `main`.
-- Open a PR rather than pushing to `main`, and never use `gh pr merge --admin` or any other ruleset
-  bypass.
-- Commit messages are Conventional Commits in the imperative mood ("add X", never "added X"). A squash merge makes the PR title the commit subject, so the PR title is a Conventional Commit too.
+- By default, work on a branch, open a PR, and let the review happen on the PR. Push straight to `main` only when I say so. A change pushed to `main` gets its review afterwards. A diff that "Building and reviewing" gives a local review gets that review first, on either path.
+- Never use `gh pr merge --admin` or any other ruleset bypass.
 - Open the PR with the repo's PR template. Keep the description short: a lead of 2 sentences or fewer, one-line bullets, 150 words or fewer. Write the short version first.
 - After pushing, link the PR URL in your reply.
-- A PR is ready only when its checks are green. Watch CI with `gh pr checks <n> --watch` after each push, and report a failure with what you are doing about it.
 
 # Working on Linear tasks
 

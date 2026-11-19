@@ -1,10 +1,13 @@
 #!/bin/sh
 # chezmoi owns the keys below and deep-merges them over the live file. Every
-# other key stays as Claude Code or a script wrote it: env.OP_SERVICE_ACCOUNT_TOKEN
-# (rotated weekly by op-mint) and permissions, where chezmoi adds only the op-mint
-# allow rules. On a personal machine, chezmoi owns autoMode in full: edit
+# other key stays as Claude Code, a script or the machine's owner wrote it: the
+# model, env.OP_SERVICE_ACCOUNT_TOKEN (rotated weekly by op-mint) and permissions.
+# On a personal machine, chezmoi adds the op-mint allow rules, removes the GitHub
+# token and key overrides from env, and owns autoMode in full: edit
 # .chezmoitemplates/claude/automode.json.age with `chezmoi decrypt`/`chezmoi encrypt`,
 # not the live file (an /auto-mode-setup run there is overwritten on the next apply).
+# On any other machine, chezmoi keeps the env overrides, where a scoped GitHub
+# token for agents lives, and removes the op-mint allow rules.
 # Removing a key here does not remove it from the live file.
 set -eu
 current=$(cat)
@@ -29,13 +32,12 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
     "sessionUrl": false
   },
   "includeCoAuthoredBy": false,
-  "model": "opus[1m]",
   "statusLine": {
     "type": "command",
     "command": "bash \"{{ .chezmoi.homeDir }}/.claude/statusline.sh\"",
     "padding": 2
   },
-  "outputStyle": "STE Direct",
+  "outputStyle": "Brief",
   "feedbackDrafts": "off",
   "effortLevel": "high",
   "autoCompactWindow": 500000,
@@ -44,9 +46,9 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
   "skipWorkflowUsageWarning": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "promptSuggestionEnabled": false
+  "promptSuggestionEnabled": false,
+  "advisorModel": "fable"
 {{- if and (hasKey . "personal") .personal }},
-  "advisorModel": "fable",
   "enabledPlugins": {
     "codex-image@codex-image-in-cc": true
   },
@@ -58,6 +60,7 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {{- end }}
 }' '. * $owned
   | if $automode != null then .autoMode = $automode else . end
+{{- if and (hasKey . "personal") .personal }}
   | .permissions.allow |= reduce (
       "Bash(op-mint --list)", "Bash(op-mint imp)", "Bash(op-mint nixie)",
       "Bash(op-mint noslop)", "Bash(op-mint osrs)", "Bash(op-mint pepys)", "Bash(op-mint vers)",
@@ -68,9 +71,10 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
   # agents use the saved gh login and the default git SSH key, so drop the
   # machine-user token and key override that agent-identity or an earlier render wrote
   | del(.env.GH_TOKEN, .env.GITHUB_TOKEN, .env.GIT_SSH_COMMAND)
+{{- end }}
 {{- if not (and (hasKey . "personal") .personal) }}
-  # drop the personal-only keys a previous personal render left behind
-  | del(.advisorModel)
-  | del(.enabledPlugins["codex-image@codex-image-in-cc"])
-  | del(.extraKnownMarketplaces["codex-image-in-cc"])
+  # op-mint is not installed here, so drop the rules an earlier render added
+  | if (.permissions.allow | type) == "array"
+    then .permissions.allow |= map(select((type == "string" and test("^Bash\\(op-mint[ :)]")) | not))
+    else . end
 {{- end }}'

@@ -101,6 +101,13 @@ macos-option-as-alt = true
 # keybind = ctrl+shift+l=goto_split:right
 # keybind = ctrl+shift+k=goto_split:up
 # keybind = ctrl+shift+j=goto_split:down
+{{- if eq .chezmoi.os "darwin" }}
+
+# atc leader. The macOS modifier settings remap ctrl to cmd, so the physical
+# ctrl+] arrives as cmd+]. This replaces Ghostty's default (goto_split:next) and
+# sends the ctrl+] byte (0x1D) into the terminal, where atc reads it as its leader.
+keybind = super+]=text:\x1d
+{{- end }}
 
 ###############################################################################
 # not ported (no Ghostty equivalent)
