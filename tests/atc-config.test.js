@@ -4,7 +4,7 @@ import { $ } from 'bun';
 
 const scriptPath = join(import.meta.dir, '../home/dot_config/atc/modify_private_config.json');
 
-test('it adds the pr-evidence address and token path to the claude agent env', async () => {
+test('it adds the verify upload address and token reference to the claude agent env', async () => {
   const live = { agents: { claude: { env: { HARBOUR_MODE: 'calm' } } } };
 
   const result = await $`sh ${scriptPath} < ${Response.json(live)}`.nothrow().quiet();
@@ -20,8 +20,8 @@ test('it adds the pr-evidence address and token path to the claude agent env', a
         claude: {
           env: {
             HARBOUR_MODE: 'calm',
-            PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-            PR_EVIDENCE_TOKEN_PATH: 'imp/files-upload-token/credential',
+            VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
+            VERIFY_UPLOAD_TOKEN_REF: 'op://imp/files-upload-token/credential',
           },
         },
       },
@@ -30,13 +30,17 @@ test('it adds the pr-evidence address and token path to the claude agent env', a
   });
 });
 
-test('it removes the op:// token reference that op run would try to resolve', async () => {
+const oldPrefix = 'PR_EVIDENCE';
+
+test('it deletes the old pr evidence keys so an existing config migrates', async () => {
   const live = {
     agents: {
       claude: {
         env: {
-          PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-          PR_EVIDENCE_TOKEN_REF: 'op://zgeoff/files-upload-token/credential',
+          HARBOUR_MODE: 'calm',
+          [`${oldPrefix}_URL`]: 'https://files.example.test/api/files',
+          [`${oldPrefix}_TOKEN_PATH`]: 'imp/files-upload-token/credential',
+          [`${oldPrefix}_TOKEN_REF`]: 'op://zgeoff/files-upload-token/credential',
         },
       },
     },
@@ -45,8 +49,9 @@ test('it removes the op:// token reference that op run would try to resolve', as
   const result = await $`sh ${scriptPath} < ${Response.json(live)}`.nothrow().quiet();
 
   expect(JSON.parse(result.stdout.toString()).agents.claude.env).toStrictEqual({
-    PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-    PR_EVIDENCE_TOKEN_PATH: 'imp/files-upload-token/credential',
+    HARBOUR_MODE: 'calm',
+    VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
+    VERIFY_UPLOAD_TOKEN_REF: 'op://imp/files-upload-token/credential',
   });
 });
 
@@ -69,8 +74,8 @@ test('it keeps every key it does not own', async () => {
         auth: { profiles: ['claude', 'github'] },
         env: {
           HARBOUR_MODE: 'calm',
-          PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-          PR_EVIDENCE_TOKEN_PATH: 'imp/files-upload-token/credential',
+          VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
+          VERIFY_UPLOAD_TOKEN_REF: 'op://imp/files-upload-token/credential',
         },
       },
       lantern: { kind: 'claude', env: { LANTERN_COLOUR: 'amber' } },
@@ -104,8 +109,8 @@ test('it starts from an empty object when the live file is absent', async () => 
       agents: {
         claude: {
           env: {
-            PR_EVIDENCE_URL: 'https://files.geoff.cloud/api/files',
-            PR_EVIDENCE_TOKEN_PATH: 'imp/files-upload-token/credential',
+            VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
+            VERIFY_UPLOAD_TOKEN_REF: 'op://imp/files-upload-token/credential',
           },
         },
       },

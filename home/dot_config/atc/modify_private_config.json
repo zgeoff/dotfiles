@@ -1,22 +1,25 @@
 #!/bin/sh
-# chezmoi owns agents.claude.env.PR_EVIDENCE_URL and agents.claude.env.PR_EVIDENCE_TOKEN_PATH, and
+# chezmoi owns agents.claude.env.VERIFY_UPLOAD_URL and agents.claude.env.VERIFY_UPLOAD_TOKEN_REF, and
 # deep-merges them over the live atc daemon config. Every other key stays as atc or the owner wrote
 # it: targets, auth profiles, the other agents and the rest of agents.claude. The daemon passes
-# agents.claude.env to every Claude session it starts, local and imp alike.
-# The token path is <vault>/<item>/<field> of a 1Password item, never the token. It has no op://
-# prefix: `op run` resolves every op:// value in its environment, and fails when the session's token
-# can't read the vault. The path names the imp vault, the one vault an imp's Connect server reads. A
-# local session's Claude settings set their own path, which op-mint points at the repo's vault and
-# which wins over this one.
+# agents.claude.env to every Claude session it starts, local and imp alike. The old keys of the
+# earlier upload names (every key that starts with PR_EVIDENCE) are deleted, so an existing config
+# migrates.
+# The token reference is the full op://<vault>/<item>/<field> of a 1Password item, never the token.
+# An agent fills the token inline for one command:
+#   VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" bun verify publish --pr <n>
+# Nothing runs `op run` over this environment, so the reference stays a plain string. It names the
+# imp vault, the one vault an imp's Connect server reads. A local session's Claude settings set
+# their own reference, which op-mint points at the repo's vault and which wins over this one.
 set -eu
 current=$(cat)
 [ -n "$current" ] || current='{}'
-printf '%s' "$current" | jq --indent 2 'del(.agents.claude.env.PR_EVIDENCE_TOKEN_REF) * {
+printf '%s' "$current" | jq --indent 2 '(if .agents.claude.env then .agents.claude.env |= with_entries(select(.key | startswith("PR_EVIDENCE") | not)) else . end) * {
   "agents": {
     "claude": {
       "env": {
-        "PR_EVIDENCE_URL": "https://files.geoff.cloud/api/files",
-        "PR_EVIDENCE_TOKEN_PATH": "imp/files-upload-token/credential"
+        "VERIFY_UPLOAD_URL": "https://files.geoff.cloud/api/files",
+        "VERIFY_UPLOAD_TOKEN_REF": "op://imp/files-upload-token/credential"
       }
     }
   }
