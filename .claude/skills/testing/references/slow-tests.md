@@ -21,7 +21,7 @@ another command only because it is slow.
 
 | The test                                                                       | The cause                     | The fix                                                                                                                              |
 | ------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| starts the app, a server or a CLI to call it                                   | a real process start          | Call the code in the test process.                                                                                                   |
+| starts the app, a server or a CLI to reach the code under test                 | a real process start          | Call the code in the test process.                                                                                                   |
 | waits for a deadline, an idle limit or a retry delay that the repo's code sets | a real timer                  | Make the delay an option, and pass a short one.                                                                                      |
 | sleeps to let something settle                                                 | no signal to wait on          | Wait on a condition with `waitFor` from `@zgeoff/testing/helpers`.                                                                   |
 | proves that something does not happen                                          | it waits out a timeout        | Wait for a later event.                                                                                                              |
@@ -30,45 +30,56 @@ another command only because it is slow.
 | runs a linter or checker binary over text the code builds                      | a real process start          | Check the text with a script in `scripts/`.                                                                                          |
 | needs a real system that `bun run test` can't host                             | a VM, the kernel or a browser | Put it where [Where each test runs](#where-each-test-runs) says.                                                                     |
 
-Each fix in more detail:
+Make each fix this way:
 
-- To call the code in the test process, call its handler, its main function with a test argv, an
-  in-memory RPC link or an injected transport. Start the program under test as a process only in
-  `e2e/`. Use `run` from `@zgeoff/testing/process` for a program that exits, and `start` for one
-  that keeps running, as [End-to-end suites](./system-tests.md#end-to-end-suites) says.
+- To call the code in the test process, call one of these:
+  - its handler;
+  - its main function, with a test argv;
+  - an in-memory RPC link;
+  - an injected transport.
 
-  Keep these tests beside their script, outside `e2e/`. Each starts the script itself, and runs in
-  `bun run test` under its 5 s timeout:
-  - the test of a shell script;
-  - the test of a TypeScript script that a CI step runs.
+  Start the program under test as a process only in `e2e/`. A script is any file under `scripts/`,
+  or a script that a CI step runs. A command-line program that the package ships is the program
+  under test, so only `e2e/` starts it. Use `run` from `@zgeoff/testing/process` for a program that
+  exits, and `start` for one that keeps running, as
+  [End-to-end suites](./system-tests.md#end-to-end-suites) says.
+
+  The test of a script is the exception: it starts its script as a process outside `e2e/`. Keep it
+  beside its script, where it runs in `bun run test` under the 5 s timeout. Start the script with
+  Bun's `$`:
+  - for a shell script, as [Running the script](./shell.md#running-the-script) says;
+  - for a TypeScript script that a CI step runs, as
+    [Test the step through its script](./workflows.md#test-the-step-through-its-script) says.
 
 - To shorten a timer that the repo's code sets, make the delay an option of the code that sets it,
-  pass a short one, and wait on the event the delay causes. For a timer inside a library, Bun, Node
-  or the kernel, which the repo's code can't set, follow
+  pass a short one, and wait on the event the delay causes. For a timer that a library, Bun, Node or
+  the kernel sets, follow
   [Native timers and scenario delays](./system-tests.md#native-timers-and-scenario-delays). When
   that test still takes longer than 5 s, keep it in `bun run test`, with the disable comment from
-  [A test over its limit](#a-test-over-its-limit). Give the comment a ticket when the library could
-  take a fix, such as an option for the delay. Otherwise, give it `floor:` and the delay that
-  nothing can set.
+  [A test over its limit](#a-test-over-its-limit). When the library could take a fix, such as an
+  option for the delay, give the comment the ID of a ticket in the repo's tracker.
+  `zgeoff/test-timeout-exception-ticket` accepts only a capital letter, then capitals or digits, a
+  hyphen and digits, such as `OPS-212`. Otherwise, give it `floor:` and the delay that nothing can
+  set.
 - When the code has nothing to wait on, add an event, a log marker or a state flag, and wait on
   that.
 - To prove that something does not happen, wait for an event that comes only after it could have
   happened, such as the reply to a second request sent after the first.
 - Look for a stateful stand-in in `src/test-utils/` of the package that owns the program it fakes.
-  Look in the repo's project-testing skill too, when the repo has one. When none exists, write one
-  there, as [Stateful stand-ins](./system-tests.md#stateful-stand-ins) describes.
+  When the repo has a project-testing skill, look there too. When none exists, write one in
+  `src/test-utils/`, as [Stateful stand-ins](./system-tests.md#stateful-stand-ins) describes.
 - To check text that a linter or a checker reads, such as a generated shell script, export the
   function that builds the text. Never run the binary in a test. Run it from a script in CI and in
   the pre-push hook:
-  - Write the script in `scripts/<job>/` at the repo root. It calls the function and runs the binary
-    on its output.
-  - Add a `ci:<name>` package script that runs it, and a CI step that runs
-    `bun run --silent ci:<name>`, as [Step scripts](../../ci-design/SKILL.md#step-scripts) in the
-    ci-design skill says.
-  - Add a job that runs the same command under `pre-push` in the repo's `lefthook.yml`. Give the job
-    a name that doesn't start with `chex-`, so it runs beside the
+  - Write the script in `scripts/<ci-job>/` at the repo root, where `<ci-job>` is the CI job that
+    runs it. The script calls the function and runs the binary on its output.
+  - Add a `ci:<name>` package script that runs it, where `<name>` names the check, such as a made-up
+    `ci:check-boot-script`. Add a CI step that runs `bun run --silent ci:<name>`, as
+    [Step scripts](../../ci-design/SKILL.md#step-scripts) in the ci-design skill says.
+  - Add a lefthook job that runs the same command under `pre-push` in the repo's `lefthook.yml`.
+    Give it a name that doesn't start with `chex-`. Each
     [pre-push baseline](https://github.com/zgeoff/tools/blob/main/docs/architecture/pre-push-baseline.md#limits-of-the-baseline)
-    jobs.
+    job has a `chex-` name, and a baseline job replaces the repo's lefthook job of the same name.
 
 Measure a test's time in the log of a CI run. `bun run test` runs `bun test` through rig, and
 `bun test` prints each test's time. A host that swaps memory or shares its cores runs the same test
@@ -95,11 +106,11 @@ When a fixture costs more to build than a test costs to run, such as a migrated 
 bundle, build it once per run as a template. Copy it in each test that writes to it. Read it in
 place in each test that only reads it.
 
-- Build it in the first worker that needs it. Take a lock first by creating a lock file with the
-  `wx` flag, which fails when the file exists. Write the prefix from
-  [Leftovers of a killed run](./cleanup.md#leftovers-of-a-killed-run) into the lock file, so a sweep
-  can tell whether its builder still runs. Build into a temporary name. Rename it into place when it
-  is done.
+- Build it in the first worker that needs it. Take a lock first: create a lock file with
+  `open(path, 'wx')` from `node:fs/promises`, which fails when the file exists. Write the prefix
+  from [Leftovers of a killed run](./cleanup.md#leftovers-of-a-killed-run) into the lock file, so a
+  sweep can tell whether its builder still runs. Build into a temporary name. Rename it into place
+  when it is done.
 - When the build throws, remove the lock file before you rethrow, so the next run can build the
   template.
 - In each other worker, wait with `waitFor` from `@zgeoff/testing/helpers` until the template
@@ -111,10 +122,13 @@ place in each test that only reads it.
   template when an input changes, and reuses the last one otherwise.
 - Keep it in a git-ignored folder inside the repo, such as `node_modules/.cache/`, never in `/tmp`.
   When `/tmp` is tmpfs, it holds every file in RAM.
-- In the repo's test script, before `bun test` starts, sweep what earlier runs left: temp folders,
-  database clones, lock files and old templates.
-  [Leftovers of a killed run](./cleanup.md#leftovers-of-a-killed-run) describes the sweep. Never
-  remove the template for the current hash, because a run that is still going may be copying it.
+- Sweep what earlier runs left: temp folders, database clones, lock files and old templates. Run the
+  sweep from the `test` script in `package.json`, before `rig unit`, such as
+  `bun scripts/<sweep>.ts && rig unit`. rig runs no setup step of the repo's before the unit run,
+  and `rig init` keeps an existing `test` script.
+  [Leftovers of a killed run](./cleanup.md#leftovers-of-a-killed-run) describes the sweep. Hash the
+  inputs in the sweep the same way the build does, and never remove the template for that hash. A
+  run that is still going may be copying it.
 
 For each engine's template, see the Postgres isolation and SQLite isolation sections of
 [Database testing](./database.md).
@@ -155,18 +169,24 @@ describes. For the CI job that runs each command, see the ci-design skill.
   one in `src/test-utils/` and in the repo's project-testing skill. When none exists, write one in
   `src/test-utils/` of the package whose tests use it, with its own test beside it.
 - Run `bun run test:model-api` nightly, on `workflow_dispatch`, and on a pull request that bumps the
-  Agent SDK. Never run it on every pull request.
+  Agent SDK. Never run it on every pull request. Set up the workflow as the
+  [ci-design](../../ci-design/SKILL.md) skill says.
 - Give each test that calls a live model the `.model-api` suffix, wherever it lives.
 - Give a test that calls another live API a suffix and a command named for that API, such as a
   made-up `.payments` that `bun run test:payments` runs.
-- Name one real system in a suffix, never a speed. Prefer a specific suffix to the generic `.host`,
-  such as a made-up `.kvm` for a test that boots a VM.
+- Name one real system in a suffix, never a speed. When a suffix names the system the test needs,
+  such as a made-up `.kvm` for a test that boots a VM, give the test that suffix in place of the
+  generic `.host`.
 - Add a suffix of the repo's own only for a real system from the list in
-  [Tests that need a real system](#tests-that-need-a-real-system). Declare it under `lanes` in
-  `rig.config.ts`, with its `suffix` and its timeout in `limit`, such as `'15s'`. The repo's lint
-  rules read each timeout from there. List the suffix, its command and its timeout in the Facts
-  table of the repo's project-testing skill. Put the measured test times in the pull request that
-  adds the suffix.
+  [Tests that need a real system](#tests-that-need-a-real-system). rig calls each command a lane. In
+  a repo with no `rig.config.ts`, run `rig init` first, which writes a starter config. Declare the
+  lane under `lanes` in `rig.config.ts`, keyed by the command's name without `test:`, such as `kvm`.
+  Give it its `suffix` and its timeout in `limit`, such as `'15s'`, as the
+  [rig README](https://github.com/zgeoff/tools/tree/main/packages/rig#configuration) shows. The
+  repo's lint rules read each timeout from `rig.config.ts`. Then run `rig init`, which adds the
+  `test:<name>` script. List the suffix, its command and its timeout in the Facts table of the
+  repo's project-testing skill. Put the measured test times in the pull request that adds the
+  suffix.
 - Put the code that starts the real system, such as the code that starts a VM, in a helper with its
   own test beside it. Keep the helper in `src/test-utils/` of the package that owns what it starts,
   as [Where a test lives](../SKILL.md#where-a-test-lives) says.
@@ -174,6 +194,9 @@ describes. For the CI job that runs each command, see the ci-design skill.
 For a Rust crate, run these tests through cargo-nextest, as
 [Rust tests that need a real system](./system-tests.md#rust-tests-that-need-a-real-system)
 describes.
+
+When a repo adds a lane, measure its tests on CI and set the lane's timeout about a quarter above
+the slowest, as [A test over its limit](#a-test-over-its-limit) does for one test.
 
 ## A test over its limit
 
@@ -189,8 +212,8 @@ time it takes on CI and one of these reasons:
 - `floor:` and the evidence that the time can't drop:
   `48 s on CI; floor: two VM boots plus a restic restore`.
 
-Separate the time from the reason with a comma or a semicolon. The lint rule checks only for the
-ticket or `floor:`.
+Separate the time from the reason with a comma or a semicolon.
+`zgeoff/test-timeout-exception-ticket` checks only for the ticket or `floor:`.
 
 Set the timeout about a quarter above the time on CI, as in this made-up example:
 
@@ -217,10 +240,10 @@ warning, unless a comment on that setting holds a ticket or `floor:`.
 
 ## The run mode and workers
 
-- Run the tests with `bun run test`, which runs `rig unit`. rig sets `--parallel` from the host's
-  cores and memory, passes `--randomize` and `--no-isolate`, and takes the worker count from
-  `TEST_WORKERS` when it is set.
-- When you call `bun test` yourself, pass `--randomize`, as rig does. Pass `--no-isolate` with every
+- Run the tests with `bun run test`, which runs `rig unit`. It runs the files in random order, with
+  no isolation between them. To set the worker count, set `TEST_WORKERS`. Otherwise rig picks it
+  from the host's cores and memory.
+- When you call `bun test` yourself, pass `--randomize`. Pass `--no-isolate` with every
   `--parallel=<N>`. `--parallel` implies `--isolate`, which runs each test file in a fresh global
   object. With isolation on, the suite runs slower, and a leak between files never fails a test.
   With isolation off, the resets in the [test preload](./cleanup.md#the-test-preload) and
