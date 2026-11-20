@@ -1,26 +1,46 @@
 #!/bin/sh
-# chezmoi owns agents.claude.env.VERIFY_UPLOAD_URL and agents.claude.env.VERIFY_UPLOAD_TOKEN_REF, and
-# deep-merges them over the live atc daemon config. Every other key stays as atc or the owner wrote
-# it: targets, auth profiles, the other agents and the rest of agents.claude. The daemon passes
-# agents.claude.env to every Claude session it starts, local and imp alike. The three keys of the
-# earlier upload names, PR_EVIDENCE_URL, PR_EVIDENCE_TOKEN_PATH and PR_EVIDENCE_TOKEN_REF, are
-# deleted by name, so an existing config migrates.
+# chezmoi owns agents.claude.env.VERIFY_UPLOAD_URL and the sessionEnv.VERIFY_UPLOAD_TOKEN_REF of
+# each imp target, and deep-merges them over the live atc daemon config. Every other key stays as
+# atc or the owner wrote it: targets, auth profiles, the other agents and the rest of agents.claude.
+#
+# The upload address is the same everywhere, so it sits on the agent entry, which atc passes to
+# every Claude session it starts. The token reference differs by where the session runs:
+# - An imp session reads 1Password through a Connect server that serves only the imp vault, so each
+#   target with provider imp sets the imp vault's reference in its sessionEnv, which atc passes only
+#   to sessions on that target.
+# - A local session reads its reference from Claude settings: the repo's .claude/settings.local.json,
+#   which op-mint points at the repo's vault, or ~/.claude/settings.json outside a repo. atc passes
+#   its env in a --settings file, which outranks both, so the agent entry must not set the reference.
+#   The script deletes it there.
+# The script adds no target: a config without an imp target gets no reference.
+#
+# The keys of the earlier upload names, PR_EVIDENCE_URL, PR_EVIDENCE_TOKEN_PATH and
+# PR_EVIDENCE_TOKEN_REF, are deleted by name, so an existing config migrates.
 # The token reference is the full op://<vault>/<item>/<field> of a 1Password item, never the token.
 # An agent fills the token inline for one command:
 #   VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" bun verify publish --pr <n>
-# Nothing runs `op run` over this environment, so the reference stays a plain string. It names the
-# imp vault, the one vault an imp's Connect server reads. A local session's Claude settings set
-# their own reference, which op-mint points at the repo's vault and which wins over this one.
+# Nothing runs `op run` over this environment, so the reference stays a plain string.
+# The daemon reads this file only at start: restart it after a change.
 set -eu
 current=$(cat)
 [ -n "$current" ] || current='{}'
-printf '%s' "$current" | jq --indent 2 'del(.agents.claude.env.PR_EVIDENCE_URL, .agents.claude.env.PR_EVIDENCE_TOKEN_PATH, .agents.claude.env.PR_EVIDENCE_TOKEN_REF) * {
-  "agents": {
-    "claude": {
-      "env": {
-        "VERIFY_UPLOAD_URL": "https://files.geoff.cloud/api/files",
-        "VERIFY_UPLOAD_TOKEN_REF": "op://imp/files-upload-token/credential"
-      }
-    }
-  }
-}'
+printf '%s' "$current" | jq --indent 2 '
+  del(
+    .agents.claude.env.PR_EVIDENCE_URL,
+    .agents.claude.env.PR_EVIDENCE_TOKEN_PATH,
+    .agents.claude.env.PR_EVIDENCE_TOKEN_REF,
+    .agents.claude.env.VERIFY_UPLOAD_TOKEN_REF
+  )
+  * { "agents": { "claude": { "env": { "VERIFY_UPLOAD_URL": "https://files.geoff.cloud/api/files" } } } }
+  | if (.targets | type) == "object" then
+      .targets |= with_entries(
+        if (.value | type) == "object" and .value.provider == "imp" then
+          .value.sessionEnv.VERIFY_UPLOAD_TOKEN_REF = "op://imp/files-upload-token/credential"
+        else
+          .
+        end
+      )
+    else
+      .
+    end
+'
