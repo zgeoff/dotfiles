@@ -1,0 +1,23 @@
+# repo-sync delivers this file from zgeoff/tools
+#
+# Checks the pull request's description against the PR template, and ticks the
+# chex box of its Checks section when the docs checks pass. The body check
+# runs on each push and each edit. The tick runs on a push or a new pull
+# request only, in this repo's own pull requests, and never for a bot.
+name: PR body
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+concurrency:
+  group: pr-body-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-body:
+    # The tick job edits the body.
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: zgeoff/tools/.github/workflows/pr-body-check.yml@5124a68465cdeeb155e71e0a804881731798e59e # main
