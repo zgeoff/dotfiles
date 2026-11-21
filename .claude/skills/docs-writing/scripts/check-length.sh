@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks each README against its line limit and each docs/ file against its cap. A README over its
 # limit fails the run; a README over its target and a docs/ file over its cap print a warning and
-# never fail it. Its last line counts the READMEs and those over their limit.
+# never fail it. The front page README warns from 101 to 150 lines and fails over 150. The script's
+# last line counts the READMEs and those over their limit.
 # Usage (from the repo root): check-length.sh
 # A README's limit comes from its path alone: the root README and each packages/*/README.md take the
 # front page and package limits, and every other README takes the folder limit. A spike README under
@@ -50,16 +51,18 @@ count_lines() {
   awk 'END { print NR }' "$1"
 }
 
-# Prints the README's target, limit and kind.
+# Prints the README's target, warning threshold, limit and kind. Between the threshold and the
+# limit, a README warns and passes. Package and folder READMEs set the threshold to their limit, so
+# they never get the threshold warning.
 pick_readme_kind() {
   local readme=$1
 
   if [ "$readme" = README.md ]; then
-    echo '80 100 front page'
+    echo '80 100 150 front page'
   elif [[ $readme == packages/*/README.md && $readme != packages/*/*/README.md ]]; then
-    echo '80 100 package'
+    echo '80 100 100 package'
   else
-    echo '60 70 folder'
+    echo '60 70 70 folder'
   fi
 }
 
@@ -84,13 +87,15 @@ readme_list=$(
 while IFS= read -r readme; do
   [ -n "$readme" ] || continue
   readmes=$((readmes + 1))
-  read -r target limit name <<< "$(pick_readme_kind "$readme")"
+  read -r target warn limit name <<< "$(pick_readme_kind "$readme")"
   lines=$(count_lines "$readme")
 
   if [ "$lines" -gt "$limit" ]; then
     fail=1
     over_limit=$((over_limit + 1))
     echo "$readme: $lines lines, over the $name README limit of $limit (target $target; error)"
+  elif [ "$lines" -gt "$warn" ]; then
+    echo "$readme: $lines lines, over the $name README warning threshold of $warn (target $target, limit $limit; warning)"
   elif [ "$lines" -gt "$target" ]; then
     echo "$readme: $lines lines, over the $name README target of $target (limit $limit; warning)"
   else
