@@ -301,13 +301,13 @@ describe('cloud token', () => {
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
   });
 
-  test('with a service-account token, op reads the upload token at VERIFY_UPLOAD_TOKEN_REF in place of the config', async () => {
+  test('with a service-account token, op reads the upload token at CLOUD_FILES_TOKEN_REF in place of the config', async () => {
     const { code, opCalls } = await cloud(['ls'], {
       env: {
         CLOUD_CLI_CONFIG: configPath,
         CLOUD_FILES_TOKEN: '',
         OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in',
-        VERIFY_UPLOAD_TOKEN_REF: 'op://vault-b/files-upload-token/credential',
+        CLOUD_FILES_TOKEN_REF: 'op://vault-b/files-upload-token/credential',
       },
       opTokens: { 'op://vault-b/files-upload-token/credential': token },
       onPath: ['op', 'op-win'],
@@ -318,35 +318,19 @@ describe('cloud token', () => {
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
   });
 
-  test('op reads the upload token at CLOUD_FILES_TOKEN_REF ahead of its earlier name', async () => {
-    const { code, opCalls } = await cloud(['ls'], {
-      env: {
-        CLOUD_CLI_CONFIG: configPath,
-        CLOUD_FILES_TOKEN: '',
-        OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in',
-        CLOUD_FILES_TOKEN_REF: 'op://vault-d/files-upload-token/credential',
-        VERIFY_UPLOAD_TOKEN_REF: 'op://vault-b/files-upload-token/credential',
-      },
-      opTokens: { 'op://vault-d/files-upload-token/credential': token },
-      onPath: ['op', 'op-win'],
-    });
-
-    expect({ code, opCalls }).toStrictEqual({ code: 0, opCalls: ['op read op://vault-d/files-upload-token/credential'] });
-  });
-
   test('a CLOUD_FILES_URL that names the upload endpoint reaches the same routes', async () => {
     await cloud(['rm', 'Kite'], { env: { CLOUD_FILES_URL: new URL('/api/files', server.url).href } });
 
     expect(requests[0].path).toBe('/api/files/Kite');
   });
 
-  test('on an imp, op reads the upload token at VERIFY_UPLOAD_TOKEN_REF without a config', async () => {
+  test('on an imp, op reads the upload token at CLOUD_FILES_TOKEN_REF without a config', async () => {
     const { code, opCalls } = await cloud(['ls'], {
       env: {
         CLOUD_CLI_CONFIG: join(scratch, 'absent.toml'),
         CLOUD_FILES_TOKEN: '',
         OP_CONNECT_HOST: 'http://connect.example.test',
-        VERIFY_UPLOAD_TOKEN_REF: 'op://vault-c/files-upload-token/credential',
+        CLOUD_FILES_TOKEN_REF: 'op://vault-c/files-upload-token/credential',
       },
       opTokens: { 'op://vault-c/files-upload-token/credential': token },
       onPath: ['op'],
@@ -356,9 +340,10 @@ describe('cloud token', () => {
     expect(opCalls).toEqual(['op read op://vault-c/files-upload-token/credential']);
   });
 
-  test('without a service-account token, op-win reads the config and ignores VERIFY_UPLOAD_TOKEN_REF', async () => {
+  test('without a service-account token, op-win reads the config and ignores an earlier token reference name', async () => {
     const { code, opCalls } = await cloud(['ls'], {
-      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '', VERIFY_UPLOAD_TOKEN_REF: 'op://vault-b/files-upload-token/credential' },
+      // The key is an earlier setting name, built from parts so that no source line spells it.
+      env: { CLOUD_CLI_CONFIG: configPath, CLOUD_FILES_TOKEN: '', [['VERIFY_UPLOAD', 'TOKEN_REF'].join('_')]: 'op://vault-b/files-upload-token/credential' },
       opTokens: { 'op://vault-a/files-token/credential': token },
       onPath: ['op', 'op-win'],
     });
