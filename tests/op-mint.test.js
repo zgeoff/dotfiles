@@ -56,6 +56,7 @@ test('it mints the boxxy profile with write access to the boxxy vault, into the 
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
       CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
       CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+      VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
       VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
     },
   });
@@ -98,6 +99,7 @@ test('it mints the atc profile with write access to the atc vault, into the repo
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
       CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
       CLOUD_FILES_TOKEN_REF: 'op://atc/files-upload-token/credential',
+      VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
       VERIFY_UPLOAD_TOKEN_REF: 'op://atc/files-upload-token/credential',
     },
   });
@@ -128,6 +130,7 @@ test('it drops the old pr evidence keys from a settings file it rewrites', () =>
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
       CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
       CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+      VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
       VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
     },
   });
@@ -151,6 +154,7 @@ test('it keeps a key whose name only starts like an old pr evidence key', () => 
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
       CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
       CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+      VERIFY_UPLOAD_URL: 'https://files.geoff.cloud/api/files',
       VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
     },
   });
