@@ -9,15 +9,6 @@ per test. This file replaces the rest of Test shape for Go. Skip the Bun-only pa
 the test preload, the jest-extended matchers, the `bun run test:<name>` commands and the `bun test`
 flags.
 
-The mistakes to avoid:
-
-- Never pass mutable state from a parent test to its subtests. When one subtest changes it, the
-  subtests after it break.
-- When cases collide on shared state, give each case its own state. Never give each case a random ID
-  to stop the collision: the shared state stays, and a later test fails on it.
-- Never retry a failed test, such as with gotestsum's `--rerun-fails`, or skip one behind a check of
-  the environment. Both hide a flaky test.
-
 - [Cases and data](#cases-and-data)
 - [Assertions](#assertions)
 - [Cleanup and parallel tests](#cleanup-and-parallel-tests)
@@ -31,7 +22,11 @@ The mistakes to avoid:
   such as `TestRetryStopsAfterLastAttempt`.
 - Write a fixed table of cases as named `t.Run` subtests, one per row. Name each subtest as a short
   sentence with its value, such as `"stops after 3 attempts"`. Create each row's state inside the
-  row.
+  row. Never pass mutable state from a parent test to its subtests: when one subtest changes it, the
+  subtests after it break.
+- When two cases write the same shared state, such as one database row, give each case its own copy,
+  such as its own row. When you give each case a random ID instead, the shared state stays, and a
+  later test fails on it.
 - Keep the inputs that make a row differ from the others in that row. You may share a definition
   that no row changes, such as a server config.
 - You may report a failure with an `if`, such as `if got != want { t.Errorf(...) }`. This `if`
@@ -116,7 +111,9 @@ program writes to a path it hard-codes, such as `/var/lib/<app_name>`, see
 
 When you set up or change the CI job for Go tests in a project that uses gotestsum:
 
-- Run gotestsum with the project's `go test` flags, `-race` included.
+- Run gotestsum with the project's `go test` flags, `-race` included. Never retry a failed test,
+  such as with `--rerun-fails`, or skip one behind a check of the environment. Both hide a flaky
+  test.
 - Keep its JSON output, from `--jsonfile`, as a CI artifact.
 - Print the slowest cases, with `gotestsum tool slowest`.
 - Pin gotestsum with a `tool` line in `go.mod`, which needs Go 1.24 or later.
