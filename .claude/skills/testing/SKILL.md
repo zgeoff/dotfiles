@@ -69,9 +69,9 @@ Here a module is one source file, and the unit is the code a test calls.
 
 - Put a test beside the module or script it tests: `src/record-payment.test.ts`.
 - Look for a shared helper in
-  [`@zgeoff/testing/helpers`](https://github.com/zgeoff/tools/tree/main/packages/testing) first. Put
-  a new one, with its own test, in `src/test-utils/` of the package that owns what it starts, builds
-  or fakes.
+  [`@zgeoff/testing`](https://github.com/zgeoff/tools/tree/main/packages/testing) first. Put a new
+  one, with its own test, in `src/test-utils/` of the package that owns what it starts, builds or
+  fakes.
 - Put any other kind of test, such as an end-to-end test, where
   [Package layout](./references/system-tests.md#package-layout) shows.
 - Without a project-testing skill, take each test's command from
@@ -100,7 +100,7 @@ Here a module is one source file, and the unit is the code a test calls.
   `beforeEach`.
 - In `setupTest()`, wire the unit and what it needs, such as the test's temp folder, the database,
   the clock and the [seeder](./references/seeding.md#buildseeder-and-setuptest). Leave the MSW
-  server to the [test preload](./references/http.md#the-server-and-its-lifecycle).
+  network to the [test preload](./references/http.md#the-test-network).
 - Give `setupTest()` no `if`, and no argument that decides the outcome, such as a record's state.
   The reader must see that in the test.
 - Create each test's data in the test, even when every test needs the same. Set the time in each
@@ -135,7 +135,7 @@ test('it lists the notes of a user with none as empty', async () => {
   later throw still closes it. No `try`/`finally` in a test.
 - Reset state that outlives a test, such as a cache or a changed process setting, as
   [The test preload](./references/cleanup.md#the-test-preload) says. Change an environment variable
-  only with `updateEnv` from `@zgeoff/testing/helpers`.
+  only with `updateEnv` from `@zgeoff/testing`.
 - Keep tests apart with the repo's [test-database helper](./references/database.md) and a temp
   folder per test, never with random IDs: a list query still returns the other test's rows.
 
@@ -197,8 +197,8 @@ directly only where [Seeding](./references/seeding.md) allows.
   3. fake timers, to move time forward in code the repo doesn't own, restored in `onTestFinished`.
 - When you can't pass in a time the code records, assert a range around `Date.now()`, such as
   `toBeWithin`.
-- Wait on a condition with `waitFor` from `@zgeoff/testing/helpers`, never a sleep. When the code
-  has nothing to wait on, add a signal, such as an event.
+- Wait on a condition with `waitFor` from `@zgeoff/testing`, never a sleep. When the code has
+  nothing to wait on, add a signal, such as an event.
 
 ## Boundaries
 

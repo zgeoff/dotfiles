@@ -23,7 +23,7 @@ another command only because it is slow.
 | ------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | starts the app, a server or a CLI to reach the code under test                 | a real process start          | Call the code in the test process.                                                                                                   |
 | waits for a deadline, an idle limit or a retry delay that the repo's code sets | a real timer                  | Make the delay an option, and pass a short one.                                                                                      |
-| sleeps to let something settle                                                 | no signal to wait on          | Wait on a condition with `waitFor` from `@zgeoff/testing/helpers`.                                                                   |
+| sleeps to let something settle                                                 | no signal to wait on          | Wait on a condition with `waitFor` from `@zgeoff/testing`.                                                                           |
 | proves that something does not happen                                          | it waits out a timeout        | Wait for a later event.                                                                                                              |
 | migrates a database or builds a bundle                                         | a fixture built in each test  | Use a [per-run template](#per-run-templates).                                                                                        |
 | drives a program the repo starts, such as a VM guest agent or a worker         | a real process start          | Use a [stateful stand-in](./system-tests.md#stateful-stand-ins): a fake of the program that keeps its state and speaks its protocol. |
@@ -113,9 +113,9 @@ place in each test that only reads it.
   when it is done.
 - When the build throws, remove the lock file before you rethrow, so the next run can build the
   template.
-- In each other worker, wait with `waitFor` from `@zgeoff/testing/helpers` until the template
-  appears. When something kills the builder, the waiting tests fail at their timeout. The sweep at
-  the start of the next run then removes the lock file.
+- In each other worker, wait with `waitFor` from `@zgeoff/testing` until the template appears. When
+  something kills the builder, the waiting tests fail at their timeout. The sweep at the start of
+  the next run then removes the lock file.
 - Never keep it in a module-level variable. Each worker would build it again, and the workers race
   on one output folder.
 - Put a hash of its inputs, such as the migration files, in its name. Then the run builds a new

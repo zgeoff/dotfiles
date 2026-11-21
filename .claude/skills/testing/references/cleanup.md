@@ -21,8 +21,8 @@ see [Cleanup](../SKILL.md#cleanup) in the testing skill.
   test, such as a cache, add its reset there.
 - When a test changes process state that the preload doesn't reset, register `onTestFinished` right
   after the change.
-- Start a shared resource, such as the MSW server, in the preload's `beforeAll`, never at import.
-- Import `updateEnv` and `removeEnvOverrides` from `@zgeoff/testing/helpers`. In a test, change an
+- Start a shared resource, such as the MSW network, in the preload's `beforeAll`, never at import.
+- Import `updateEnv` and `removeEnvOverrides` from `@zgeoff/testing`. In a test, change an
   environment variable with `updateEnv`. In the preload, call `afterEach(removeEnvOverrides)`, which
   puts back each variable that `updateEnv` changed.
 
