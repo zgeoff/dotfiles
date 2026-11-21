@@ -17,7 +17,7 @@ This file covers a client inside the package under test. See
 
 Contents:
 
-- [The server and its lifecycle](#the-server-and-its-lifecycle)
+- [The test network](#the-test-network)
 - [Stateful handlers](#stateful-handlers)
 - [Per-test handlers](#per-test-handlers)
 - [A mock API shared across packages](#a-mock-api-shared-across-packages)
@@ -25,58 +25,46 @@ Contents:
 - [Queues and other stateful services](#queues-and-other-stateful-services)
 - [Auth tokens](#auth-tokens)
 
-## The server and its lifecycle
+## The test network
 
-Build one MSW server per test process with `defineNetwork` and `FetchInterceptor`.
-`FetchInterceptor` patches the global `fetch`, so it catches the requests that `setupServer` misses
-under Bun.
+Mock `fetch` with `createTestNetwork` from `@zgeoff/testing/fetch`, never with a hand-written MSW
+server. It builds the test process's one MSW network and patches the global `fetch`. Its hooks turn
+the network on before the tests, reset it after each test, and turn it off at the end.
 
-1. Create a `server.ts` file in a `mocks/` folder beside the
-   [test preload](./cleanup.md#the-test-preload). In it, import `defineNetwork`, `InterceptorSource`
-   and `HttpNetworkFrame` from `msw/experimental`, and `FetchInterceptor` from
-   `@mswjs/interceptors/fetch/web`.
-2. Export the server that `defineNetwork` returns as `server`.
-3. In the `handlers` option of `defineNetwork`, spread the handler array that each package exports,
-   such as `billingHandlers`, for every package whose tests run in the process. `resetHandlers()`
-   removes each handler that a test added with `server.use(...)`, and keeps the handlers the server
-   was built with, so every package keeps its default handlers.
-4. Pass `onUnhandledFrame: 'error'` to `defineNetwork`. A request that no handler matches then
-   rejects, and MSW prints its URL.
-5. In the test preload, import `server` from the `server.ts` file, and call these:
-   - `server.enable()` in `beforeAll`;
-   - `server.resetHandlers()` in `afterEach`;
-   - `server.disable()` in `afterAll`.
+1. Create a `network.ts` file in a `mocks/` folder.
+2. In it, call `createTestNetwork`, and export what it returns as `network`. In its `handlers`
+   option, spread the default handlers of every package whose tests run in the process, such as
+   `billingHandlers`.
+3. List the file under `[test] preload` in `bunfig.toml`, beside the
+   [test preload](./cleanup.md#the-test-preload), so the network covers every test file.
+4. In a test, add a handler with `network.use(...)`. The reset after the test removes it and keeps
+   the default handlers.
 
-Never start a second server. Two servers in one process patch the same `fetch`, so one server's
-handlers answer requests meant for the other.
-
-Never call `enable()` when the module loads. It would patch `fetch` in any process that imports the
-module, a test run or not.
-
-When a suite starts its own HTTP server on the loopback interface and sends real requests to it,
-pass the callback below as `onUnhandledFrame` in place of `'error'`. The callback lets a request to
-a loopback host through. For a request to any other host, the callback calls `defaults.error()`,
-which only prints the URL, and then throws. In such a suite, expect a 500 response for a request
-that no handler matches. Name the loopback traffic in a comment on the callback.
+Expect a test to fail after it ends when it sends a request that no handler matches. The failure
+lists each such request's URL.
 
 ```ts
-const loopbackHosts = ['127.0.0.1', '[::1]', 'localhost'];
+import { createTestNetwork } from '@zgeoff/testing/fetch';
+import { billingHandlers } from '../billing/handlers.ts';
+import { searchHandlers } from '../search/handlers.ts';
 
-export const server = defineNetwork({
-  sources: [new InterceptorSource({ interceptors: [new FetchInterceptor()] })],
+export const network = createTestNetwork({
   handlers: [...billingHandlers, ...searchHandlers],
-  // the e2e suites call test servers on ephemeral loopback ports
-  onUnhandledFrame: ({ frame, defaults }) => {
-    const url = frame instanceof HttpNetworkFrame ? new URL(frame.data.request.url) : null;
+});
+```
 
-    if (url !== null && loopbackHosts.includes(url.hostname)) {
-      return;
-    }
+Never create a second network. `createTestNetwork` throws when the process has one already. Two
+networks would patch the same `fetch`.
 
-    defaults.error();
+When a suite starts its own HTTP server on the loopback interface and sends real requests to it, the
+network lets calls to `127.0.0.1`, `[::1]` and `localhost` through to Bun's own `fetch`. To use
+another list, pass `passthroughHosts`, which replaces that list:
 
-    throw new Error('the test sent a request that no handler matches');
-  },
+```ts
+export const network = createTestNetwork({
+  handlers: [...billingHandlers],
+  // the e2e suites call a stub server on this host
+  passthroughHosts: ['127.0.0.1', 'localhost', 'stub.internal.test'],
 });
 ```
 
@@ -111,10 +99,9 @@ Use something else only in these cases:
   `sentEmails`, from the handler module, and clear it in the test preload.
 
 From the module that holds the collections, export a `reset()` function that clears every
-collection, and call it in the test preload's `afterEach`, beside `server.resetHandlers()`. In
-`reset()`, clear a collection whose records reference another collection before the one it
-references, so no record points at a record already cleared. Say in a comment that the order is
-deliberate.
+collection, and call it in the test preload's `afterEach`. In `reset()`, clear a collection whose
+records reference another collection before the one it references, so no record points at a record
+already cleared. Say in a comment that the order is deliberate.
 
 From each handler module, export the base URL constant that its routes start with, such as
 `NOTES_API_URL`, so a per-test handler can build the same route.
@@ -130,14 +117,14 @@ runtime that can't import `bun:test`.
 
 ## Per-test handlers
 
-Add a handler with `server.use(...)` in a test only for one of these:
+Add a handler with `network.use(...)` in a test only for one of these:
 
 - an outcome the collections can't reach, such as a 503, a transport failure or a malformed payload;
 - a sequence, such as a 503 and then a success;
 - input you capture: create a `mock()` in the test, call it from a handler you write in the test
   file, and assert it with the mock matchers.
 
-For a sequence, import `makeAnswerQueue` from `@zgeoff/testing/helpers`, and build
+For a sequence, import `makeAnswerQueue` from `@zgeoff/testing/mocks`, and build
 `const answer = makeAnswerQueue([unavailable, ok])` from `HttpResponse` values. Return `answer()`
 from the handler. `answer()` throws on a request past the last answer, as
 [Stand-ins](./boundaries.md#stand-ins) says.
@@ -150,7 +137,7 @@ still return the fixed success response the client needs:
 ```ts
 const received = mock<(input: unknown) => void>();
 
-server.use(
+network.use(
   http.post(`${NOTES_API_URL}/notes/:noteID/share`, async ({ request }) => {
     received(await request.json());
 
@@ -167,7 +154,7 @@ expect(received).toHaveBeenCalledExactlyOnceWith({ email: 'sam@example.test' });
 
 When several packages in one repo call the same service, put its collections and its handlers in one
 workspace package. Give that package no test-runner dependency, so a dev server or a story can load
-it too. Add its handler array to the one server of each test process that uses it, and call its
+it too. Add its handler array to the one network of each test process that uses it, and call its
 `reset()` from that process's test preload.
 
 ## RPC contracts

@@ -312,7 +312,7 @@ Find which kind of timer your test waits on, then follow the rules under its hea
   the timeout then ends the operation.
 - Test the default value in its own test. Wait out the real default only when the runtime has no
   shorter setting that behaves the same. Wait for the timeout's event with `waitFor` from
-  `@zgeoff/testing/helpers`, and keep the test in `bun run test` with the disable comment from
+  `@zgeoff/testing`, and keep the test in `bun run test` with the disable comment from
   [A test over its limit](./slow-tests.md#a-test-over-its-limit).
 
 ### A timer inside a library
