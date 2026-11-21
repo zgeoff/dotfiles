@@ -1,7 +1,9 @@
 #!/bin/sh
-# chezmoi owns agents.claude.env.VERIFY_UPLOAD_URL and the sessionEnv.VERIFY_UPLOAD_TOKEN_REF of
-# each imp target, and deep-merges them over the live atc daemon config. Every other key stays as
-# atc or the owner wrote it: targets, auth profiles, the other agents and the rest of agents.claude.
+# chezmoi owns agents.claude.env.CLOUD_FILES_URL and the sessionEnv.CLOUD_FILES_TOKEN_REF of each
+# imp target, and the same keys under their earlier names VERIFY_UPLOAD_URL and
+# VERIFY_UPLOAD_TOKEN_REF, which it keeps until every reader has moved to the new ones. It
+# deep-merges them over the live atc daemon config. Every other key stays as atc or the owner wrote
+# it: targets, auth profiles, the other agents and the rest of agents.claude.
 #
 # The upload address is the same everywhere, so it sits on the agent entry, which atc passes to
 # every Claude session it starts. The token reference differs by where the session runs:
@@ -11,14 +13,14 @@
 # - A local session reads its reference from Claude settings: the repo's .claude/settings.local.json,
 #   which op-mint points at the repo's vault, or ~/.claude/settings.json outside a repo. atc passes
 #   its env in a --settings file, which outranks both, so the agent entry must not set the reference.
-#   The script deletes it there.
+#   The script deletes it there, under both names.
 # The script adds no target: a config without an imp target gets no reference.
 #
 # The keys of the earlier upload names, PR_EVIDENCE_URL, PR_EVIDENCE_TOKEN_PATH and
 # PR_EVIDENCE_TOKEN_REF, are deleted by name, so an existing config migrates.
 # The token reference is the full op://<vault>/<item>/<field> of a 1Password item, never the token.
 # An agent fills the token inline for one command:
-#   VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" bun verify publish --pr <n>
+#   CLOUD_FILES_TOKEN="$(op read "$CLOUD_FILES_TOKEN_REF")" bun verify publish --pr <n>
 # Nothing runs `op run` over this environment, so the reference stays a plain string.
 # The daemon reads this file only at start: restart it after a change.
 set -eu
@@ -29,13 +31,18 @@ printf '%s' "$current" | jq --indent 2 '
     .agents.claude.env.PR_EVIDENCE_URL,
     .agents.claude.env.PR_EVIDENCE_TOKEN_PATH,
     .agents.claude.env.PR_EVIDENCE_TOKEN_REF,
-    .agents.claude.env.VERIFY_UPLOAD_TOKEN_REF
+    .agents.claude.env.VERIFY_UPLOAD_TOKEN_REF,
+    .agents.claude.env.CLOUD_FILES_TOKEN_REF
   )
-  * { "agents": { "claude": { "env": { "VERIFY_UPLOAD_URL": "https://files.geoff.cloud/api/files" } } } }
+  * { "agents": { "claude": { "env": {
+      "CLOUD_FILES_URL": "https://files.geoff.cloud/api/files",
+      "VERIFY_UPLOAD_URL": "https://files.geoff.cloud/api/files"
+    } } } }
   | if (.targets | type) == "object" then
       .targets |= with_entries(
         if (.value | type) == "object" and .value.provider == "imp" then
-          .value.sessionEnv.VERIFY_UPLOAD_TOKEN_REF = "op://imp/files-upload-token/credential"
+          .value.sessionEnv.CLOUD_FILES_TOKEN_REF = "op://imp/files-upload-token/credential"
+          | .value.sessionEnv.VERIFY_UPLOAD_TOKEN_REF = "op://imp/files-upload-token/credential"
         else
           .
         end

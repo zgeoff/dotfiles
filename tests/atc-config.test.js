@@ -17,12 +17,12 @@ async function runScript(live) {
   };
 }
 
-test('it adds the verify upload address, and no token reference, to the claude agent env', async () => {
+test('it adds the upload address under both names, and no token reference, to the claude agent env', async () => {
   const live = { agents: { claude: { env: { HARBOUR_MODE: 'calm' } } } };
 
   expect(await runScript(live)).toStrictEqual({
     exitCode: 0,
-    config: { agents: { claude: { env: { HARBOUR_MODE: 'calm', VERIFY_UPLOAD_URL: uploadURL } } } },
+    config: { agents: { claude: { env: { HARBOUR_MODE: 'calm', CLOUD_FILES_URL: uploadURL, VERIFY_UPLOAD_URL: uploadURL } } } },
     stderr: '',
   });
 });
@@ -41,12 +41,12 @@ test('it sets the imp token reference in the session env of each imp target alon
     cloud: {
       provider: 'imp',
       url: 'https://imp.example.test',
-      sessionEnv: { TIDE: 'high', VERIFY_UPLOAD_TOKEN_REF: impTokenRef },
+      sessionEnv: { TIDE: 'high', CLOUD_FILES_TOKEN_REF: impTokenRef, VERIFY_UPLOAD_TOKEN_REF: impTokenRef },
     },
     spare: {
       provider: 'imp',
       url: 'https://imp-spare.example.test',
-      sessionEnv: { VERIFY_UPLOAD_TOKEN_REF: impTokenRef },
+      sessionEnv: { CLOUD_FILES_TOKEN_REF: impTokenRef, VERIFY_UPLOAD_TOKEN_REF: impTokenRef },
     },
   });
 });
@@ -55,7 +55,7 @@ test('it adds no target to a config without one', async () => {
   const live = { agents: { claude: { env: {} } } };
 
   expect((await runScript(live)).config).toStrictEqual({
-    agents: { claude: { env: { VERIFY_UPLOAD_URL: uploadURL } } },
+    agents: { claude: { env: { CLOUD_FILES_URL: uploadURL, VERIFY_UPLOAD_URL: uploadURL } } },
   });
 });
 
@@ -69,6 +69,7 @@ test('it deletes the old upload keys and the agent token reference so an existin
           PR_EVIDENCE_TOKEN_PATH: 'imp/files-upload-token/credential',
           PR_EVIDENCE_TOKEN_REF: 'op://lighthouse/files-upload-token/credential',
           VERIFY_UPLOAD_TOKEN_REF: impTokenRef,
+          CLOUD_FILES_TOKEN_REF: impTokenRef,
         },
       },
     },
@@ -76,7 +77,7 @@ test('it deletes the old upload keys and the agent token reference so an existin
 
   expect((await runScript(live)).config.agents.claude.env).toStrictEqual({
     HARBOUR_MODE: 'calm',
-    VERIFY_UPLOAD_URL: uploadURL,
+    CLOUD_FILES_URL: uploadURL, VERIFY_UPLOAD_URL: uploadURL,
   });
 });
 
@@ -85,7 +86,7 @@ test('it keeps a key whose name only starts like an old pr evidence key', async 
 
   expect((await runScript(live)).config.agents.claude.env).toStrictEqual({
     PR_EVIDENCEFUL_MODE: 'lighthouse',
-    VERIFY_UPLOAD_URL: uploadURL,
+    CLOUD_FILES_URL: uploadURL, VERIFY_UPLOAD_URL: uploadURL,
   });
 });
 
@@ -104,7 +105,7 @@ test('it keeps every key it does not own', async () => {
     agents: {
       claude: {
         auth: { profiles: ['claude', 'github'] },
-        env: { HARBOUR_MODE: 'calm', VERIFY_UPLOAD_URL: uploadURL },
+        env: { HARBOUR_MODE: 'calm', CLOUD_FILES_URL: uploadURL, VERIFY_UPLOAD_URL: uploadURL },
       },
       lantern: { kind: 'claude', env: { LANTERN_COLOUR: 'amber' } },
     },
@@ -134,7 +135,7 @@ test('it starts from an empty object when the live file is absent', async () => 
     stderr: result.stderr.toString(),
   }).toStrictEqual({
     exitCode: 0,
-    config: { agents: { claude: { env: { VERIFY_UPLOAD_URL: uploadURL } } } },
+    config: { agents: { claude: { env: { CLOUD_FILES_URL: uploadURL, VERIFY_UPLOAD_URL: uploadURL } } } },
     stderr: '',
   });
 });

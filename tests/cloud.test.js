@@ -318,6 +318,28 @@ describe('cloud token', () => {
     expect(requests[0].authorization).toBe(`Bearer ${token}`);
   });
 
+  test('op reads the upload token at CLOUD_FILES_TOKEN_REF ahead of its earlier name', async () => {
+    const { code, opCalls } = await cloud(['ls'], {
+      env: {
+        CLOUD_CLI_CONFIG: configPath,
+        CLOUD_FILES_TOKEN: '',
+        OP_SERVICE_ACCOUNT_TOKEN: 'ops_stand-in',
+        CLOUD_FILES_TOKEN_REF: 'op://vault-d/files-upload-token/credential',
+        VERIFY_UPLOAD_TOKEN_REF: 'op://vault-b/files-upload-token/credential',
+      },
+      opTokens: { 'op://vault-d/files-upload-token/credential': token },
+      onPath: ['op', 'op-win'],
+    });
+
+    expect({ code, opCalls }).toStrictEqual({ code: 0, opCalls: ['op read op://vault-d/files-upload-token/credential'] });
+  });
+
+  test('a CLOUD_FILES_URL that names the upload endpoint reaches the same routes', async () => {
+    await cloud(['rm', 'Kite'], { env: { CLOUD_FILES_URL: new URL('/api/files', server.url).href } });
+
+    expect(requests[0].path).toBe('/api/files/Kite');
+  });
+
   test('on an imp, op reads the upload token at VERIFY_UPLOAD_TOKEN_REF without a config', async () => {
     const { code, opCalls } = await cloud(['ls'], {
       env: {
