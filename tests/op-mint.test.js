@@ -134,3 +134,25 @@ test('it drops every key of an earlier upload name from a settings file it rewri
     },
   });
 });
+
+test('it keeps a key whose name only starts like an earlier upload key', () => {
+  const ctx = setupTest();
+  const repo = ctx.makeRepo('boxxy');
+  mkdirSync(join(repo, '.claude'), { recursive: true });
+  writeFileSync(
+    join(repo, '.claude/settings.local.json'),
+    JSON.stringify({ env: { PR_EVIDENCEFUL_MODE: 'lighthouse' } }),
+  );
+
+  const result = ctx.mint('boxxy');
+
+  expect(result.code).toBe(0);
+  expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
+    env: {
+      PR_EVIDENCEFUL_MODE: 'lighthouse',
+      OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
+      CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
+      CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+    },
+  });
+});

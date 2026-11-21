@@ -87,7 +87,7 @@ op_mint() {
   upload_ref="op://$(profile_upload_vault "$profile")/files-upload-token/credential"
   upload_url="https://files.geoff.cloud/api/files"
   (umask 077 && jq --arg t "$token" --arg r "$upload_ref" --arg u "$upload_url" \
-    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.CLOUD_FILES_URL = $u | .env.CLOUD_FILES_TOKEN_REF = $r | .env |= with_entries(select(.key | (startswith("VERIFY_UPLOAD") or startswith("PR_EVIDENCE")) | not))' "$settings" > "$tmp")
+    '.env.OP_SERVICE_ACCOUNT_TOKEN = $t | .env.CLOUD_FILES_URL = $u | .env.CLOUD_FILES_TOKEN_REF = $r | .env |= with_entries(select(.key | (startswith("VERIFY_UPLOAD" + "_") or startswith("PR_EVIDENCE" + "_")) | not))' "$settings" > "$tmp")
   mv "$tmp" "$settings"
   chmod 600 "$settings"
 

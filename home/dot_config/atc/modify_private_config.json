@@ -26,7 +26,7 @@ current=$(cat)
 [ -n "$current" ] || current='{}'
 printf '%s' "$current" | jq --indent 2 '
   def drop_earlier:
-    with_entries(select(.key | (startswith("VERIFY_UPLOAD") or startswith("PR_EVIDENCE")) | not));
+    with_entries(select(.key | (startswith("VERIFY_UPLOAD" + "_") or startswith("PR_EVIDENCE" + "_")) | not));
   del(.agents.claude.env.CLOUD_FILES_TOKEN_REF)
   | if (.agents.claude.env | type) == "object" then .agents.claude.env |= drop_earlier else . end
   * { "agents": { "claude": { "env": {

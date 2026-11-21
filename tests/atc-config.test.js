@@ -100,6 +100,15 @@ test('it deletes every key of an earlier upload name from the session env of eac
   });
 });
 
+test('it keeps a key whose name only starts like an earlier upload key', async () => {
+  const live = { agents: { claude: { env: { PR_EVIDENCEFUL_MODE: 'lighthouse' } } } };
+
+  expect((await runScript(live)).config.agents.claude.env).toStrictEqual({
+    PR_EVIDENCEFUL_MODE: 'lighthouse',
+    CLOUD_FILES_URL: uploadURL,
+  });
+});
+
 test('it keeps every key it does not own', async () => {
   const live = {
     agents: {
