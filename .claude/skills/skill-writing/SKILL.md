@@ -158,19 +158,19 @@ the rule that covers the mistake, or add one.
    finds, give each changed file one more cold read, and stop.
 3. Run the `deslop` skill on each section you wrote or changed, the cold-read fixes included. A
    cold-read fix adds words, and the checks in step 4 don't catch padding.
-4. Run the checks again, and give the proof in a `## Checks` section of the PR description:
-   - `- [x] chex prose, links and skill: cleared`, once the last run clears.
-   - `- [x] Cold read: <fixed> fixed, <declined> declined`, counting every cold read.
-   - `- [x] Deslop: <edits> edits`, the number of `diff` blocks that the deslop skill handed back in
-     step 3.
+4. Run the checks again, and commit. Build the PR description from the repo's
+   `PULL_REQUEST_TEMPLATE.md` in `.github/`. Tick two lines in its `## Checks` section, both with
+   the short hash of that commit:
+   - `- [x] Deslop (<commit>)`
+   - `- [x] Cold read (<commit>)`
 
-   Under `Declined:`, give one line to each finding you declined and each gap in the rules, where a
-   cold reader got stuck and no rule applies. With neither, write `Declined: none.` Each line holds:
-   - the check or review that found it;
-   - the finding or the gap;
-   - why not, or the issue it went to.
+   Leave `- [ ] chex` as it is: CI ticks it when the checks clear. When the repo has no template,
+   add a `## Checks` section with those three lines yourself. When a later commit changes a skill, a
+   README or a file under `docs/`, run steps 2 and 3 again on what it changed, and put that commit's
+   hash on both lines. The PR-body check fails a hash older than the last such commit.
 
-   Paste no command output, fixed finding or diff: CI and the commits hold them.
+   Tell the user or your caller each finding you declined, and each gap in the rules, where a cold
+   reader got stuck and no rule applies.
 
 **Reply:** for a skill you wrote or edited, its path, its proof and the PR link; for a review, each
 finding with its line and the quoted rule.
