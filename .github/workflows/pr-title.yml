@@ -1,0 +1,19 @@
+# repo-sync delivers this file from zgeoff/tools
+#
+# Lints the pull request's title as a Conventional Commit, since a squash merge
+# makes it the commit subject.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    permissions:
+      contents: read
+    uses: zgeoff/tools/.github/workflows/pr-title-check.yml@5124a68465cdeeb155e71e0a804881731798e59e # main
