@@ -46,10 +46,6 @@ covers in the opening paragraph. Then give the commands a `##` section: a table 
 than one, with a column for the command and a column for what it needs to run, such as a running
 database or an environment variable. Name the columns for what they hold, such as Command and Needs.
 
-When an agent made a mistake that the repo's code doesn't stop, add a `##` section of mistakes to
-avoid, as [Keep it short and true](../SKILL.md#keep-it-short-and-true) says. Give each mistake a
-bullet with the fact, then what to do about it.
-
 End the skill with a reply line when the agent edits code or hands something back, such as a report
 or a deployed version:
 

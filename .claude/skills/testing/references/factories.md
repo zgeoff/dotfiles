@@ -9,22 +9,6 @@ seed, build the input with these factories.
 - [Writing a factory](#writing-a-factory)
 - [A factory's own test](#a-factorys-own-test)
 
-Watch for these mistakes:
-
-- Never pass `undefined` as an override to leave a field out. To leave an optional field out, take
-  it off the factory's result: `const { note, ...line } = buildMockOrderLine();`.
-  `@zgeoff/oxlint-config` sets `ignoreRestSiblings: true` on `no-unused-vars`, so the unused `note`
-  passes. `@zgeoff/tsconfig` sets `exactOptionalPropertyTypes`, so an `undefined` override is a type
-  error.
-- In a package with a golden test, default every field of the package's own factories to a literal
-  value. A golden test pins output in an inline snapshot or a committed file. Faker's values follow
-  the order of its calls in the run, so one new faker call in any test file changes them.
-- Never write a factory that presets overrides, such as `buildMockPaidInvoice`. The reader can't see
-  its defaults. Pass the overrides in the test instead: `buildMockInvoice({ status: 'paid' })`.
-- Write a seed for each state instead, such as `seedArchivedNote` in [Seeding](./seeding.md). It
-  reaches the state through the module's own functions, so it never presets a field such as
-  `archivedAt` by hand.
-
 ## Writing a factory
 
 - Keep the factory, with its own test file, in `src/test-utils/` of the package that defines the
@@ -51,6 +35,17 @@ Watch for these mistakes:
   }
   ```
 
+- To leave an optional field out in a test, take it off the factory's result:
+  `const { note, ...line } = buildMockOrderLine();`. `@zgeoff/oxlint-config` sets
+  `ignoreRestSiblings: true` on `no-unused-vars`, so the unused `note` passes. `@zgeoff/tsconfig`
+  sets `exactOptionalPropertyTypes`, so an `undefined` override fails the type check.
+- Write one factory per type. For a variant, pass its overrides in the test, such as
+  `buildMockInvoice({ status: 'paid' })`, so the reader sees them. For a stored state, write a seed,
+  such as `seedArchivedNote` in [Seeding](./seeding.md). The seed reaches the state through the
+  module's own functions, so it never sets a field such as `archivedAt` by hand.
+- In a package with a golden test, default every field of the package's own factories to a literal
+  value. A golden test pins output in an inline snapshot or a committed file. Faker's values follow
+  the order of its calls in the run, so one new faker call in any test file changes them.
 - Outside a package with a golden test, default a field to a `@faker-js/faker` value when no test
   depends on its value. The reader then sees that the value doesn't matter. When the package has no
   `@faker-js/faker` dev dependency, add it.

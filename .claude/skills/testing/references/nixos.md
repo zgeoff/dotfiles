@@ -9,15 +9,6 @@ the parts that only Bun has:
 - the test preload;
 - the file layout.
 
-The mistakes to avoid:
-
-- Wait on a condition of the NixOS test driver, such as `wait_for_unit` or `wait_until_succeeds`, in
-  place of the sleep that [System tests](./system-tests.md) rules out.
-- Never let a case inherit tokens, files, mounts or service settings from an earlier case it doesn't
-  depend on.
-- Before you add a path filter to a workflow that holds a required check, read
-  [Path filters](../../ci-design/SKILL.md#path-filters) in the ci-design skill.
-
 ## Option evaluation
 
 Test module defaults, generated configuration and invalid option combinations by evaluating them,
@@ -49,13 +40,15 @@ behaviour it checks, such as `with subtest("api restarts after a config switch")
 - Run the steps that depend on each other, such as a `switch-to-configuration` and a check of the
   restarted service, in one subtest.
 - Before a subtest that doesn't depend on the one before it, reset the machine to its starting
-  state, or boot a fresh one. Give the reset its own subtest: dirty the state, run the reset and
-  check the starting state.
+  state, or boot a fresh one. The subtest then inherits no tokens, files, mounts or service
+  settings. Give the reset its own subtest: dirty the state, run the reset and check the starting
+  state.
 - Share an expensive VM between subtests, as
   [End-to-end suites](./system-tests.md#end-to-end-suites) describes. You don't need a VM per
   subtest to keep them apart.
-- Pass `timeout=` to each driver wait, such as `wait_for_unit` or `wait_until_succeeds`. The default
-  is 15 minutes, so a hang holds the run that long.
+- Wait for a condition with a driver method, such as `wait_for_unit` or `wait_until_succeeds`, and
+  never with a sleep, as [System tests](./system-tests.md) says. Pass `timeout=` to each driver
+  wait. The default is 15 minutes, so a hang holds the run that long.
 - Run the real service, systemd and kernel in the guest. Never stub the thing under test. For
   timers, see
   [Native timers and scenario delays](./system-tests.md#native-timers-and-scenario-delays).
@@ -77,6 +70,8 @@ behaviour it checks, such as `with subtest("api restarts after a config switch")
   job, pick which VM tests to build, such as from the changed paths, and fail the job when one of
   them fails. In a private repo, run VM tests on `schedule` or `workflow_dispatch`, and never make
   them a required check, as the [ci-design](../../ci-design/SKILL.md) skill says.
+- Before you add a path filter to a workflow that holds a required check, read
+  [Path filters](../../ci-design/SKILL.md#path-filters) in the ci-design skill.
 - Keep the build log of each VM test, from `nix log`, as a CI artifact. The driver writes how long
   each subtest took into the log.
 
