@@ -100,8 +100,7 @@ async function opRead(command, ref, env) {
 }
 
 // $CLOUD_FILES_TOKEN when set; then, for an agent with a service-account token or a Connect
-// server, the upload token at $CLOUD_FILES_TOKEN_REF (or its earlier name $VERIFY_UPLOAD_TOKEN_REF),
-// which op-mint points at the vault of the
+// server, the upload token at $CLOUD_FILES_TOKEN_REF, which op-mint points at the vault of the
 // agent's own repo; otherwise a read of the config's token_ref through opCommandFor's CLI.
 // 1Password is not asked when the variable is set, so an agent with the token in its environment
 // needs no 1Password access. The token stays in memory only.
@@ -109,7 +108,7 @@ export async function readToken({ env, configPath, config, runOp = opRead, which
   if (env.CLOUD_FILES_TOKEN) {
     return env.CLOUD_FILES_TOKEN;
   }
-  const uploadRef = env.CLOUD_FILES_TOKEN_REF || env.VERIFY_UPLOAD_TOKEN_REF;
+  const uploadRef = env.CLOUD_FILES_TOKEN_REF;
   if ((env.OP_SERVICE_ACCOUNT_TOKEN || env.OP_CONNECT_HOST) && uploadRef) {
     return readTokenRef('op', uploadRef, env, runOp);
   }
