@@ -52,14 +52,19 @@ test('it mints the boxxy profile with write access to the boxxy vault, into the 
   expect(result.code).toBe(0);
   expect(ctx.readCalls()).toMatch(/^service-account create claude-boxxy-\d{8} --expires-in=7d --vault boxxy:read_items,write_items --format=json\n$/u);
   expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
-    env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle', VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential' },
+    env: {
+      OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
+      CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
+      CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+      VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
+    },
   });
 });
 
 test.each([
   ['global', 'op://zgeoff/files-upload-token/credential'],
   ['imp', 'op://imp-e2e/files-upload-token/credential'],
-])('it points the %s profile verify upload at the token in its own vault', (profile, ref) => {
+])('it points the %s profile uploads at the token in its own vault', (profile, ref) => {
   const ctx = setupTest();
   const settings =
     profile === 'global' ? join(ctx.home, '.claude/settings.json') : join(ctx.makeRepo('impz'), '.claude/settings.local.json');
@@ -67,7 +72,9 @@ test.each([
   const result = ctx.mint(profile);
 
   expect(result.code).toBe(0);
-  expect(JSON.parse(readFileSync(settings, 'utf8')).env.VERIFY_UPLOAD_TOKEN_REF).toBe(ref);
+  const { env } = JSON.parse(readFileSync(settings, 'utf8'));
+
+  expect({ ref: env.CLOUD_FILES_TOKEN_REF, earlier: env.VERIFY_UPLOAD_TOKEN_REF }).toStrictEqual({ ref, earlier: ref });
 });
 
 test('it lists the boxxy profile with its vault and settings file', () => {
@@ -87,7 +94,12 @@ test('it mints the atc profile with write access to the atc vault, into the repo
   expect(result.code).toBe(0);
   expect(ctx.readCalls()).toMatch(/^service-account create claude-atc-\d{8} --expires-in=7d --vault atc:read_items,write_items --format=json\n$/u);
   expect(JSON.parse(readFileSync(join(repo, '.claude/settings.local.json'), 'utf8'))).toStrictEqual({
-    env: { OP_SERVICE_ACCOUNT_TOKEN: 'kettle', VERIFY_UPLOAD_TOKEN_REF: 'op://atc/files-upload-token/credential' },
+    env: {
+      OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
+      CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
+      CLOUD_FILES_TOKEN_REF: 'op://atc/files-upload-token/credential',
+      VERIFY_UPLOAD_TOKEN_REF: 'op://atc/files-upload-token/credential',
+    },
   });
 });
 
@@ -114,6 +126,8 @@ test('it drops the old pr evidence keys from a settings file it rewrites', () =>
     env: {
       HARBOUR_MODE: 'calm',
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
+      CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
+      CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
       VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
     },
   });
@@ -135,6 +149,8 @@ test('it keeps a key whose name only starts like an old pr evidence key', () => 
     env: {
       PR_EVIDENCEFUL_MODE: 'lighthouse',
       OP_SERVICE_ACCOUNT_TOKEN: 'kettle',
+      CLOUD_FILES_URL: 'https://files.geoff.cloud/api/files',
+      CLOUD_FILES_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
       VERIFY_UPLOAD_TOKEN_REF: 'op://boxxy/files-upload-token/credential',
     },
   });
