@@ -18,10 +18,11 @@ Check for these on purpose:
 - padding, such as a paragraph that defends a decision nobody attacked;
 - prose that keeps every rule and still reads like a machine wrote it.
 
-When you write, run [the checks](#check-it) and a [cold read](../cold-read/SKILL.md), and hand back
-the files you changed, the check output and what the cold read found. When you review, run the
-checks on the changed files, read each one against every section below, and hand back each finding
-with its line and the quoted rule, for the author to fix.
+When you write, run [the checks](#check-it) and a [cold read](../cold-read/SKILL.md) of each doc you
+changed, and hand back the files you changed, the check output and what the cold read found. When
+you review, run the chex command from [Check it](#check-it), with no cold read. Read each changed
+file against every section below, and hand back each finding with its line and the quoted rule, for
+the author to fix.
 
 When the `skill-writing` skill disagrees with this one about a skill, follow skill-writing. When a
 repo's `project-docs-writing` skill disagrees with this one about that repo's docs, follow it. Write
@@ -38,7 +39,7 @@ committed prose by these rules, whatever style you use in chat.
 - [House rules](#house-rules): lead with what the reader does, name the actor, use plain names, and
   cut the tells of machine-written prose.
 - [Shape the doc](#shape-the-doc): a list, a table or numbered steps where each fits.
-- [Check it](#check-it): three scripts, then a cold read.
+- [Check it](#check-it): the chex checks, then a cold read of each doc.
 
 ## References
 
@@ -67,13 +68,13 @@ can cause issues".
   - "you", and the present tense;
   - the condition before the instruction;
   - the common case first;
-  - never "simply" or "easy" in a procedure, because a reader who is stuck reads them as blame.
+  - never "simply" or "easy" in a procedure. A reader who is stuck reads them as blame.
 - **[ASD-STE100](https://www.asd-ste100.org/), for instructions only**, meaning numbered steps and
   sentences that tell the reader what to do. Keep STE out of explanation and reference, where its
   short sentences read like orders.
   - one instruction per sentence, about 20 words at most;
   - one meaning per word;
-  - the warning before the step.
+  - a step's risk, such as lost data, stated before the step.
 - **Global English, for one reading per sentence**, from _The Global English Style Guide_:
   - "only" next to the word it changes;
   - no noun strings, slashes or idioms;
@@ -111,7 +112,8 @@ reason does the work", "the error names the fix"). That hides who acts.
 
 **Lead with what the reader does.** Open a paragraph or a bullet with the instruction or the fact
 the reader acts on. A definition first ("A heavy check is a job that…") or a label and a colon
-("Private:") leaves the reader to work out what to do.
+("Private:") leaves the reader to work out what to do. In a skill, keep the labelled lines that
+skill-writing asks for: the Key rules lines, the References lines and the `**Reply:**` line.
 
 **Use the plain name.** Call a thing what the reader already calls it. A label you made up, such as
 "a negative" for a failed check, reads as a term they should know.
@@ -121,8 +123,8 @@ the reader acts on. A definition first ("A heavy check is a job that…") or a l
 **State the rule, then put the exception in a sentence of its own.** When there are two or more
 exceptions, list them.
 
-**Link the doc that owns a fact instead of writing "as noted above".** Repeat a noun rather than
-make the reader scroll back.
+**Link the doc that owns a fact instead of writing "as noted above".** Repeat a noun, so the reader
+doesn't have to scroll back.
 
 **Put the negation on the verb.** "The worker never retries a failed payment" is clear from its
 first words. "No worker retries a failed payment" reads as a claim about every worker until the verb
@@ -149,34 +151,45 @@ A short line that sums up a rule is fine when the rule sits next to it in full.
   per cell.
 - **Procedures.** Number the steps, and give the expected outcome after each one that has one:
   "Expect: HTTP 202".
-- **Headings.** Name what the section is about. Skip a role name such as "Overview". Use no
-  horizontal rule between sections.
-- **Formatting.** Tag every code block with a language, link with a path relative to the file, and
-  name what each placeholder stands for (`<service_id>`, never `xxx`).
+- **Headings.** Name what the section is about. A role name such as "Overview" fits any section, so
+  it tells the reader nothing. Use no horizontal rule between sections: the headings already split
+  them.
+- **Formatting.** Tag every code block with a language, and link with a path relative to the file.
+  Name what each placeholder stands for (`<service_id>`, never `xxx`), so the reader knows what to
+  put there.
 - **Line breaks.** When the repo's pre-commit hook runs a formatter that wraps prose, such as oxfmt,
   write each paragraph as one line. Hand-wrapping only adds churn to the diff.
 
 ## Check it
 
-Run these from the repo root. The repo's `check:docs` script lists the checks it takes, and CI runs
-the same ones.
+From the repo root, run the chex checks with no paths. Each check finds the files it covers.
 
 ```bash
 bun x @zgeoff/chex prose length links readmes skill
 ```
 
+When the repo has a `check:docs` script, run the checks it lists in place of this command. CI runs
+the same ones.
+
+Fix each failure in a file you changed, then run the checks again. When a check flags a sentence you
+want to keep, rewrite it until the check passes. In your reply, name each failure in a file you
+didn't change, and leave it: it belongs to another change. Outside a repo, or when chex can't run,
+skip the checks and say so in your reply.
+
 - `chex prose` fails on what a search can find, such as banned words. Under "Candidates", it also
   prints lines that need a person's judgment. Fix each candidate that's a real fault. In the check
-  output you hand back, give the failures and the candidates you fixed. To check other prose, such
-  as AGENTS.md, run `bun x @zgeoff/chex prose <path>`.
+  output you hand back, give the failures and the candidates you fixed. To check prose outside the
+  files it covers, such as AGENTS.md, run `bun x @zgeoff/chex prose <path>`.
 - `chex length` checks each README and `docs/` file against its length limit.
 - `chex links` resolves every relative link.
 - `chex readmes` fails on a README that isn't one of the five kinds in
   [READMEs](./references/readmes.md).
 - `chex skill` checks each skill, as the skill-writing skill describes.
 
-After the checks, run the `cold-read` skill on each doc and skill you changed, and fix what it
-finds, as that skill says.
+Then run the `cold-read` skill on each doc you changed, and act on what it finds, as that skill
+says. Skip the cold read for a code comment. You're done when the checks pass for the files you
+changed and the cold read has ended. For a skill, follow skill-writing for the cold read and for
+when you're done.
 
 **Reply:** for writing, the files you changed, the check output and what the cold read found; for a
 review, each finding with its line and the quoted rule.

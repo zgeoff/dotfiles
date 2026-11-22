@@ -20,8 +20,9 @@ So give it what the code can't:
 
 Keep the skill short, or the agent skims.
 
-When you write or edit one, hand back the skill's path, the PR link and the proof from
-[Check it](#check-it). With no PR, put the proof from step 4 in your reply. When you review one,
+When you write or edit one, hand back the skill's path, the PR link, the proof from
+[Check it](#check-it), each rule you added to close a gap and each question for the user. With no
+PR, put the proof from step 4 in your reply. You're done when step 4 is done. When you review one,
 hand back each finding with its line and the rule it breaks, quoted.
 
 ## Key rules
@@ -152,10 +153,12 @@ the rule that covers the mistake, or add one.
 
    While you draft, check one skill with `bun x @zgeoff/chex skill <folder>`, the folder that holds
    its SKILL.md. When a check flags a sentence you like, rewrite it until the check passes, and name
-   the sentence and the check to the user or your caller.
+   the sentence and the check to the user or your caller. Name each failure in a file you didn't
+   change, and leave it: it belongs to another change. Outside a repo, or when chex can't run, skip
+   the checks and say so.
 
-2. Run the `cold-read` skill on each file of the skill you wrote or changed. After you fix what it
-   finds, give each changed file one more cold read, and stop.
+2. Run the `cold-read` skill on each file of the skill you wrote or changed. It sets how many reads
+   each file gets.
 3. Run the `deslop` skill on each section you wrote or changed, the cold-read fixes included. A
    cold-read fix adds words, and the checks in step 4 don't catch padding.
 4. Run the checks again, and commit. Build the PR description from the repo's
@@ -166,11 +169,10 @@ the rule that covers the mistake, or add one.
 
    Leave `- [ ] chex` as it is: CI ticks it when the checks clear. When the repo has no template,
    add a `## Checks` section with those three lines yourself. When a later commit changes a skill, a
-   README or a file under `docs/`, run steps 2 and 3 again on what it changed, and put that commit's
-   hash on both lines. The PR-body check fails a hash older than the last such commit.
+   README or a file under `docs/`, run step 3 on what it changed, and put that commit's hash on the
+   Deslop line. The PR-body check fails a Deslop hash older than the last such commit. Move the Cold
+   read hash only after you give the file another cold read.
 
-   Tell the user or your caller each finding you declined, and each gap in the rules, where a cold
-   reader got stuck and no rule applies.
-
-**Reply:** for a skill you wrote or edited, its path, its proof and the PR link; for a review, each
-finding with its line and the quoted rule.
+**Reply:** for a skill you wrote or edited, its path, its proof, the PR link, each rule you added to
+close a gap and each question for the user; for a review, each finding with its line and the quoted
+rule.
