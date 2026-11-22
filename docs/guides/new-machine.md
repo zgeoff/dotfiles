@@ -26,7 +26,7 @@ The key comes from outside the repo. Never commit it: anyone with the key can de
    chezmoi init --apply --source ~/projects/dotfiles https://github.com/zgeoff/dotfiles.git
    ```
 
-3. Answer the four prompts: the Git email, whether the machine has a desktop session, whether it is a personal machine, and whether it is a work machine. chezmoi remembers the answers. To change one later, run `chezmoi init` again.
+3. Answer the prompts: the Git email, whether the machine has a desktop session, whether it is a personal machine, and whether it is a work machine. chezmoi remembers the answers. To change one later, run `chezmoi init` again.
 
 The first apply installs yay or Homebrew when it is missing, then installs the packages in `home/packages/`.
 
@@ -77,11 +77,11 @@ On WSL, Windows Terminal draws the text, so it uses the fonts installed in Windo
 4. Restart Windows Terminal fully, then print five glyphs:
 
    ```sh
-   print -- $'    \U000F0193'
+   print -- $'\ue0b0 \uf00c \ue702 \uf115 \U000F0193'
    ```
 
-   Expect a powerline arrow, a check mark, the git logo, a folder and a material icon. Cascadia Mono draws the powerline arrow too, so a box in any of the last four places means Windows Terminal still uses Cascadia Mono. Repeat step 2, and restart Windows Terminal.
+   Expect a powerline arrow, a check mark, the git logo, a folder and a material icon. Cascadia Mono draws the powerline arrow too, so a box in any of the last four places means Windows Terminal still uses Cascadia Mono. When you see a box, repeat step 2, and restart Windows Terminal.
 
 ## Change the config afterwards
 
-Edit a managed file with `chezmoi edit <target>`, or edit the live file and run `chezmoi re-add` to bring the change back into the source. chezmoi stages each changed source file in git for you. Commit and push by hand. To encrypt a new secret, add it with `chezmoi add --encrypt <file>`. The [chezmoi docs](https://chezmoi.io) cover the other commands.
+Edit a managed file with `chezmoi edit <target>`, or edit the live file and run `chezmoi re-add` to bring the change back into the source. chezmoi stages each changed source file in git for you. Commit and push by hand. To encrypt a new secret, add it with `chezmoi add --encrypt <file>`. For the other commands, see the [chezmoi docs](https://chezmoi.io).

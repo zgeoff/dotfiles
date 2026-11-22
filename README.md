@@ -24,7 +24,7 @@ sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
 chezmoi init --apply --source ~/projects/dotfiles https://github.com/zgeoff/dotfiles.git
 ```
 
-[Set up a new machine](./docs/guides/new-machine.md) covers the age key, the prompts, the SSH and GPG keys, and the prompt font on WSL.
+For the age key, the prompts, the SSH and GPG keys, and the prompt font on WSL, see [Set up a new machine](./docs/guides/new-machine.md).
 
 ## Checks
 

@@ -35,8 +35,8 @@ tests/                bun tests for the CLIs, the Claude skills and workflow, th
 
 ## Machines
 
-- Each machine answers four prompts on `chezmoi init`: `email`, `gui`, `personal` and `work`. A
-  machine that answers no to both `personal` and `work` gets only the shared files.
+- `chezmoi init` asks four prompts on each machine: `email`, `gui`, `personal` and `work`. A
+  machine set to no for both `personal` and `work` gets only the shared files.
 - Keep a file that reaches a personal vault or host to personal machines. Add its target to the
   block for machines that are not personal in `home/.chezmoiignore`. In a template, wrap the lines
   in `{{- if and (hasKey . "personal") .personal }}`.
