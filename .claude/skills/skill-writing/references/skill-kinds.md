@@ -75,7 +75,7 @@ asked the question".
 
 Mark it with `kind: rule-set` under a `metadata` key in its frontmatter. Start it with the `#`
 title. Then put `## References`, when it has any, and the rule sections, one `##` per topic. Leave
-out the opening paragraph, `## Key rules` and the reply line: the agent reads a rule set for the
+out the opening paragraph, `## Key rules` and the reply line. The agent reads a rule set for the
 rule that fits what it is writing, and hands nothing back.
 
 Follow these rules in its SKILL.md. Write each file in its `references/` as
@@ -85,7 +85,7 @@ Follow these rules in its SKILL.md. Write each file in its `references/` as
   under: "Name a value for what it holds", "No classes, except a custom error", "When a test changes
   process state, …".
 - Never start a bullet with a label and a colon, such as "Exception:", or with "A", "The" or "Each"
-  and a noun, such as "A factory builds…".
+  and a noun, such as "A factory builds…". Either opening leaves the agent to work out what to do.
 - Give an example when the agent would otherwise guess the shape, such as a file name or a call.
 - Write a short paragraph and a code block for a rule that needs more than a bullet.
 - Keep a short bullet for a rule a lint enforces, so the agent writes it right the first time.
@@ -100,11 +100,11 @@ skill wins. Read the shared rule set before you write, so you know which rules t
 which it follows.
 
 Put the repo's own rules in the `project-` folder, and never edit a shared skill's folder. The next
-update of the shared skills overwrites that folder. The repo's setup creates the `.claude/skills`
-link. Never create the link while you write a project skill, and never tell the skill's agent to
-create it. In the zgeoff repos,
+update of the shared skills overwrites that folder. In the zgeoff repos,
 [repo-sync](https://github.com/zgeoff/tools/blob/main/docs/architecture/repo-sync.md) makes that
-update, and never touches a `project-` folder.
+update, and never touches a `project-` folder. The repo's setup creates the `.claude/skills` link.
+Never create the link while you write a project skill, and never tell the skill's agent to create
+it.
 
 Write it as a rule set: `kind: rule-set` under `metadata`, the `#` title, `## References` when it
 has any, and the bullet rules in [A rule set](#a-rule-set). Then write these sections, in this
@@ -112,8 +112,8 @@ order:
 
 1. In project-ci-design and project-testing, write `## Facts`, a table with the columns Fact and
    Where. Give it the rows in [Facts rows](#facts-rows), in that order. Write "none" in the Where
-   cell of a row that doesn't apply. Leave `## Facts` out of every other project skill, such as
-   project-docs-writing.
+   cell of a row that doesn't apply. The ci-design and testing skills send the agent to this table
+   for those facts. Leave `## Facts` out of every other project skill, such as project-docs-writing.
 2. Write `## Departures`, with one bullet for each shared rule the repo replaces. Give a stricter
    rule that replaces a shared rule a bullet too. Open each bullet with what the repo does, link the
    shared rule's section, and give the reason. Write "None." when the repo follows every rule. Put a
