@@ -119,11 +119,13 @@ Items 6 to 10 are cleanup.
    + Ask a second gardener to walk the bed and note each plant that gets too little sun.
    ```
 
-5. **Fix a "so" or a "because" that doesn't follow.** Read the two halves on their own. When the
-   first half doesn't lead to the second, say the fact the writer meant, and drop the link word.
+5. **Fix a "so" or a "because" that doesn't follow.** To test one, ask yourself what in the first
+   half makes the second true. When nothing does, or when the first half stresses a word the second
+   never uses, such as an "only", say the one fact the writer meant, and drop the link word. Fix
+   such a sentence even when its second half is true.
 
    ```diff
-   - The hose reaches only the beds by the shed, so a seed in one of them comes up.
+   - The hose reaches only the beds by the shed, so a bed by the shed gets water.
    + Only the beds by the shed get water from the hose.
    ```
 
