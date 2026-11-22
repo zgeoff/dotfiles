@@ -13,9 +13,9 @@ metadata:
 ## Function names
 
 When a function's job has a row, start its name with that row's verb, and keep the row's guarantee.
-You may start a function that returns anything but a boolean with `resolve` instead, which guarantees nothing about I/O. Give any other function
-any verb that fits, except a banned verb from the last bullet under the table, such as `fetch` or
-`process`.
+You may start the name of a function that returns anything but a boolean with `resolve` instead.
+Give any other function any verb that fits, except a banned verb from the last bullet under the
+table, such as `fetch` or `process`.
 
 | Job                                                                                                       | Verb                         | Guarantee                                                                      |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
@@ -52,9 +52,9 @@ any verb that fits, except a banned verb from the last bullet under the table, s
 - Never use `make`, `with`, `use`, `on` or `to` as a whole name. Follow it with a noun, such as
   `toPosixPath`.
 - You may start a name with `resolve` in place of a row's verb, unless the function returns a
-  boolean, whether or not it does I/O, such as
-  for a pure lookup or a filesystem search. A `resolve` name carries none of the row's guarantees.
-- Never start a name with one of these verbs. They say nothing about I/O or a miss:
+  boolean. A `resolve` function may do I/O or not, such as a filesystem search or a pure lookup,
+  and its name carries none of the row's guarantees.
+- Never start a name with one of these verbs. They carry no guarantee about I/O or a miss:
   - `process`, `manage`, `do`, `perform`, `execute` or `compute`;
   - `fetch`, `save`, `store`, `delete`, `search` or `lookup`. For a database read that can miss, use
     `read` and return `null`;

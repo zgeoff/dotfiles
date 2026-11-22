@@ -21,7 +21,7 @@ echo a token or a secret value.
     `fleet` (Claude slot tokens).
 - My personal vaults are reachable only through `op-win`, with my approval.
 - Claude Code loads the token from `env.OP_SERVICE_ACCOUNT_TOKEN`, so plain `op item get …` works
-  there. Any other agent (or a Claude session started before a re-mint) reads it inline:
+  there. In any other agent, or in a Claude session started before a re-mint, read it inline:
   `OP_SERVICE_ACCOUNT_TOKEN=$(jq -r .env.OP_SERVICE_ACCOUNT_TOKEN <settings file>) op …`.
 - Tokens expire ~7d. When an `op` call fails auth, re-mint with `op-mint <profile>` (dotfiles
   `~/.local/bin/op-mint`; `op-mint --list` shows the profiles). Don't ask me to sign in the Linux CLI;
@@ -44,7 +44,7 @@ echo a token or a secret value.
 # GitHub
 
 - Agents act on GitHub with my own `zgeoff` login and keys.
-- By default, work on a branch, open a PR, and let the review happen on the PR. Push straight to `main` only when I say so. A change pushed to `main` gets its review afterwards. A diff that "Building and reviewing" gives a local review gets that review first, on either path.
+- By default, work on a branch, open a PR, and let the review happen on the PR. Push straight to `main` only when I say so. A change pushed to `main` gets its review afterwards. When "Building and reviewing" calls for a local review of a diff, run that review first, on either path.
 - Never use `gh pr merge --admin` or any other ruleset bypass.
 - Open the PR with the repo's PR template. Keep the description short: a lead of 2 sentences or fewer, one-line bullets, 150 words or fewer. Write the short version first.
 - After pushing, link the PR URL in your reply.
@@ -57,16 +57,16 @@ When working on a Linear task, include its issue ID in the PR description with a
 - Contributes to GEO-123: delivers part of the task; work remains.
 - Related to GEO-123: context only; no status changes.
 
-Name the issue only in the PR body. Never put it in the PR title or the branch name: Linear closes an issue that a merged PR names there. A PR that only records a grant uses Related to.
+Name the issue only in the PR body. Never put it in the PR title or the branch name: Linear closes an issue that a merged PR names there. In a PR that only records a grant, write Related to.
 
 Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, deployment or acceptance work remains.
 
 # Stack taste
 
-- Pro: Bun, Elysia, Kysely, TanStack (Start/Query). Typed API layers (oRPC-class) — never hand-rolled REST.
-- Anti: Next.js, Remix / React Router framework mode, Drizzle.
-- TypeScript 7 / tsgo: adopt eagerly, RCs included — don't propose "safe" holdbacks.
-- Personal projects: interesting > safe; experimental APIs welcome.
+- Prefer Bun, Elysia, Kysely and TanStack (Start/Query). Use a typed API layer (oRPC-class); never hand-roll REST.
+- Avoid Next.js, Remix / React Router framework mode, and Drizzle.
+- Adopt TypeScript 7 / tsgo eagerly, RCs included. Don't propose "safe" holdbacks.
+- In personal projects, pick interesting over safe. Experimental APIs are welcome.
 
 # Building and reviewing
 
@@ -94,6 +94,6 @@ Review rounds:
 - Fix each finding you agree with, and every defect you meet while doing the work, in the same PR,
   whatever its size. Reply to each finding you disagree with, with your evidence. File a follow-up
   issue only for a fix in another repo, or one that needs my decision.
-- A re-check checks only the fixes, with no new findings.
+- In a re-check, check only the fixes, and raise no new findings.
 - Fix a security defect before merge.
 - Report a timeout on a required review; never skip it silently.

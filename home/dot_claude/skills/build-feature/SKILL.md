@@ -5,12 +5,12 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when the [result table](#act-on-the-result) tells you to hand a failure to the user. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when you've handed the user a failure from the [result table](#act-on-the-result). Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
 - [Before you run it](#before-you-run-it): agree the plan, check that git can sign, and run one PR at a time.
-- [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when CLAUDE.md gives the change a local review.
+- [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when the change needs a local review under CLAUDE.md.
 - [Act on the result](#act-on-the-result): fix what is left in the same PR, and answer every minor finding.
 - [Resume a run](#resume-a-run): pass the run ID and the full `args` again.
 
@@ -46,7 +46,7 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 | `'codex'` | Gets a Codex review through the `second-opinion` skill. Opus reviews in its place when Codex is missing, fails, or takes more than 15 minutes. |
 | `'opus'` | Gets an Opus review, and never calls Codex. |
 
-Pass `review: 'codex'` when the "Building and reviewing" rules in CLAUDE.md give the change a local review. Pass `'opus'` only when the user names that model.
+Pass `review: 'codex'` when the change needs a local review under the "Building and reviewing" rules in CLAUDE.md. Pass `'opus'` only when the user names that model.
 
 The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install, the test services and the skills to load. When the run's agents can't find a step the repo needs, add it to that repo's AGENTS.md.
 
