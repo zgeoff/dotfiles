@@ -11,5 +11,4 @@ End with one bulleted list, each item with its reason:
 
 - each candidate the prose check printed that you kept, and each fault What to fix lets you keep,
   such as a contrast frame the reader needs;
-- each fault in a doc that you left for docs-writing;
 - each other file that uses a label you renamed.
