@@ -66,8 +66,9 @@ first. A defect you found goes here only when its fix belongs in another PR; oth
 
 <!--
 Only when the PR changes a skill or a doc. Delete the section otherwise. CI ticks chex on
-every push. Tick deslop and cold read yourself, with the short commit you checked; the check
-fails when a later commit changes the skill or doc files.
+every push. Tick deslop and cold read yourself, with the short commit you checked. The check
+fails a Deslop commit when a later commit changes the skill or doc files; a Cold read commit
+stays valid.
 
   - [ ] chex
   - [x] Deslop (a1b2c3d)
