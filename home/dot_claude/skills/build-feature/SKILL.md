@@ -5,7 +5,7 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when the [result table](#act-on-the-result) tells you to hand a failure to the user. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
@@ -76,7 +76,7 @@ The branch and the worktree stay in place after every result. Remove them once t
 2. Call `Workflow({ name: 'build-feature', resumeFromRunId: '<run ID>', args })`, with the run ID the first call returned.
 3. Pass the full `args` object again. A resume never carries the first call's `args`, so without them the run stops at its argument check.
 
-On a resume, the Workflow tool replays the cached result of each stage whose prompt and options are unchanged. That covers a stage that ended `blocked`, so a resume with the same plan ends `blocked` again. To get past a block, add a line to the plan, such as the fix you made. Every stage's prompt holds the plan, so the Workflow tool then runs every stage again, from the implement stage on. The implement stage reuses the branch and its commits.
+On a resume, the Workflow tool replays the cached result of each stage whose prompt and options are unchanged. That covers a stage that ended `blocked`, so a resume with the same plan ends `blocked` again. To get past a block, add a line to the plan, such as the fix you made. Every stage's prompt holds the plan, so the Workflow tool then runs every stage again, starting with the implement stage, the first. The implement stage reuses the branch and its commits.
 
 ## Gotchas
 
