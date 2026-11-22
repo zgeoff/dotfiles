@@ -42,7 +42,8 @@ Hand back:
 
 ## Run it
 
-1. From the repo root, run the scripted checks, and fix each failure in a file you changed:
+1. From the repo root, run the scripted checks, and fix each failure in a file you changed. When the
+   repo has a `check:docs` script, run the checks it lists in place of this command:
 
    ```bash
    bun x @zgeoff/chex prose length links readmes skill
@@ -62,10 +63,14 @@ Hand back:
    file, before you spawn anything. Answer with what the file is meant to tell a reader. When you
    didn't write the file, take that from the file, the skills or docs that point at it, and the
    repo. Write "doesn't apply" for a question this kind of file has no need to answer, such as
-   commands in a skill that runs none, or a next step in an architecture doc. When the rules have a
-   reference for the file's kind, such as READMEs, a question that reference doesn't ask for doesn't
-   apply. When a question applies and you can't answer it, note it as a gap in the file or in the
-   rules.
+   commands in a skill that runs none, or a next step in an architecture doc. For a file in a
+   skill's `references/` that isn't a subagent's brief, questions 1 and 2 don't apply: the SKILL.md
+   line that links it says when to open it, and SKILL.md holds the hand-back. For a file that only
+   sets a format, question 4 doesn't apply. For a rule set and its references, questions 2 and 4
+   don't apply. When your answer to question 5 gives a limit no reason, note it as a gap only when
+   the limit looks arbitrary to someone without your context. When the rules have a reference for
+   the file's kind, such as READMEs, a question that reference doesn't ask for doesn't apply. When a
+   question applies and you can't answer it, note it as a gap in the file or in the rules.
 5. Spawn one `general-purpose` subagent for each file you check, in parallel. A skill's SKILL.md and
    each of its references are separate files. Never use a fork: a fork inherits your conversation.
 6. Give each subagent this prompt and nothing else. `<skill_dir>` is the absolute path of the folder
@@ -79,31 +84,42 @@ Hand back:
    ```
 
    Leave out what the file is for and what changed. The real reader won't know either. When a
-   subagent ends without its report, ask it once for the report. A read with no report doesn't
-   count.
+   subagent ends without its report, ask it once for the report. Don't count a read with no report.
 
 ## Act on it
 
 Compare each of the cold reader's answers with yours. Count an answer as matching when it gives the
-same facts, in any words. Where your answer is "doesn't apply", "Not answered" matches it, and so
-does an answer that says the file covers no such thing.
+same facts, in any words. Where your answer is "doesn't apply", count two answers as matching: "Not
+answered", and an answer that says the file covers no such thing.
 
-Turn every finding into a change to text in the repo. Another session never sees a call you made
-only in your head. Its cold reader raises the same finding again.
+Turn every finding into a change to text in the repo, or hand it to the caller as the last bullet
+below says. Another session never sees a call you made only in your head. Its cold reader raises the
+same finding again.
 
-- **Fix the file** when the answer differs, says "Not answered", or quotes two answers, and when the
-  file contradicts itself or breaks a rule that is right for it. Fix it too when the cold reader
-  misread a sentence: a fresh reader misread it, so the next one can. When the answer lives in code,
-  say which file holds it and link that file, without copying the code.
+- **Fix the file** when the answer differs, quotes two answers, or says "Not answered" to a question
+  your answer says applies. Fix it when the file contradicts itself or a rule that is right for it.
+  Fix it too when the cold reader misread a sentence: a fresh reader misread it, so the next one
+  can. When the answer lives in code, say which file holds it and link that file, without copying
+  the code.
 - **Fix the rules file** when the file contradicts a rule and both are right for their own case.
   Write the exception into the rule, so no later reader raises it.
 - **Close a gap** when you couldn't write your own answer, or a fix needs a rule no rules file has.
   Write the answer most repos would expect as a rule, in the file or in the rules file, and list it
   in your reply.
-- **Ask the user** only when the gap needs a call on taste, priority or cost, or would reverse a
-  rule that exists. Write your answer as the rule anyway, and ask the user whether to keep it. Don't
-  ask about a reason you wrote for a rule, or a guess at what the author meant. The user reads the
-  rules you added in your reply.
+- **Check each fact you write** before you commit it, such as how a tool behaves, what a flag does,
+  or why a rule exists. Read the docs or the source, or run it. The user can't check it faster than
+  you can, so never ask them to confirm a fact. When you can't check one, leave that claim out and
+  keep the rule it explains.
+- **Ask the user** only when the choice needs their taste or their priorities, or reverses a rule
+  that exists. Write your answer as the rule anyway, and ask whether to keep it. Close everything
+  else yourself: a reason you wrote, a guess at what the author meant, a choice any convention
+  settles, a contradiction, a fact you can check, a case nobody has hit yet, and what a rule costs
+  to run. When the fix belongs in another repo, write what happens today and file an issue there.
+  The user reads the rules you added in your reply. Put a question that another session raised
+  through the same test before you pass it on. A contradiction stays yours to close, even when that
+  session calls it a question of cost.
+- **Hand a shared-rules gap to your caller** when another session owns that rules file, and count
+  the finding as acted on.
 
 Redraft each section a fix lands in. Start from what the section needs to say, and write it fresh.
 If you start from the sentences the cold reader quoted, you keep the shape that misled it.
