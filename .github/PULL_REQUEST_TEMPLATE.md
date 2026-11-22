@@ -18,6 +18,7 @@ First, one line per linked issue. Delete it when the PR has none.
   Contributes to GEO-123   delivers part of it; work remains
   Related to GEO-123       context only
   Fixes #45                merging closes the GitHub issue
+  Builds i-12              the boxxy item this PR builds; its short ID only
 
 Then one or two sentences, the problem and then the change, and up to 4 one-line bullets:
 
