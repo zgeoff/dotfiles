@@ -57,7 +57,7 @@ The run fixes blocking review findings for up to 2 rounds. It then fixes red CI 
 | `status` | What you do |
 | --- | --- |
 | `ready` | Hand the user the PR link. The PR is open and CI is green. |
-| `review-blocked` | No PR exists yet. Fix each finding in `outstandingFindings` in the worktree, then open the PR and watch CI until it is green. Never move a finding to a follow-up because the run hit its round limit. |
+| `review-blocked` | The run opened no PR, and left a `prNumber` PR unchanged. Fix each finding in `outstandingFindings` in the worktree. Then open the PR, or push to the `prNumber` PR and mark it ready, and watch CI until it is green. Never move a finding to a follow-up because the run hit its round limit. |
 | `ci-failed` | Fix each check in `failures` in this PR, in the worktree, push, and watch CI until it is green. |
 | `blocked` | Read `reason`, or the run's transcript in `/workflows` when it has none. Fix the cause, then [resume the run](#resume-a-run). |
 | `failed` | Read `stage` for the stage whose agent died. [Resume the run](#resume-a-run). When the same stage dies again, tell the user. |

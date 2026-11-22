@@ -13,7 +13,7 @@ metadata:
 ## Function names
 
 When a function's job has a row, start its name with that row's verb, and keep the row's guarantee.
-You may start it with `resolve` instead, which guarantees nothing about I/O. Give any other function
+You may start a function that returns anything but a boolean with `resolve` instead, which guarantees nothing about I/O. Give any other function
 any verb that fits, except a banned verb from the last bullet under the table, such as `fetch` or
 `process`.
 
@@ -51,7 +51,8 @@ any verb that fits, except a banned verb from the last bullet under the table, s
   - Keep a leading `use`, `on` or `handle`.
 - Never use `make`, `with`, `use`, `on` or `to` as a whole name. Follow it with a noun, such as
   `toPosixPath`.
-- You may start a name with `resolve` in place of a row's verb, whether or not it does I/O, such as
+- You may start a name with `resolve` in place of a row's verb, unless the function returns a
+  boolean, whether or not it does I/O, such as
   for a pure lookup or a filesystem search. A `resolve` name carries none of the row's guarantees.
 - Never start a name with one of these verbs. They say nothing about I/O or a miss:
   - `process`, `manage`, `do`, `perform`, `execute` or `compute`;
