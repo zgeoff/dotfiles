@@ -51,29 +51,31 @@ metadata:
 
 ## Types
 
-- Use a type guard, an annotation, `satisfies` or a schema parse, and never a type assertion. The
-  one exception is `as const`.
-- When an assertion has to stay, get the maintainer's approval in the PR, and add a lint disable
-  comment that gives the reason. In review, flag every new assertion, approved or not.
+- Use a type guard, an annotation, `satisfies` or a schema parse in place of a type assertion,
+  except `as const`.
+- When none of those works, get the maintainer's approval in the PR, and add a lint disable comment
+  that gives the reason. In review, flag every new assertion.
 - Never let `any` reach a typed value. Make it `unknown` and narrow it, or parse it. `JSON.parse`
   returns `any`.
 
 ## Structure
 
-- Split a function in two when it reads something, branches on what it read, and then writes,
-  removes or runs something:
+- Split in two a function that reads, branches on what it read, then writes, removes or runs
+  something:
   - Make a pure function that takes the values read and returns what to do. Give it a verb from a
     no-I/O row of the [verb table](#function-names), such as `collect` or `pick`, so the
     [`zgeoff/verb-contract`](https://github.com/zgeoff/tools/blob/main/docs/architecture/oxlint-config-code-style.md)
-    rule in `@zgeoff/oxlint-config` keeps I/O out of it;
+    lint rule keeps I/O out of it;
   - Make a thin function that does the reads, calls the pure one, and acts on its result. Give it
     the I/O verb that fits, such as `run`, `write` or `remove`, and no decision of its own.
 - Write and test the pure function before the thin one, with one `test.each` row of plain data per
   edge case. In one combined function, each case needs a stand-in for every read and write, so edges
   go untested.
 - Reach I/O through dependencies the caller passes in. Create real clients only in the entry point.
+  For a file lock, import `withFileLock` directly, as
+  [File locks](./references/state-and-processes.md#file-locks) says.
 - Never write a wrapper that only passes its arguments on.
-- Never add an option, parameter or extension point before a caller passes it.
+- Never add an option, parameter or extension point before a caller uses it.
 
 ```ts
 export async function runReminders(dependencies: ReminderDependencies): Promise<void> {
@@ -93,27 +95,27 @@ export function collectDueReminders(tasks: readonly Task[], nowMs: number): Task
 
 - Return an expected outcome, such as a miss or bad input from outside, as a value of the return
   type. Throw only what the caller can't plan for.
-- Never check again what the value's source already guarantees, such as a field its schema requires,
-  its type, or a library's documented behaviour.
+- Never recheck what the value's source guarantees, such as a field its schema requires, its type,
+  or a library's documented behaviour.
 - Call `invariant()` from `tiny-invariant` on a state that only a bug can reach.
 - Log failures, state changes and slow calls. A call to the network, a database, a disk or a
-  subprocess is slow past the code's or repo's latency target, or past 1 second without one. Log a
-  slow call's duration and what it called.
+  subprocess is slow past its latency target, or past 1 second without one. Log a slow call's
+  duration and what it called.
 - In per-request or per-item code, put the request or item ID in each log line. Never log a call
   there that succeeds, isn't slow and changes no state.
 
 ## Comments
 
-- Write a `//` comment only to say why the obvious alternative is wrong, when the cause sits outside
-  the file: a library bug, a runtime quirk, a measured number. Put it beside the code it explains,
-  in three lines at most.
+- Write a `//` comment only to give a lint disable's reason, or to say why the obvious alternative
+  is wrong when the cause sits outside the file: a library bug, a runtime quirk, a measured number.
+  Put it beside the code it explains, in three lines at most.
 - Never restate what the code or a test shows.
 - Never write history or project state in a comment, such as "previously", an issue number or "not
   wired yet". Put it in the commit.
-- Put what callers rely on in a test name, such as `it returns null for an unknown ID`, not in a
-  comment. When code in another package depends on an invariant of yours, also state it in the doc
-  under `docs/` for that part of the system.
-- Don't name another declaration in a comment; state the fact, so a rename can't leave it stale.
+- Put what callers rely on in a test name, such as `it returns null for an unknown ID`. When code in
+  another package depends on an invariant of yours, also state it in the doc under `docs/` for that
+  part of the system.
+- Don't name another declaration in a comment. State the fact, so a rename can't leave it stale.
 
 ## One-off codemods
 
@@ -123,8 +125,7 @@ export function collectDueReminders(tasks: readonly Task[], nowMs: number): Task
 ## Function names
 
 When a function's job has a row, start its name with that row's verb, and keep the row's guarantee.
-Give any other function any verb that fits, except the banned verbs below, such as `fetch` or
-`process`.
+Give any other function any verb that fits, except the banned verbs below.
 
 | Job                                                                                                       | Verb                         | Guarantee                                                                      |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
@@ -162,7 +163,7 @@ Give any other function any verb that fits, except the banned verbs below, such 
   - Keep a leading `use`, `on` or `handle`.
 - Never use `make`, `with`, `use`, `on` or `to` as a whole name. Follow it with a noun, such as
   `toPosixPath`.
-- You may start a name with `resolve` whether or not it does I/O.
+- You may start a name with `resolve` in place of a row's verb, whether or not it does I/O.
 - Never start a name with one of these verbs. They say nothing about I/O or a miss:
   - `process`, `manage`, `do`, `perform`, `execute` or `compute`;
   - `fetch`, `save`, `store`, `delete`, `search` or `lookup`. For a database read that can miss, use
