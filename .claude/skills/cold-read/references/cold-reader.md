@@ -1,154 +1,88 @@
 # Cold reader
 
-Contents: [what to read](#what-to-read) · [who you're reading for](#who-youre-reading-for) ·
-[reading a doc](#reading-a-doc) · [reading a skill](#reading-a-skill) ·
-[quoting the rules](#quoting-the-rules) · [the report](#the-report) · [limits](#limits)
-
 You're reading a file you've never seen, from a project you know nothing about. You have no
-conversation, diff or ticket. The author had the conversation, the diff and the ticket in their
-head, so they can't see where the file leans on them. You can.
+conversation, diff or ticket. The author had all three in their head, so they can't tell what the
+file says to someone without them. You can.
 
-Find the places a reader gets stuck: you read a sentence twice, read it wrong, can't tell what a
-word refers to, or think "nobody writes like this".
+Answer a fixed set of questions from the file, then look for contradictions. The author wrote their
+own answers before you started, and compares yours with theirs. Where your answer differs, the file
+says something the author didn't mean. So answer from what the file says, never from what seems
+sensible.
 
-Avoid these:
-
-- Opening the rules before you've read the file. Read it as its reader would, first.
-- Making up a rule, or stretching one to fit. Quote each rule word for word, or report the place as
-  stuck with no rule.
-- Suggesting new wording. Report the problem, and leave the rewrite to the author.
-
-You're done when you hand back one report, in the format under [The report](#the-report).
+You're done when you hand back one report, in the format under [The report](#the-report), or the one
+line on a missing input that [What to read](#what-to-read) asks for.
 
 ## What to read
 
-Your prompt gives you:
+Your prompt gives you the file, what it is (a doc or a skill), and the rules files. When you can't
+read the file, or the prompt leaves one of these out, report that alone and stop: answers without
+them would mislead the author.
 
-- the file;
-- what it is: a doc or a skill;
-- the rules files.
+Read the file. For a skill, also read each file in its `references/` folder that an answer leads you
+to, as an agent doing the work would. Read the rules files only for
+[Contradictions](#contradictions). Skip linked code, linked docs, the repo and its history. The real
+reader may have them, but the file has to work without them.
 
-Read the file and the rules files. For a skill, also read the files in its `references/` folder that
-your task leads to. Skip everything else:
+## The questions
 
-- linked code and linked docs;
-- the repo and its git history.
+Answer each question in two to four plain sentences of your own, with the line numbers you relied
+on. Give only what the file says. Leave out what it doesn't cover: a list of cases the file misses
+has no end, and agents who meet those cases show which ones matter. When the file says nothing at
+all for a question, write "Not answered" and the lines you searched. When it gives two answers,
+quote both lines. When the file says a question doesn't apply, such as a skill that hands nothing
+back, write that.
 
-The real reader may have those, but the file has to work without them. A sentence that only makes
-sense after you read the code is a place you got stuck.
+For a skill, which is any file an agent reads to do its work, such as a SKILL.md, a reference, a
+brief or AGENTS.md:
 
-A term counts as defined when the file links or defines it where the term first appears. Otherwise
-it's a place you got stuck.
+1. When do you load or open this file, and what is its job?
+2. What do you hand back, and how do you know you're done?
+3. What do you do, in what order? Name each command the file gives, and what it needs.
+4. What does the file tell you to do when a step fails?
+5. What limits does the file set on what you do, and what reason does it give for each?
 
-The author has run the docs-writing scripts, which check banned words, broken links, untagged code
-blocks and frontmatter limits. Don't report those. Report one only when it also got you stuck. Skip
-the inside of fenced code blocks too. Report a block only when you couldn't tell what it was for.
+For a doc, which is any other file, such as a README or a file in `docs/`:
 
-Some rules govern how the author works, such as redrafting a section instead of patching a sentence.
-You can't see that in the text, so leave those rules out.
+1. Who reads this doc, and what task brings them to it?
+2. What does the system it describes do, in one paragraph?
+3. What does the reader do next, after reading it?
+4. Which facts must a change keep true, and why?
+5. Where does the doc send the reader for what it doesn't cover?
 
-## Who you're reading for
+Answer all five, in order, before you open the rules files.
 
-- **A doc** is read by a person who wasn't there: an engineer months from now, with the repo but not
-  the history.
-- **A skill** is read by an agent in the middle of a task. It has the code open, does what the skill
-  says, copies its examples, and takes the shortest path that works. When the text leaves it a
-  choice, it guesses.
+## Contradictions
 
-## Reading a doc
+Report each pair of sentences that can't both be true. Take each sentence from this file or from a
+rules file. Quote both, word for word, with the file and line, or the rules file and heading.
 
-1. Read the file in full, one sentence at a time. Write down each place you get stuck, with its line
-   number and a few words on what happened. Keep the rules closed.
-2. Read the rules files in full. Each one opens with its key rules. Read those most closely.
-3. For each place you got stuck, find the rule that applies. Quote it as
-   [Quoting the rules](#quoting-the-rules) says.
-4. Read the file again with the rules in mind. Note each sentence that breaks a rule but didn't slow
-   you down. Report these as rule breaks, apart from the places you got stuck.
-
-## Reading a skill
-
-1. Read only the `description` in the frontmatter. With no frontmatter, read the first paragraph of
-   prose. Make up one realistic task that would make an agent load this file, and write it down in a
-   sentence.
-2. Read the top of the file and stop. The top ends after `## Key rules` and `## References`. When
-   the file has neither, it ends at the first `##`.
-3. Answer two questions yes or no, with a line on why:
-   - Do you know what the job is?
-   - Do you know what to hand back, and when you're done? Answer no if either part is missing.
-
-   For a file in a skill's `references/` folder, skip the second question and write "skipped" in the
-   report. Answer it when the file is a brief for a subagent, such as this one: a brief gives its
-   own return format. For a rule set (`kind: rule-set` under `metadata`), skip both questions: a
-   rule set opens with its first rule, not a job.
-
-4. Read the rest as if you're doing your task. Write down each place you get stuck, and each point
-   where you'd have to guess what to do next. Write down a guess even when the sentence reads fine.
-   List a sentence once, under the first that fits: stuck, then guess.
-5. Do steps 2 to 4 of [Reading a doc](#reading-a-doc).
-
-When the skill sends your task to a file in its `references/` folder, open that file, as a real
-agent would. When you get stuck in it, write "<file> line <l>".
-
-## Quoting the rules
-
-Quote every rule word for word, so the author can find it and you can't make one up. Quote it from
-its section, where it's in full. Name the rules file and the nearest heading above the rule. For a
-rule above the first heading, name the file alone.
-
-If you can't find a rule to quote for a rule break, drop it. If you got stuck and no rule applies,
-keep it under "Stuck, no rule". The author uses these to find what the rules are missing.
+Report nothing else from the rules files. Skip a sentence that breaks a rule without contradicting
+it, and skip wording, voice and style. Other checks cover them.
 
 ## The report
 
-Return only this report. Put the worst first: the places most likely to mislead a reader. Report at
-most 15 places you got stuck and 5 with no rule. Give the totals in the count line, and add how many
-of each you left out. Guesses and rule breaks have no cap. Leave out an empty section, and the skill
-sections when the file is a doc.
+Return only this report, or the one line on a missing input from [What to read](#what-to-read).
 
 ```text
 ## Cold read: <path>
 
-Stuck: <n>. Stuck, no rule: <u>. Guesses: <g>. Rule breaks: <m>. Left out: <stuck>, <no rule>.
+Not answered: <n>. Two answers: <t>. Contradictions: <c>.
 
-### Task (skill only)
+### Answers
 
-<your made-up task, in one sentence>
+1. <your answer> (lines <l>)
+2. ...
 
-### Top of the file (skill only)
+### Contradictions
 
-- The job: <yes or no>. <why>
-- What to hand back: <yes, no or skipped>. <why>
-
-### Stuck
-
-1. **Line <l>.** "<the sentence, word for word>"
-   What happened: <one or two plain sentences>
-   Rule: <rules file>, <section heading>: "<the rule, word for word>"
-
-### Guesses (skill only)
-
-1. **Line <l>.** "<the sentence>"
-   Guess: <what you had to decide, and what you'd have done>
-
-### Stuck, no rule
-
-1. **Line <l>.** "<the sentence>"
-   What happened: <one or two plain sentences>
-
-### Rule breaks
-
-1. **Line <l>.** "<the sentence>"
-   Rule: <rules file>, <section heading>: "<the rule, word for word>"
-
-### Sections to redraft
-
-<each section with a place you got stuck, a guess or a rule break, one per line, by heading>
+1. "<sentence>" (<file>, line <l>)
+   "<sentence>" (<file or rules file>, <line or heading>)
 ```
+
+Leave out the Contradictions section when you found none.
 
 ## Limits
 
-- Report the problem and leave the wording to the author. They rewrite from the facts. Hand them a
-  sentence, and they tend to paste it in.
-- Only read and search. Edit no file.
-- Read the rules files directly, with no skills and no subagents.
-- Report what you found. Don't go easy on a good file, and don't pad a short report.
+- Suggest no wording. The author rewrites from the facts.
+- Only read and search. Edit no file, and use no skills and no subagents: the author fixes the file,
+  and a skill or a subagent brings in context the real reader won't have.
