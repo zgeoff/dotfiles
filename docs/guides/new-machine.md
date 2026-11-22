@@ -20,10 +20,10 @@ The key comes from outside the repo. Never commit it: anyone with the key can de
    sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
    ```
 
-2. Clone the repo to `~/projects/dotfiles` and apply it:
+2. Clone the repo to `~/projects/dotfiles` over HTTPS, and apply it. The repo is public, so the clone needs no SSH key:
 
    ```sh
-   chezmoi init --apply --source ~/projects/dotfiles git@github.com:zgeoff/dotfiles.git
+   chezmoi init --apply --source ~/projects/dotfiles https://github.com/zgeoff/dotfiles.git
    ```
 
 3. Answer the four prompts: the Git email, whether the machine has a desktop session, whether it is a personal machine, and whether it is a work machine. chezmoi remembers the answers. To change one later, run `chezmoi init` again.
@@ -46,7 +46,13 @@ The first apply installs yay or Homebrew when it is missing, then installs the p
    ssh-add ~/.ssh/id
    ```
 
-4. Copy the GPG keys to `~/gpg.pub` and `~/gpg.key`, import them, then delete the copies:
+4. Point the repo's remote at SSH, so you can push:
+
+   ```sh
+   git -C ~/projects/dotfiles remote set-url origin git@github.com:zgeoff/dotfiles.git
+   ```
+
+5. Copy the GPG keys to `~/gpg.pub` and `~/gpg.key`, import them, then delete the copies:
 
    ```sh
    gpg --import ~/gpg.pub
@@ -54,7 +60,7 @@ The first apply installs yay or Homebrew when it is missing, then installs the p
    rm -f ~/gpg.pub ~/gpg.key
    ```
 
-5. Restart the GPG agent:
+6. Restart the GPG agent:
 
    ```sh
    killall gpg-agent

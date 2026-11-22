@@ -11,7 +11,7 @@
   </p>
 </div>
 
-Personal config for Arch and macOS machines, managed with [chezmoi](https://chezmoi.io).
+Personal config for Arch and macOS machines, managed with [chezmoi](https://chezmoi.io). Start here to set up a new machine, or to change the config of one.
 
 The repo holds the shell, editor and terminal config for each machine, the packages each one installs, and the global rules for Claude Code and Codex. chezmoi renders the source state in `home/` into `$HOME`, and [age](https://github.com/FiloSottile/age) encrypts the secrets in it.
 
@@ -21,10 +21,10 @@ Copy the age identity key to `~/.config/chezmoi/key.txt` first, then install che
 
 ```sh
 sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
-chezmoi init --apply --source ~/projects/dotfiles git@github.com:zgeoff/dotfiles.git
+chezmoi init --apply --source ~/projects/dotfiles https://github.com/zgeoff/dotfiles.git
 ```
 
-[Set up a new machine](./docs/guides/new-machine.md) covers the key, the prompts and the manual steps after the first apply.
+[Set up a new machine](./docs/guides/new-machine.md) covers the age key, the prompts, the SSH and GPG keys, and the prompt font on WSL.
 
 ## Checks
 
