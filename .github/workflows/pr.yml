@@ -8,7 +8,7 @@
 # list of package scripts that replaces the standard list (audit deadcode
 # format:check lint typecheck test, then each lane script),
 # NODE_VERSION, which sets up Node next to Bun, and BUN_CHECK_TIMEOUT_MINUTES,
-# the time limit of each job that runs scripts (20 when unset).
+# the time limit of each job that runs tests (20 when unset).
 name: PR
 
 on:
@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: zgeoff/tools/.github/workflows/bun-checks.yml@c2d388d14c2c0af2278eaf9dc16d996ef086ed50 # main
+    uses: zgeoff/tools/.github/workflows/bun-checks.yml@3437ead7bd6586e9f3e81c7d02312c8e1aee787b # main
     with:
       scripts: ${{ vars.BUN_CHECK_SCRIPTS }}
       node-version: ${{ vars.NODE_VERSION }}
