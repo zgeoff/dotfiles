@@ -24,7 +24,7 @@ metadata:
 
 ## Jobs
 
-Never edit [`pr.yml`](https://github.com/zgeoff/tools/blob/main/sync/workflow-callers/pr.yml):
+Never edit [`pr.yml`](https://github.com/zgeoff/tools/blob/main/sync/src/workflow-callers/pr.yml):
 [repo-sync](https://github.com/zgeoff/tools/blob/main/docs/architecture/repo-sync.md) copies it from
 zgeoff/tools and overwrites your change. `pr.yml` runs the shared
 [`bun-checks.yml`](https://github.com/zgeoff/tools/blob/main/.github/workflows/bun-checks.yml) on
@@ -40,8 +40,8 @@ each pull request.
   leave out stops running, and a name that `package.json` lacks fails the run.
 - In a private repo, `bun-checks.yml` runs every script in one `checks` job. In a public repo,
   `bun-checks.yml` gives each of `test:e2e`, `test:browser`, `test:docker`, `test:host` and
-  `test:agent-sdk` a job of its name, such as `test-e2e`. It runs each other `test:<name>` script in
-  the `test` job, and the rest in the `static` job.
+  `test:agent-sdk` a job of its name, such as `test-e2e`. It runs `test` and each other
+  `test:<name>` script in the `test` job, and every other script in the `static` job.
 - Require `pr / checks` in the `main` ruleset. In a public repo, the `checks` job fails when any
   other job fails.
 - Put a job of your own in a workflow you write, such as `image.yml`.
@@ -65,14 +65,17 @@ time and median in this skill as [Run times](./references/run-times.md) says.
 ## Timeouts
 
 - Set `timeout-minutes` on every job that runs steps. GitHub refuses it on a job that calls a
-  reusable workflow, so pass the workflow's `timeout-minutes` input when it has one.
-- Set 20 minutes on a job with tests. Once its tests have stayed within the test budget for a week
-  of runs on `main`, set twice the budget plus the job's median time outside its tests.
-- Set twice the median time on a job with no tests, and never less than 5 minutes.
-- Set the repo variable `BUN_CHECK_TIMEOUT_MINUTES` to the slowest test job's timeout.
-  `bun-checks.yml` gives that timeout to each of its jobs, those with no tests included. In a
-  workflow you write that calls `bun-checks.yml`, pass the variable the way
-  [`pr.yml`](https://github.com/zgeoff/tools/blob/main/sync/workflow-callers/pr.yml) does.
+  reusable workflow. On that job, pass the workflow's `timeout-minutes` input when it has one.
+- Give each test job 20 minutes, whether you write the job or `bun-checks.yml` runs it. Once its
+  tests have stayed within the test budget for a week of runs on `main`, give it twice the budget
+  plus the job's median time outside its tests. With no budget, keep the 20 minutes. For a job that
+  `bun-checks.yml` runs, use this figure only to set the repo variable below.
+- Set twice the median time on a job you write that runs no tests, and never less than 5 minutes.
+  `bun-checks.yml` sets 5 minutes on each of its own jobs that runs no tests.
+- Set the repo variable `BUN_CHECK_TIMEOUT_MINUTES` to the largest timeout among the test jobs that
+  `bun-checks.yml` runs. `bun-checks.yml` gives that one timeout to each of them. In a workflow you
+  write that calls `bun-checks.yml`, pass the variable as its `timeout-minutes` input, the way
+  [`pr.yml`](https://github.com/zgeoff/tools/blob/main/sync/src/workflow-callers/pr.yml) does.
 
 ## Reusable workflows
 
