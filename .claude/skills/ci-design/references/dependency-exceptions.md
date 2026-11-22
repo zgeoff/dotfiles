@@ -1,16 +1,23 @@
 # Dependency exceptions
 
 Add an exception only for a reason you give in the pull request, such as a fix the repo needs. Run
-`bun audit` first. When it reports an advisory for the package, wait for the
-[audit-fix workflow](https://github.com/zgeoff/tools/blob/main/docs/architecture/dependency-updates.md#the-audit-fix-workflow).
-The workflow opens a pull request that adds the exclude or the ignore. When the repo's
-`.github/workflows/` has no audit-fix workflow, add the exclude by hand, as
-[Release-age excludes](#release-age-excludes) says, and the ignore as
-[Audit ignores](#audit-ignores) says.
+`bun audit` first, then follow the first case that fits:
+
+- When a release older than `minimumReleaseAge` holds the fix, lock that release as step 2 of
+  [Release-age excludes](#release-age-excludes) says, and add no exclude. The age gate lets that
+  release through.
+- When `bun audit` reports an advisory for the package, and the repo's `.github/workflows/` holds
+  the
+  [audit-fix workflow](https://github.com/zgeoff/tools/blob/main/docs/architecture/dependency-updates.md#the-audit-fix-workflow),
+  wait for it. The workflow opens a pull request that adds the exclude or the ignore.
+- Otherwise, add the exception by hand: an exclude as [Release-age excludes](#release-age-excludes)
+  says, an override as [Overrides](#overrides) says, and an ignore as
+  [Audit ignores](#audit-ignores) says.
 
 In CI, `chex dependency-gates` fails on each exception that guards nothing, as
-[Dependency exceptions](../SKILL.md#dependency-exceptions) lists. It also fails on a third-party
-exclude without a removal comment in the form below.
+[Dependency exceptions](../SKILL.md#dependency-exceptions) lists, and on a third-party exclude
+without a removal comment in the form below. Remove each exception it names, or add the missing
+comment.
 
 ## Release-age excludes
 
