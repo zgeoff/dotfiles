@@ -142,9 +142,10 @@ test of the code that the case reaches.
 
 Never share a `setupTest` or a cleanup between `e2e/` test files: when a file needs one, give it its
 own. A file's own `setupTest` may call a shared helper from `src/test-utils/`, such as the reset
-helper below. Inside an `e2e/` test, you may chain acts, and assert after each one, because each act
-needs the state that the act before it left. Outside `e2e/`, a test has one act, as
-[Test shape](../SKILL.md#test-shape) says.
+helper below. Inside an `e2e/` test, you may chain acts, and assert after each one. Each act needs
+the state that the act before it left. Outside `e2e/`, give each test one act, as
+[Test shape](../SKILL.md#test-shape) says, apart from a property test that applies generated
+operations, as [Property tests](#property-tests) allows.
 
 To share a slow service, such as a VM or a database container, across the `e2e/` tests:
 
@@ -183,8 +184,9 @@ a test that starts a container itself, and `bun run test:e2e` skips a file that 
 
 Test a client that the repo ships, such as a CLI or an SDK, against the real service from the same
 repo. Give each test its own data. Use a stand-in only for a system that the test can't run, such as
-a remote service. A test that `bun run test` runs can't run a VM or change the kernel. An `e2e/`
-test can use a VM that [Files and shared hosts](#files-and-shared-hosts) shares.
+a remote service. Never run a VM or change a setting of the host's kernel in a test that
+`bun run test` runs. An `e2e/` test can use a VM that
+[Files and shared hosts](#files-and-shared-hosts) shares.
 
 In a test that `bun run test` runs, call the service in the test's process, such as through its
 request handler or an in-memory RPC link, as [the cause table](./slow-tests.md#causes-and-fixes)
@@ -304,9 +306,12 @@ Find which kind of timer your test waits on, then follow the rules under its hea
 
 ### A timer the runtime or the kernel runs
 
-- Set the timer, such as a server's idle timeout, through its real setting, to the shortest value
-  that still behaves like the real one. When the runtime reads the setting only at start-up, start a
-  child process for this test alone, with the setting.
+- Set the timer, such as a server's idle timeout or a socket's keep-alive time, through its real
+  setting on that server, socket or process, to the shortest value that still behaves like the real
+  one. When the runtime reads the setting only at start-up, start a child process for this test
+  alone, with the setting. When the only setting is one for the whole host, such as a kernel
+  parameter, put the test where [Where each test runs](./slow-tests.md#where-each-test-runs) puts a
+  test that needs the host kernel.
 - Check that the timer fires. A keep-alive, such as a ping, resets the timer, so a test that only
   sets a short value never sees it fire. Add a second test that stops the keep-alive and checks that
   the timeout then ends the operation.
