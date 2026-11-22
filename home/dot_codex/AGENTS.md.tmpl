@@ -1,4 +1,4 @@
-{{- /* Rendered from .chezmoitemplates/agents/; edit the pieces there, not ~/.codex/AGENTS.md. */ -}}
+{{- /* Rendered from the pieces in .chezmoitemplates/agents/ and the Codex-only Subagents section below; edit those, not ~/.codex/AGENTS.md. */ -}}
 {{ template "agents/core.md" . }}
 {{- if and (hasKey . "personal") .personal }}
 {{ template "agents/personal.md.tmpl" . }}

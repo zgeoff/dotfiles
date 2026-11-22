@@ -5,7 +5,7 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR, then hand the user the PR link. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
@@ -33,7 +33,7 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 | Arg | Type | Default | Use |
 | --- | --- | --- | --- |
 | `plan` | string | required | The whole agreed plan, as markdown. |
-| `branch` | string | required | The branch name. The run makes the worktree at `.worktrees/<branch>`, or reuses it. Keep the ticket ID out of it. |
+| `branch` | string | required | The branch name. The run makes the worktree at `.worktrees/<branch>`, or reuses it. Keep the ticket ID out of it: Linear closes an issue that a merged PR names in its branch. |
 | `base` | string | `main` | The branch to start from, rebase onto, and open the PR against. |
 | `issue` | number | none | A GitHub issue number, for `Closes #n` in the PR body. For a Linear ticket, leave it out and put the `Fixes GEO-n` line in the plan. |
 | `prNumber` | number | none | An existing PR to push to and mark ready, in place of a new one. Pass it to each later run of a split job. |
@@ -83,4 +83,4 @@ On a resume, the Workflow tool replays the cached result of each stage whose pro
 - A workflow run by name loads from a copy taken when the session started. After you edit `build-feature.js` in a session, run it with `scriptPath`.
 - The permission classifier blocks the run's own edits to `.github/workflows/*`. When a fix needs a CI change, the run ends `blocked`: ask the user to approve the exact edit, make it yourself, then resume.
 
-Reply: the PR link, or the `status` and what you did about it, plus each answered minor finding.
+**Reply:** the PR link, or the `status` and what you did about it, plus each answered minor finding.
