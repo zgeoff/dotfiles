@@ -45,8 +45,9 @@ metadata:
 
 - Branch on a union with `match(value)…exhaustive()` from `ts-pattern`, never `switch`, so a new
   member fails the type check.
-- End with `.otherwise()` only for a value from outside the program, such as input that no schema
-  has parsed.
+- End with `.otherwise()` only for an open value, such as a string from outside the program.
+- When a match covers a fixed list of kinds, such as an SDK's event kinds, name only the kinds the
+  code handles, and send every other kind to one `.otherwise()` that does nothing.
 
 ## Types
 
