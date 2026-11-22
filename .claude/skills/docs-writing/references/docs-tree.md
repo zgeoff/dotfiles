@@ -1,8 +1,14 @@
 # The docs/ tree
 
-Keep `docs/` to what is true of the system today. Keep research, plans and history out of it, and
-delete a design once its code is built. Put each kind of doc in the folder that the table after the
-contents list names.
+Keep `docs/` to what is true of the system today, so a reader can trust each doc without checking
+its date. Keep these kinds of doc in it too:
+
+- a design for work not yet built, and the spikes in its folder, which you delete with the design
+  once its code is built;
+- a decision record, whose `## Changes` list is its history.
+
+Keep every other plan, research write-up and history out of `docs/`. Put each kind of doc in the
+folder that the table after the contents list names.
 
 Contents: [where content goes](#where-each-kind-of-content-goes) · [length](#length) ·
 [designs and decision records](#designs-and-decision-records) · [spikes](#spikes)
@@ -36,27 +42,30 @@ subfolders by area, so a reader can scan the folder. Link `docs/reference/` from
   architecture doc that owns it. Put each finding someone will act on in the issue tracker. Delete
   the write-up.
 
-- **Development and releasing live in runbooks.** Put the contributor setup in `development.md`, in
-  `docs/runbooks/`. The release runbook, `releasing.md` in the same folder, is for the steps the
-  release tooling doesn't do. When the tooling does every step, delete the runbook.
+- **Put development and releasing in runbooks.** Write the contributor setup in
+  `docs/runbooks/development.md`. Write the steps the release tooling doesn't do in
+  `docs/runbooks/releasing.md`. When the tooling does every step, delete the release runbook. Steps
+  that repeat the tooling go stale when it changes.
 
 ## Length
 
-Keep each doc under its cap. `chex length` sets the caps, and warns when a doc goes over one,
-without failing the run. Past the cap, cut paragraphs first, then split the doc at a concept
-boundary. If the doc is still over, say so in the PR body. Don't fit it under the cap by any of
-these:
+Keep each doc under its cap. A spike's files other than its README have no cap, as [Spikes](#spikes)
+says. Run `bun x @zgeoff/chex length` from the repo root: it sets the caps, and warns when a doc
+goes over one, without failing the run. Past the cap, cut paragraphs first, then split the doc at a
+concept boundary. If the doc is still over, say so in the PR body. Each of these gets a doc under
+the cap and leaves it harder to use, so don't do them:
 
-- compressing sentences, meaning dropping their articles and connecting words;
-- moving the overflow into a README or code comments;
-- splitting where the concept has no boundary.
+- dropping articles and connecting words from sentences, so each is harder to read;
+- moving the overflow into a README or code comments, where the reader of the doc never finds the
+  copy;
+- splitting where the concept has no boundary, so the reader needs both halves open.
 
 ## Designs and decision records
 
 Load the [design-docs](../../design-docs/SKILL.md) skill before you write a design or a decision
 record. It sets where a design lives, its shape, and when a decision record is written and how it
-changes. A design in `docs/design/<work>/` is deleted once its code is built, and a decision record
-stays until its decision is dropped.
+changes. Keep a design in `docs/design/<work>.md`, or in `docs/design/<work>/` once it is split or
+has a spike. Delete it once its code is built. Keep a decision record until its decision is dropped.
 
 ## Spikes
 

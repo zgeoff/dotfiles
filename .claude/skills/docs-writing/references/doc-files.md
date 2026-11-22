@@ -10,7 +10,8 @@ An architecture doc is an explanation, a runbook is a how-to, and `docs/referenc
 doc called a guide is a tutorial when it teaches a newcomer, and a how-to when it walks someone who
 already knows the system through one task. A how-to assumes competence. Reference states facts and
 holds no opinion. An explanation may hold a view. When a doc mixes two types, split it into two
-docs.
+docs. Each reader comes for one task, such as learning, a procedure or a lookup, and in a mixed doc
+they wade through the part that serves someone else.
 
 A README is the one exception: each of its sections has one type, and the README keeps them
 together. Its install steps are a how-to, and its API section is reference.
@@ -28,17 +29,19 @@ Each item below is a kind of copy, with what to write in its place.
   300 s suspend". A measured result is different: give it, with its source.
 - **A name.** Name a function or module by its role, such as "the retry policy", in place of its
   identifier: a renamed function leaves the doc wrong with no error. When the reader needs to find
-  it, name its directory, with no link to the file. Write a command, flag or path exactly as the
-  reader types it. Call a library or a product by its real name.
+  it, name its directory, with no link to the file: a directory outlasts the moves and splits of the
+  files in it. Write a command, flag or path exactly as the reader types it. Call a library or a
+  product by its real name.
 - **Code.** Put only a command the reader runs, a config the reader pastes, or a short invented
-  example in a code block. Say what other code does in a sentence.
+  example in a code block. Say what other code does in a sentence. A block copied from the source
+  goes stale when the source changes, and no check catches it.
 
 ## The opening
 
 Open a doc in `docs/` with three to six plain sentences. A reader who stops there still leaves with
 the main facts. In most docs, they say what the system does and what the reader most needs to know.
-In a runbook, they say what it fixes and when to use it. A README opens as the READMEs reference
-says.
+In a runbook, they say what it fixes and when to use it. A README opens as
+[READMEs](./readmes.md#the-header) says.
 
 ## Diagrams for pipelines, state machines and topologies
 
@@ -47,4 +50,4 @@ When the whole doc is about one, put the diagram right after the opening sentenc
 and a job handoff through a queue each count as a pipeline. A service dependency map and a
 deployment layout each count as a topology. Label each node with the name the text uses for that
 part, so the reader can match the two. Under the diagram, write only what it can't show, such as the
-invariant on each edge.
+invariant on each edge. Prose that repeats the diagram is a second copy, and the two drift apart.

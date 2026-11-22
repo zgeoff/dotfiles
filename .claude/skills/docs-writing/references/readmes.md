@@ -1,8 +1,7 @@
 # READMEs
 
-A repo has five kinds of README, and each is an index or a landing page. Keep each one short. Flags,
-edge cases and history belong in the code, `--help` or `docs/`, and a copy in a README goes out of
-date.
+A repo has five kinds of README, and each is an index or a landing page. Keep each one short. Put
+flags and edge cases in the code, `--help` or `docs/`. A copy in a README goes out of date.
 
 Contents: [the five kinds](#the-five-kinds) · [root README](#root-readme) ·
 [the header](#the-header) · [published package sections](#published-package-sections) ·
@@ -55,8 +54,10 @@ The root README takes one of three shapes:
 ## The header
 
 Open every root README and every published package README with this header. Replace `<name>`,
-`<package>`, `<guide>`, `<Guide title>` and `<One-line description.>`. Keep the HTML tags. The
-bullets below the template name the only tags you may leave out. Use this header:
+`<package>`, `<guide>`, `<Guide title>` and `<One-line description.>`. The template shows npm's
+version badge: for a package on another registry, replace that `<a>` line with the registry's own
+version badge. Keep the other HTML tags. The bullets below the template name the only tags you may
+leave out. Use this header:
 
 ```text
 <div align="center">
@@ -79,7 +80,8 @@ bullets below the template name the only tags you may leave out. Use this header
 - Put the repo or package name in the `<h1>`, or a logo as an `<img>` with the name as its alt text.
 - Put one badge on each line. Give a published package its registry's version badge, such as npm's,
   crates.io's or pkg.go.dev's. Give every README with a header a licence badge that matches
-  `LICENSE`. Leave the version badge off a root README that publishes several packages or none.
+  `LICENSE`. Leave the version badge off a root README that publishes several packages or none:
+  there is no one version to show.
 - In the second `<p>`, link the docs index, then up to two guides a new user needs first, joined by
   `•`. When there are no docs, leave that `<p>` out.
 - Write the one-line description below the `<div>`, in plain Markdown.
@@ -106,8 +108,8 @@ npm uses that field to rewrite a relative link so that it points at the repo.
 ## Length
 
 `chex length` sets each README's target and limit from its kind. Run `bun x @zgeoff/chex length` to
-print both for each README. Cut a README to its target. The limit is where the run fails. The front
-page README warns from 101 to 150 lines and fails over 150.
+print both for each README. Cut a README to its target. The check warns on a README over its target,
+and fails the run on one over its limit.
 
 ## What stays out
 
@@ -123,10 +125,11 @@ of date:
 
 ## Who reviews a README
 
-The user owns what each README says about the project, so the user reviews every README change in
-its PR. Make the change without asking first, in the PR that each line below names:
+The user owns what each README says about the project. The user reviews every README change in its
+PR. Make the change without asking first, in the PR that each line below names:
 
 - Add a new package's README in the PR that adds the package.
 - Add a new feature's README line in the PR that adds the feature.
 - Rewrite a sentence your change made false in the same PR.
-- Make any other change to an existing README in a PR of its own.
+- Make any other change to an existing README in a PR of its own, so the user reviews it apart from
+  code.

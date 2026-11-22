@@ -91,8 +91,8 @@ keeps it, with its reason beside it.
 
 ## Shape the set of docs around concepts
 
-- **Keep an overview.** The `overview.md` in `docs/architecture/` shows the whole system on one
-  page, so a reader can find the doc they need. It has a paragraph and a link for each of:
+- **Keep an overview.** Write `overview.md` in `docs/architecture/` as a one-page view of the whole
+  system, so a reader can find the doc they need. Give it a paragraph and a link for each of:
   - the path a request takes, end to end;
   - the topology: which processes and deployments exist, and how they reach each other;
   - the data: each store, and the shapes of data it holds;
@@ -100,8 +100,8 @@ keeps it, with its reason beside it.
 
   When you add an architecture doc, add a paragraph and a link for it to the overview, and write the
   overview first when the repo has none. Put that paragraph under the overview item that its
-  subsystem belongs to, such as the data. The overview isn't a product overview, which says what the
-  product is and who it's for.
+  subsystem belongs to, such as the data. Leave out what the product is and who it's for. The root
+  README covers that.
 
 - **Write one architecture doc per subsystem, not per package.** A subsystem can span several
   packages, and a reader changing it needs all of it in one place. Split a doc at a concept
