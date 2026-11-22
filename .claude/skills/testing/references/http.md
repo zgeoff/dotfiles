@@ -1,9 +1,9 @@
 # HTTP mocking
 
 Test a package that calls a remote service over HTTP or RPC by running its real client against MSW
-handlers. The handlers answer from `@msw/data` collections that hold the service's state, so seed
-that state in the test and let the client code run: its requests, serialisation, retries and error
-handling. Add a per-test handler only for what the collections can't express.
+handlers. The handlers answer from `@msw/data` collections that hold the service's state. Seed that
+state in the test, and let the client's own requests, serialisation, retries and error handling run.
+Add a per-test handler only in the cases that [Per-test handlers](#per-test-handlers) lists.
 
 Never use MSW's `setupServer` under Bun. It intercepts at Node's sockets, which Bun's native `fetch`
 never opens, so its handlers miss every request

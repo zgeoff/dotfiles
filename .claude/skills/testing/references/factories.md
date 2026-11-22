@@ -13,12 +13,11 @@ seed, build the input with these factories.
 
 - Keep the factory, with its own test file, in `src/test-utils/` of the package that defines the
   type. For a type from a third-party package, such as an SDK result, keep it in the package that
-  wraps that package. When no package wraps it, keep it in the package whose tests use it. Another
-  package imports the factory by package name, through the package's `"./test-utils/*"` export, with
-  a `workspace:*` dev dependency.
+  wraps that package. When no package wraps it, keep it in the package whose tests use it. From
+  another package, import the factory by package name, through the package's `"./test-utils/*"`
+  export, with a `workspace:*` dev dependency.
 - Name the file `build-mock-<type>.ts`, and export `buildMock<Type>` from it: `OrderLine` gets
-  `build-mock-order-line.ts` and `buildMockOrderLine`. Use `build`, because the factory creates no
-  resource.
+  `build-mock-order-line.ts` and `buildMockOrderLine`. Use `build`. The factory creates no resource.
 - Take one argument of overrides. Return a complete value, with every optional field filled. Return
   the object literal itself, so the return type checks each field with no cast:
 
@@ -41,8 +40,8 @@ seed, build the input with these factories.
   sets `exactOptionalPropertyTypes`, so an `undefined` override fails the type check.
 - Write one factory per type. For a variant, pass its overrides in the test, such as
   `buildMockInvoice({ status: 'paid' })`, so the reader sees them. For a stored state, write a seed,
-  such as `seedArchivedNote` in [Seeding](./seeding.md). The seed reaches the state through the
-  module's own functions, so it never sets a field such as `archivedAt` by hand.
+  such as `seedArchivedNote` in [Seeding](./seeding.md). In the seed, reach the state through the
+  module's own functions, and never set a field such as `archivedAt` by hand.
 - In a package with a golden test, default every field of the package's own factories to a literal
   value. A golden test pins output in an inline snapshot or a committed file. Faker's values follow
   the order of its calls in the run, so one new faker call in any test file changes them.
@@ -54,8 +53,8 @@ seed, build the input with these factories.
 - Default an enum or a discriminator to the value most tests need.
 - Outside a package with a golden test, default each foreign key to a new `faker.string.uuid()`.
   Never require a parent. When a test needs a real parent, seed the parent and pass its ID.
-- When the type is a class, pass the merged fields to its constructor and return the instance, so
-  `toStrictEqual` against a real instance passes.
+- When the type is a class, return an instance in place of the object literal. Pass the merged
+  fields to its constructor, so `toStrictEqual` against a real instance passes.
 - Build a nested object with its own factory, and pass it the nested override. For a list field, the
   spread replaces the whole default list, so never write merge code for a list.
 
@@ -74,8 +73,8 @@ seed, build the input with these factories.
   }
   ```
 
-- When a domain type has one shape as a database row and another in the API, write a factory for
-  each shape, named for its type, such as `buildMockOrderLineRow` and `buildMockOrderLine`.
+- When a record has one type for its database row and another for the API, write a factory for each
+  type, such as `buildMockOrderLineRow` for `OrderLineRow` and `buildMockOrderLine` for `OrderLine`.
 - In a test file, call the factory in the test that uses its value, never in a shared constant or a
   hook. The reader then sees each value next to the assertion that uses it.
 

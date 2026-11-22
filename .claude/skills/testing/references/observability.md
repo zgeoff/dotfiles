@@ -1,10 +1,11 @@
 # Observability testing
 
-Test metrics, spans, error reports and log lines like any other output, because dashboards, alerts
-and the person reading an incident rely on them. Run the real SDK, and read what it records back
-through an in-memory exporter or a server on the loopback interface. Never spy on the SDK or the
-logger. With a spy, you see only that your code called a function, and you miss what the SDK
-filters, shapes and sends.
+Test metrics, spans, error reports and log lines like any other output. Dashboards, alerts and the
+person reading an incident rely on them. Run the real SDK or logger, and read back what it records
+at the point where it would leave the process: an in-memory exporter, a server on the loopback
+interface, Sentry's `beforeSend` or the logger's destination stream, as each section below says.
+Never spy on the SDK or the logger. With a spy, you see only that your code called a function, and
+you miss what the SDK filters, shapes and sends.
 
 - [Metrics](#metrics)
 - [Spans](#spans)
@@ -38,11 +39,15 @@ When the repo has no helper, write one in `src/test-utils/` that a test calls an
 
 ## Spans
 
-Set the tracer provider, the context manager and the propagator once, in the
+Set the global tracer provider, the context manager and the propagator once, at the top level of the
 [test preload](./cleanup.md#the-test-preload), and never in a test. Each one is a global that stays
 for every later test. Code that gets its tracer at module load binds that tracer to the first
-provider it records a span with, and `trace.disable()` leaves the binding in place. A test can't
-change when library code gets its tracer, so keep one tracer provider for the whole run.
+provider it records a span with, and `trace.disable()` leaves the binding in place. Keep one global
+tracer provider for the whole run. A test can't change when library code gets its tracer. A provider
+that the code under test builds and returns, as in [Exporters](#exporters), is not the global one.
+The three globals start no server or connection, so the rule in
+[The test preload](./cleanup.md#the-test-preload) to start a shared resource in `beforeAll` doesn't
+cover them.
 
 In the test preload, build a `TracerProvider` with an `InMemorySpanExporter` behind a
 `SimpleSpanProcessor`. All three come from `@opentelemetry/sdk-trace`, the trace SDK of

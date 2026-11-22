@@ -15,13 +15,14 @@ line on a missing input that [What to read](#what-to-read) asks for.
 ## What to read
 
 Your prompt gives you the file, what it is (a doc or a skill), and the rules files. When you can't
-read the file, or the prompt leaves one of these out, report that alone and stop: answers without
+read the file, or the prompt leaves one of these out, report that alone and stop. Answers without
 them would mislead the author.
 
 Read the file. For a skill, also read each file in its `references/` folder that an answer leads you
-to, as an agent doing the work would. Read the rules files only for
-[Contradictions](#contradictions). Skip linked code, linked docs, the repo and its history. The real
-reader may have them, but the file has to work without them.
+to, as an agent doing the work would. For a file in a skill's `references/`, also read each section
+of its SKILL.md that links to the file: an agent opens the reference from there. Read the rules
+files only for [Contradictions](#contradictions). Skip linked code, linked docs, the repo and its
+history. The real reader may have them, but the file has to work without them.
 
 ## The questions
 
@@ -30,7 +31,10 @@ on. Give only what the file says. Leave out what it doesn't cover: a list of cas
 has no end, and agents who meet those cases show which ones matter. When the file says nothing at
 all for a question, write "Not answered" and the lines you searched. When it gives two answers,
 quote both lines. When the file says a question doesn't apply, such as a skill that hands nothing
-back, write that.
+back, write that. For a file in a skill's `references/` that isn't a subagent's brief, write
+"doesn't apply" for questions 1 and 2. The SKILL.md line that links it says when to open it, and
+SKILL.md holds the hand-back. A brief, such as this file, holds its own hand-back. For a file that
+only sets a format and runs no step, write "doesn't apply" for question 4.
 
 For a skill, which is any file an agent reads to do its work, such as a SKILL.md, a reference, a
 brief or AGENTS.md:
@@ -53,8 +57,8 @@ Answer all five, in order, before you open the rules files.
 
 ## Contradictions
 
-Report each pair of sentences that can't both be true. Take each sentence from this file or from a
-rules file. Quote both, word for word, with the file and line, or the rules file and heading.
+Report each pair of sentences that can't both be true. Take each sentence from the file you read or
+from a rules file. Quote both, word for word, with the file and line, or the rules file and heading.
 
 Report nothing else from the rules files. Skip a sentence that breaks a rule without contradicting
 it, and skip wording, voice and style. Other checks cover them.

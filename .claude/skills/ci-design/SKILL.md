@@ -38,10 +38,10 @@ each pull request.
 - To run a script outside the standard list, such as a made-up `check:sql`, set the repo variable
   `BUN_CHECK_SCRIPTS`. Write in it every script to run, the standard ones included. A script you
   leave out stops running, and a name that `package.json` lacks fails the run.
-- Expect a private repo to run every script in one `checks` job. In a public repo, `bun-checks.yml`
-  gives each of `test:e2e`, `test:browser`, `test:docker`, `test:host` and `test:agent-sdk` a job of
-  its name, such as `test-e2e`. It runs each other `test:<name>` script in the `test` job, and the
-  rest in the `static` job.
+- In a private repo, `bun-checks.yml` runs every script in one `checks` job. In a public repo,
+  `bun-checks.yml` gives each of `test:e2e`, `test:browser`, `test:docker`, `test:host` and
+  `test:agent-sdk` a job of its name, such as `test-e2e`. It runs each other `test:<name>` script in
+  the `test` job, and the rest in the `static` job.
 - Require `pr / checks` in the `main` ruleset. In a public repo, the `checks` job fails when any
   other job fails.
 - Put a job of your own in a workflow you write, such as `image.yml`.
@@ -56,9 +56,10 @@ time and median in this skill as [Run times](./references/run-times.md) says.
 - In a public repo, move a script into a job in a workflow you write only when its step takes over
   60 s longer than the steps that set up a job, such as the checkout and `bun install`. Shard tests
   only when the repo is over its test budget.
-- In a private repo, write a job of your own only for a heavy check: one on any runner but a
-  GitHub-hosted `ubuntu-*`, or one that sets up KVM. Run it on `schedule` or `workflow_dispatch`. A
-  required check runs on every push to a pull request, so never require a heavy check.
+- In a private repo, keep every script in the `checks` job. Beside the push-to-`main` workflow that
+  [Cancelling runs](#cancelling-runs) asks for, write a job of your own only for a heavy check: one
+  on any runner but a GitHub-hosted `ubuntu-*`, or one that sets up KVM. Run it on `schedule` or
+  `workflow_dispatch`, and never require it. A required check runs on every push to a pull request.
 - Give a required job no `if:` or path filter. GitHub counts a skipped required check as a pass.
 
 ## Timeouts
@@ -68,9 +69,9 @@ time and median in this skill as [Run times](./references/run-times.md) says.
 - Set 20 minutes on a job with tests. Once its tests have stayed within the test budget for a week
   of runs on `main`, set twice the budget plus the job's median time outside its tests.
 - Set twice the median time on a job with no tests, and never less than 5 minutes.
-- Set the timeout of the `bun-checks.yml` jobs with the repo variable `BUN_CHECK_TIMEOUT_MINUTES`.
-  Set it to the slowest test job's timeout. In a workflow you write that calls `bun-checks.yml`,
-  pass the variable the way
+- Set the repo variable `BUN_CHECK_TIMEOUT_MINUTES` to the slowest test job's timeout.
+  `bun-checks.yml` gives that timeout to each of its jobs, those with no tests included. In a
+  workflow you write that calls `bun-checks.yml`, pass the variable the way
   [`pr.yml`](https://github.com/zgeoff/tools/blob/main/sync/workflow-callers/pr.yml) does.
 
 ## Reusable workflows
@@ -85,7 +86,8 @@ time and median in this skill as [Run times](./references/run-times.md) says.
   uses: zgeoff/tools/.github/workflows/<name>.yml@<commit> # main
   ```
 
-- Never move the pin by hand. Repo-sync moves each pin in `.github/workflows/`, yours included.
+- After you write the call, never move its pin by hand. Repo-sync moves each pin in
+  `.github/workflows/`, yours included.
 
 ## Step scripts
 

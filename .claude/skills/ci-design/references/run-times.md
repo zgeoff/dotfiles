@@ -1,7 +1,8 @@
 # Run times
 
-Measure each median time that the ci-design skill uses from the 20 latest push runs on `main` that
-restored no `actions/cache` entry.
+Measure each median time that the ci-design skill uses, such as a job's time for its timeout, across
+20 push runs on `main`. Take the newest runs that restored no `actions/cache` entry. A run that
+restored a cache skips work, so its times come out short.
 
 1. List the push runs on `main`. Ask for more than 20, because the next step skips some:
 
@@ -17,11 +18,11 @@ restored no `actions/cache` entry.
    gh run view <run-id> --log | grep -c 'Cache restored from key'
    ```
 
-   Expect: one number per run, `0` when the run restored no cache. Skip each run whose count is
-   above 0. Stop once 20 runs remain. When fewer than 20 remain, run step 1 again with a larger
-   `--limit`.
+   Expect: one number per run, `0` when the run restored no cache. Keep each run whose count is 0,
+   and skip the rest. Stop once you keep 20 runs. When the list runs out first, run step 1 again
+   with a larger `--limit`.
 
-3. Read each job's time and each step's time from the start and end times in
-   `gh run view <run-id> --json jobs`. Expect: each job and each of its steps with a `startedAt` and
-   a `completedAt`.
+3. For each run you kept, run `gh run view <run-id> --json jobs`. Expect: each job and each of its
+   steps with a `startedAt` and a `completedAt`. Take each job's time and each step's time as its
+   `completedAt` minus its `startedAt`.
 4. Take the median of each time across the 20 runs.

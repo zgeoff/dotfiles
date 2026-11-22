@@ -72,14 +72,14 @@ skill, this skill wins.
 
 ## Open with the job and the key rules
 
-Every skill but a rule set opens the same way, because the agent decides what to do from the top of
-a skill:
+Open every skill but a rule set the same way. The agent decides what to do from the top of a skill.
 
 1. A paragraph or two: the job and what the agent hands back, if anything. Write them for this
    skill, with no stock opener. When a skill hands something back, repeat it in a `**Reply:**` line
    at the end.
 2. `## Key rules`: one line per `##` section, with a link and the rule in a phrase. Leave
-   `## Key rules`, `## References` and each `###` out of the list.
+   `## Key rules`, `## References` and each `###` out of the list. Leave out `## Key rules` when the
+   skill has no `##` section.
 3. `## References`, when the skill has any: one line per file in `references/`, with the task that
    needs it.
 
@@ -100,16 +100,16 @@ knows. A reader in another repo can't open a file the example names, or doesn't 
 When you mention a file, a function or a setting, link the file, in a sentence that says what the
 code doesn't: a reason or a choice. When someone renames the file, `chex links` fails. Write an
 invented path as its file and folder apart, such as `nextest.toml` in `.config/`, or with a
-placeholder, such as `<name>`: `chex skill` warns on a bare path that matches a repo file.
+placeholder, such as `<name>`. `chex skill` warns on a bare path that matches a repo file.
 
 - **Replace a list of files, functions or options,** with the rule that defines the list and the
-  search that finds it: "each stand-in is a `build-stub-*` file in `test-utils/`; search there
-  before you write one". A table of commands is fine: each row says what its command needs.
+  search that finds it: "each stand-in is a `*-stub-*` file in `test-utils/`; search there before
+  you write one". A table of commands is fine: each row says what its command needs.
 - **Replace a retelling,** such as "the script builds, tags, pushes, then rolls out", with the fact
   the agent acts on, such as "a failed push leaves the old version serving", and link the script.
-- **Quote only when the exact words are the point.** A copied error message teaches the old text
-  once the code changes. Otherwise invent the example.
-- **Never link a line anchor.** `chex skill` fails on one, because `#L42` points at the wrong line
+- **Quote only when the exact words are the point.** Otherwise invent the example. A copied error
+  message teaches the old text once the code changes.
+- **Never link a line anchor.** `chex skill` fails on one. A `#L42` anchor points at the wrong line
   after the next edit. Name what to look for in the file.
 
 When a review asks for one of these copies, decline it and name this section.
@@ -140,7 +140,8 @@ Remove the cause:
    instruction: "Pass `--region` to each deploy command. The CLI defaults to your last region."
 
 Never write a list of mistakes or a warning about one. The agent still follows the wrong step. Edit
-the rule that covers the mistake, or add one.
+the rule that covers the mistake, or add one. In a doc that one agent writes for another, such as a
+handoff doc, write each lesson as the instruction to follow, with its reason.
 
 ## Check it
 

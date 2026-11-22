@@ -5,7 +5,8 @@
 - Give it a `#` title, then start it with the facts that its reader needs first. Leave out when to
   read it: the line in SKILL.md that links the reference already says when.
 - Use the terms SKILL.md sets up without explaining them again. The agent reads SKILL.md first.
-- Keep what the agent hands back to its caller in SKILL.md.
+- Keep what the agent hands back to its caller in SKILL.md. The agent hands something back on every
+  task, and opens a reference only on some.
 
 ## A subagent's brief
 

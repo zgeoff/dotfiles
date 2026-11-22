@@ -24,9 +24,10 @@ you review, run the chex command from [Check it](#check-it), with no cold read. 
 file against every section below, and hand back each finding with its line and the quoted rule, for
 the author to fix.
 
-When the `skill-writing` skill disagrees with this one about a skill, follow skill-writing. When a
-repo's `project-docs-writing` skill disagrees with this one about that repo's docs, follow it. Write
-committed prose by these rules, whatever style you use in chat.
+When the `skill-writing` skill disagrees with this one about a skill, or `design-docs` about a
+design or a decision record, follow that skill. When a repo's `project-docs-writing` skill disagrees
+with this one about that repo's docs, follow it. Write committed prose by these rules, whatever
+style you use in chat.
 
 ## Key rules
 
@@ -82,14 +83,16 @@ can cause issues".
 
 ## What goes in
 
-**Describe the system as it is now.** Leave these out, because each goes false without anyone
-noticing:
+**Describe the system as it is now.** Leave these out:
 
 - history and plans;
 - temporary states;
 - links to the project's own tracker;
 - words that make sense only next to the old version, such as "the new endpoint", or an "also" that
   means "in addition to before".
+
+Each goes false without anyone noticing. A design and a decision record are the exceptions, as
+[The docs/ tree](./references/docs-tree.md) says.
 
 **Cut what a reader can get from the code.** Picture a reader who has the code open. If a paragraph
 tells them nothing new, delete the whole paragraph. Keep a fact that shows only across several
@@ -98,12 +101,13 @@ files.
 **After a bug fix, rewrite the sentence the fix made false.** Don't add a paragraph. A doc that
 grows a paragraph per fix turns into a changelog.
 
-**Give each doc one job, and each fact one doc that owns it.** A doc serves one reader doing one
-task. Explain each fact, with its reason, in one doc, and link to that doc from the others. When two
-docs disagree, check the owning doc against the code, and replace the other copy with a link.
+**Give each doc one job, and each fact one doc that owns it.** Write each doc for one reader doing
+one task. Explain each fact, with its reason, in one doc, and link to that doc from the others. When
+two docs disagree, check the owning doc against the code, and replace the other copy with a link.
 
 **In a code comment,** write why the code is the way it is. The rules in this section and the house
-rules apply to it.
+rules apply to it. When a comment turns off a check, give it an expiry and the PR's link, as the
+[correct](../correct/SKILL.md) skill says.
 
 ## House rules
 
@@ -112,8 +116,12 @@ reason does the work", "the error names the fix"). That hides who acts.
 
 **Lead with what the reader does.** Open a paragraph or a bullet with the instruction or the fact
 the reader acts on. A definition first ("A heavy check is a job that…") or a label and a colon
-("Private:") leaves the reader to work out what to do. In a skill, keep the labelled lines that
-skill-writing asks for: the Key rules lines, the References lines and the `**Reply:**` line.
+("Private:") leaves the reader to work out what to do. Keep these labelled lines:
+
+- in a skill, the ones skill-writing asks for: the Key rules lines, the References lines and the
+  `**Reply:**` line;
+- in an architecture doc, a `**Why:**` paragraph, as
+  [Architecture docs](./references/architecture-docs.md#give-the-reason-next-to-the-fact) allows.
 
 **Use the plain name.** Call a thing what the reader already calls it. A label you made up, such as
 "a negative" for a failed check, reads as a term they should know.
@@ -151,9 +159,9 @@ A short line that sums up a rule is fine when the rule sits next to it in full.
   per cell.
 - **Procedures.** Number the steps, and give the expected outcome after each one that has one:
   "Expect: HTTP 202".
-- **Headings.** Name what the section is about. A role name such as "Overview" fits any section, so
-  it tells the reader nothing. Use no horizontal rule between sections: the headings already split
-  them.
+- **Headings.** Name what the section is about. A role name such as "Overview" fits any section and
+  tells the reader nothing. Keep a section name that a skill's output format sets: it's a format.
+  Use no horizontal rule between sections: the headings already split them.
 - **Formatting.** Tag every code block with a language, and link with a path relative to the file.
   Name what each placeholder stands for (`<service_id>`, never `xxx`), so the reader knows what to
   put there.
@@ -176,15 +184,10 @@ want to keep, rewrite it until the check passes. In your reply, name each failur
 didn't change, and leave it: it belongs to another change. Outside a repo, or when chex can't run,
 skip the checks and say so in your reply.
 
-- `chex prose` fails on what a search can find, such as banned words. Under "Candidates", it also
-  prints lines that need a person's judgment. Fix each candidate that's a real fault. In the check
-  output you hand back, give the failures and the candidates you fixed. To check prose outside the
-  files it covers, such as AGENTS.md, run `bun x @zgeoff/chex prose <path>`.
-- `chex length` checks each README and `docs/` file against its length limit.
-- `chex links` resolves every relative link.
-- `chex readmes` fails on a README that isn't one of the five kinds in
-  [READMEs](./references/readmes.md).
-- `chex skill` checks each skill, as the skill-writing skill describes.
+`chex prose` also prints "Candidates": lines that need a person's judgment. Fix each one that's a
+real fault, and hand back the failures and the candidates you fixed. To check prose outside the
+files it covers, such as AGENTS.md, run `bun x @zgeoff/chex prose <path>`. `chex length` skips each
+`docs/` file inside a spike's folder.
 
 Then run the `cold-read` skill on each doc you changed, and act on what it finds, as that skill
 says. Skip the cold read for a code comment. You're done when the checks pass for the files you

@@ -1,8 +1,7 @@
 # State, waiting and processes
 
-Use the tool or pattern each section names when you save or send a status, wait, lock a file, or
-send data to another process or package. Avoid writing one status from two modules, and writing your
-own lock, wait or parser in place of the one named.
+When you save or send a status, wait, lock a file, or send data to another process or package, use
+the tool or pattern in its section below. Write your own only in a case that section lists.
 
 ## State
 
@@ -22,12 +21,13 @@ own lock, wait or parser in place of the one named.
 
 ## File locks
 
-- Lock a file across processes only with `withFileLock` from `@zgeoff/std/with-file-lock`. Read,
-  decide and write in its callback, so the lock spans all three.
-- Import `withFileLock` directly in the thin function that [Structure](../SKILL.md#structure)
-  describes. Have the thin function's caller pass in every other piece of I/O, as Structure says.
-- Write your own lock only for a need `withFileLock` can't meet, such as a shared read lock, and
+- Lock a file across processes with `withFileLock` from `@zgeoff/std/with-file-lock`. Read, decide
+  and write in its callback. The lock then spans all three.
+- When you need a lock `withFileLock` can't give, such as a shared read lock, write your own, and
   name the need in a comment.
+- Import `withFileLock` directly in the thin function that [Structure](../SKILL.md#structure)
+  describes, the one that calls the pure function and acts on its result. Pass every other piece of
+  I/O into that function from its caller as dependencies, and do the reads and writes through them.
 
 ## Data between processes and packages
 

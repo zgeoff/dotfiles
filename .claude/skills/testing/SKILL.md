@@ -111,7 +111,7 @@ Here a module is one source file, and the unit is the code a test calls.
 - Write one `setupTest()` per file, and never share it. Bind its result to one `const ctx`, never
   destructured.
 
-Both helpers below live in the repo's `src/test-utils/`.
+Both helpers below live in `src/test-utils/`.
 
 ```ts
 async function setupTest() {
@@ -160,11 +160,15 @@ directly only where [Seeding](./references/seeding.md) allows.
 
 ## Assertions
 
-- Assert the full contract with `toStrictEqual`, never `toEqual`. Put an asymmetric matcher in it
-  for a field the test doesn't decide, such as a generated ID.
-- Use `toMatchObject` only for an error's code, or for a raw row in the creating module's own test.
-- Assert each result in its own `expect`, such as a call's return value and the stored state you
-  read back. For that read-back, one `toBe` on the changed field is enough.
+- Assert the full result with `toStrictEqual`, never `toEqual`, with an asymmetric matcher for a
+  field the test doesn't decide, such as an ID.
+- Assert less than the full result only for:
+  - an error, as [Errors](#errors) says;
+  - a raw row in the creating module's own test, with `toMatchObject`;
+  - a parsed log line or workflow file, with `toMatchObject` on the fields you check: the rest
+    changes on every run, or belongs to another test;
+  - the read-back state, with one `toBe` on the changed field.
+- Assert the return value and the read-back state in separate `expect` calls.
 - Assert the parts of one result in one `expect`, such as a command's exit code, stdout and stderr.
 - Derive the expected value from the contract, never with the unit's own calculation.
 - Use a [jest-extended matcher](./references/matchers.md) over a hand-written check: it prints the
@@ -217,4 +221,5 @@ directly only where [Seeding](./references/seeding.md) allows.
 ## Speed
 
 - Keep each test of `bun run test` under 5 s on CI. Fix a slower one from
-  [Causes and fixes](./references/slow-tests.md#causes-and-fixes), never with a longer timeout.
+  [Causes and fixes](./references/slow-tests.md#causes-and-fixes). Raise a timeout only as
+  [A test over its limit](./references/slow-tests.md#a-test-over-its-limit) allows.

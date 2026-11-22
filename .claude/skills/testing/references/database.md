@@ -155,14 +155,14 @@ Give the tie its own test, with two rows that share the timestamp.
 
 ## Access rules
 
-In an access test, seed each user or role the rule covers. In the test body, build the client each
-one calls through, such as an API client signed in as that user, or the test's connection switched
-to that Postgres role. Then write the tests that
-[Access rules](./schemas-and-access.md#access-rules) lists.
+Write the tests that [Access rules](./schemas-and-access.md#access-rules) lists, with one caller in
+each test. Seed that caller's user or role. In the test body, build the client the caller calls
+through, such as an API client signed in as that user, or the test's connection switched to that
+Postgres role.
 
 To test as a Postgres role under `transaction` isolation, run `SET LOCAL ROLE` on the test's
-connection, with one role per test. Never open a second connection as the role: it can't see the
-rows the test seeded, because the test's transaction never commits them.
+connection, with one role per test. Never open a second connection as the role. The test's
+transaction never commits the rows it seeded, so a second connection can't see them.
 
 ## Configuration stored in the database
 
