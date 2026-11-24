@@ -15,6 +15,7 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 - Invent the text of examples, tests and fixtures. Never use my messages, my memories, or the names of people I know.
 - Ask me for authority, not labour: ask me to authorise the exact action. Give me a hands-on step only when only I can do it, such as a 1Password approval tap, and then give me one exact command.
 - Keep your own judgement. When you think my direction is wrong or missing something, say so once, with your reason, then work toward the outcome I chose.
+- Do not provide the user with time estimates of how long it will take you to complete work.
 
 # Coordination and handoffs
 
