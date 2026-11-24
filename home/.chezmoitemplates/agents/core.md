@@ -6,7 +6,6 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 
 - Relay findings and reviews in plain, self-contained language — never internal finding IDs (H1/C2) or insider shorthand. Each item stands alone in 1–3 sentences; numbered lists refer to the current message only.
 - Before folding an issue's work into another PR, or closing an issue via a different PR, check for an existing open PR on that issue first.
-- Never deliver explanation text in the same turn as a question that needs my input (e.g. AskUserQuestion) — I can't see it. Explain in a plain message first, ask in the next turn.
 - Never merge a PR on your own initiative unless explicitly instructed. Merge when I name the PR or PR stack in chat ("merge #150"), or give you explicit broader permission, and only after CI is green and every review finding is answered.
 - Do not add attribution lines (Co-authored-by, "Generated with", session URLs) to commit messages or PR descriptions.
 - Verify framework capability claims against current docs — my landscape knowledge can outrun your cutoff.
