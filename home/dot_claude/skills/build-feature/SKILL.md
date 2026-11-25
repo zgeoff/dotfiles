@@ -50,6 +50,11 @@ Pass `review: 'codex'` when the change needs a local review under the "Building 
 
 The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install, the test services and the skills to load. When the run's agents can't find a step the repo needs, add it to that repo's AGENTS.md.
 
+The run also does the checks that need a fresh agent, which its own agents can't start:
+
+- When the branch changes a doc or a skill file, as the repo's docs checks count them, fresh agents deslop each one twice, then cold-read it up to 3 times, before the PR opens. The PR body ticks the Deslop and Cold read lines when the repo's PR template has them. A later commit that changes a doc gets deslopped again, and the Deslop line moves to it.
+- When the repo has a verify skill, an agent runs its verify steps after the PR opens, and publishes the report into the PR. It runs them again after each CI fix.
+
 ## Act on the result
 
 The run fixes blocking review findings for up to 2 rounds. It then fixes red CI for up to 2 rounds of its own. Read the run's `status`, then act on it:
@@ -59,7 +64,7 @@ The run fixes blocking review findings for up to 2 rounds. It then fixes red CI 
 | `ready` | Hand the user the PR link. The PR is open and CI is green. |
 | `review-blocked` | The run opened no PR, and left a `prNumber` PR unchanged. Fix each finding in `outstandingFindings` in the worktree. Then open the PR, or push to the `prNumber` PR and mark it ready, and watch CI until it is green. Never move a finding to a follow-up because the run hit its round limit. |
 | `ci-failed` | Fix each check in `failures` in this PR, in the worktree, push, and watch CI until it is green. |
-| `blocked` | Read `reason`, or the run's transcript in `/workflows` when it has none. Fix the cause, then [resume the run](#resume-a-run). |
+| `blocked` | Read `reason`, or the run's transcript in `/workflows` when it has none. Fix the cause, then [resume the run](#resume-a-run). When `stage` is `verify`, verify each feature in `verify.unverified` yourself, publish the report, then watch CI. When `stage` is `doc-check` and `reason` names the cap of 20 doc files, run the deslop and cold-read skills on them yourself. |
 | `failed` | Read `stage` for the stage whose agent died. [Resume the run](#resume-a-run). When the same stage dies again, tell the user. |
 
 Then act on each of these fields that the result holds:
@@ -67,6 +72,7 @@ Then act on each of these fields that the result holds:
 - `reviewedBy` lists `codex`, `opus` or both, and is empty when `review` was `'none'`. When it lists only `opus` after you passed `'codex'`, tell the user that Codex was unavailable for the whole run.
 - `minorFindings` holds the review findings that didn't block the PR. Answer each one on the PR: fix it, or reply with why not.
 - When `rebaseConflicts` is `true`, a run agent resolved a rebase conflict by hand. Ask the user to check the files that conflicted.
+- `docCheck` is null when the run checked no doc. Otherwise `stillDiffer` lists each cold-read answer that still differed after 3 reads, and `unreadFixes` each file a fix changed after its last read. Fix each one, and tell the user. Bring each item in `openItems` to the user.
 
 The branch and the worktree stay in place after every result. Remove them once the PR merges.
 
