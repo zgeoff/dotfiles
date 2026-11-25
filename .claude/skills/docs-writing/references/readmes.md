@@ -23,7 +23,8 @@ Contents: [the five kinds](#the-five-kinds) · [root README](#root-readme) ·
    Give a published package the [published package sections](#published-package-sections), because
    the registry shows its README on the package's page. Give an unpublished package a short README
    with no header: one paragraph on what the package is for, and a link to the architecture doc that
-   covers it, when one exists.
+   covers it, when one exists. Open the paragraph with a full sentence on what the package does,
+   such as "The order importer reads each order file and posts its lines to the ledger."
 
 3. **Docs index:** the `README.md` in `docs/`, one line and a link for each doc.
 4. **Design README:** `docs/design/<work>/README.md`, one line and a link for each doc and spike in
