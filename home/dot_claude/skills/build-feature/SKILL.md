@@ -5,12 +5,12 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR, then hand the user the PR link. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when you've handed the user a failure from the [result table](#act-on-the-result). Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
 - [Before you run it](#before-you-run-it): agree the plan, check that git can sign, and run one PR at a time.
-- [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when CLAUDE.md gives the change a local review.
+- [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when the change needs a local review under CLAUDE.md.
 - [Act on the result](#act-on-the-result): fix what is left in the same PR, and answer every minor finding.
 - [Resume a run](#resume-a-run): pass the run ID and the full `args` again.
 
@@ -33,7 +33,7 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 | Arg | Type | Default | Use |
 | --- | --- | --- | --- |
 | `plan` | string | required | The whole agreed plan, as markdown. |
-| `branch` | string | required | The branch name. The run makes the worktree at `.worktrees/<branch>`, or reuses it. Keep the ticket ID out of it. |
+| `branch` | string | required | The branch name. The run makes the worktree at `.worktrees/<branch>`, or reuses it. Keep the ticket ID out of it: Linear closes an issue that a merged PR names in its branch. |
 | `base` | string | `main` | The branch to start from, rebase onto, and open the PR against. |
 | `issue` | number | none | A GitHub issue number, for `Closes #n` in the PR body. For a Linear ticket, leave it out and put the `Fixes GEO-n` line in the plan. |
 | `prNumber` | number | none | An existing PR to push to and mark ready, in place of a new one. Pass it to each later run of a split job. |
@@ -46,7 +46,7 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 | `'codex'` | Gets a Codex review through the `second-opinion` skill. Opus reviews in its place when Codex is missing, fails, or takes more than 15 minutes. |
 | `'opus'` | Gets an Opus review, and never calls Codex. |
 
-Pass `review: 'codex'` when the "Building and reviewing" rules in CLAUDE.md give the change a local review. Pass `'opus'` only when the user names that model.
+Pass `review: 'codex'` when the change needs a local review under the "Building and reviewing" rules in CLAUDE.md. Pass `'opus'` only when the user names that model.
 
 The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install, the test services and the skills to load. When the run's agents can't find a step the repo needs, add it to that repo's AGENTS.md.
 
@@ -57,7 +57,7 @@ The run fixes blocking review findings for up to 2 rounds. It then fixes red CI 
 | `status` | What you do |
 | --- | --- |
 | `ready` | Hand the user the PR link. The PR is open and CI is green. |
-| `review-blocked` | No PR exists yet. Fix each finding in `outstandingFindings` in the worktree, then open the PR and watch CI until it is green. Never move a finding to a follow-up because the run hit its round limit. |
+| `review-blocked` | The run opened no PR, and left a `prNumber` PR unchanged. Fix each finding in `outstandingFindings` in the worktree. Then open the PR, or push to the `prNumber` PR and mark it ready, and watch CI until it is green. Never move a finding to a follow-up because the run hit its round limit. |
 | `ci-failed` | Fix each check in `failures` in this PR, in the worktree, push, and watch CI until it is green. |
 | `blocked` | Read `reason`, or the run's transcript in `/workflows` when it has none. Fix the cause, then [resume the run](#resume-a-run). |
 | `failed` | Read `stage` for the stage whose agent died. [Resume the run](#resume-a-run). When the same stage dies again, tell the user. |
@@ -76,11 +76,11 @@ The branch and the worktree stay in place after every result. Remove them once t
 2. Call `Workflow({ name: 'build-feature', resumeFromRunId: '<run ID>', args })`, with the run ID the first call returned.
 3. Pass the full `args` object again. A resume never carries the first call's `args`, so without them the run stops at its argument check.
 
-On a resume, the Workflow tool replays the cached result of each stage whose prompt and options are unchanged. That covers a stage that ended `blocked`, so a resume with the same plan ends `blocked` again. To get past a block, add a line to the plan, such as the fix you made. Every stage's prompt holds the plan, so the Workflow tool then runs every stage again, from the implement stage on. The implement stage reuses the branch and its commits.
+On a resume, the Workflow tool replays the cached result of each stage whose prompt and options are unchanged. That covers a stage that ended `blocked`, so a resume with the same plan ends `blocked` again. To get past a block, add a line to the plan, such as the fix you made. Every stage's prompt holds the plan, so the Workflow tool then runs every stage again, starting with the implement stage, the first. The implement stage reuses the branch and its commits.
 
 ## Gotchas
 
 - A workflow run by name loads from a copy taken when the session started. After you edit `build-feature.js` in a session, run it with `scriptPath`.
 - The permission classifier blocks the run's own edits to `.github/workflows/*`. When a fix needs a CI change, the run ends `blocked`: ask the user to approve the exact edit, make it yourself, then resume.
 
-Reply: the PR link, or the `status` and what you did about it, plus each answered minor finding.
+**Reply:** the PR link, or the `status` and what you did about it, plus each answered minor finding.

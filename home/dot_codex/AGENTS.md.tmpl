@@ -1,4 +1,4 @@
-{{- /* Rendered from .chezmoitemplates/agents/; edit the pieces there, not ~/.codex/AGENTS.md. */ -}}
+{{- /* Rendered from the pieces in .chezmoitemplates/agents/ and the Codex-only Subagents section below; edit those, not ~/.codex/AGENTS.md. */ -}}
 {{ template "agents/core.md" . }}
 {{- if and (hasKey . "personal") .personal }}
 {{ template "agents/personal.md.tmpl" . }}
@@ -7,4 +7,4 @@
 
 # Subagents
 
-- `locator` (~/.codex/agents/locator.toml): read-only, returns a file:line table. Use it when a question names a specific symbol, file, or string and the answer is a set of locations. Do not use it for design, review, or fixes.
+- `locator` (~/.codex/agents/locator.toml): read-only, returns a file:line table. Use it when you want the locations of a specific symbol, file, or string. Do not use it for design, review, or fixes.
