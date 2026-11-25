@@ -1,4 +1,4 @@
-{{- /* Private rules live in personal.md.age and assistant.md.age (`chezmoi encrypt`); this file is public. */ -}}
+{{- /* Private rules live in personal.md.age (`chezmoi encrypt`); this file is public. */ -}}
 {{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/personal.md.age" | include | decrypt | trim }}
 
 # Credentials
@@ -39,8 +39,6 @@ echo a token or a secret value.
 - If a secret you need isn't reachable, report the gap. Never ask me to paste a secret into the
   session.
 
-{{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/assistant.md.age" | include | decrypt | trim }}
-
 # GitHub
 
 - Agents act on GitHub with my own `zgeoff` login and keys.
@@ -72,11 +70,9 @@ Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, 
 
 PRs get a different review depending on what they change:
 
-- **Any PR, by default:** no local review before hand-off. Answer every review finding the PR
-  gets: fix it, or reply with why not.
-- **A diff that touches auth, secrets, money, migrations, deletion or infra permissions, or crosses
-  several interacting subsystems:** one local review before hand-off, through the `second-opinion`
-  skill, and the PR does not merge until every finding is fixed or answered.
+- **Any PR, by default:** one review before hand-off. When you built it through build-feature, its
+  Codex review is that review. Otherwise get one through the `second-opinion` skill. The PR does not
+  merge until every finding is fixed or answered.
 - **An update bot's patch, security or minor update, or its lock-file refresh:** merges on green CI,
   with no local review.
 - **An update bot's bump of my own packages** (any package built from a `github.com/zgeoff` repo,
