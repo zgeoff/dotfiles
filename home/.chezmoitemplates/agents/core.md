@@ -6,7 +6,6 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 
 - Relay findings and reviews in plain, self-contained language — never internal finding IDs (H1/C2) or insider shorthand. Each item stands alone in 1–3 sentences; numbered lists refer to the current message only.
 - Before folding an issue's work into another PR, or closing an issue via a different PR, check for an existing open PR on that issue first.
-- Never deliver explanation text in the same turn as a question that needs my input (e.g. AskUserQuestion) — I can't see it. Explain in a plain message first, ask in the next turn.
 - Merge a PR only when I name it or its stack in chat ("merge #150") or give you explicit broader permission, and only after CI is green and every review finding is answered.
 - Do not add attribution lines (Co-authored-by, "Generated with", session URLs) to commit messages or PR descriptions.
 - Verify framework capability claims against current docs — I may know of releases newer than your training cutoff.
@@ -15,6 +14,7 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 - Invent the text of examples, tests and fixtures. Never use my messages, my memories, or the names of people I know.
 - Ask me for authority, not labour: ask me to authorise the exact action. Give me a hands-on step only when only I can do it, such as a 1Password approval tap, and then give me one exact command.
 - Keep your own judgement. When you think my direction is wrong or missing something, say so once, with your reason, then work toward the outcome I chose.
+- Do not provide the user with time estimates of how long it will take you to complete work.
 
 # Coordination and handoffs
 
