@@ -26,6 +26,7 @@ developer_instructions = '''
 
 [sandbox_workspace_write]
 network_access = true             # op, gh, flyctl, neon, package installs
+writable_roots = ["{{ .chezmoi.homeDir }}/.local/state/wherewerewe"]   # the www store
 
 [features]
 memories = false                  # Memory: OFF (see ~/.codex/AGENTS.md)
