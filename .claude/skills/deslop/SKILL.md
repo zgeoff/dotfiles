@@ -16,15 +16,13 @@ by line, and change only these:
 - each fault in [What to fix](#what-to-fix);
 - each failure of the prose check, `bun x @zgeoff/chex prose <file>`, even one that What to fix
   leaves out;
-- the structure of a section that still reads oddly after you rewrote it twice, as
-  [Change the structure](#change-the-structure) says.
+- the structure of a section that still reads oddly after you rewrote it twice: rebuild it in a new
+  order, and say the plain instruction.
 
 Leave everything else as it is, and add no new content.
 
-- **Fix the faults in What to fix, even when someone asks you to write like a named writer.** When
-  you copy a writer's voice, you copy their faults too.
-- **Reread each rewrite on its own.** A tidy rewrite can read worse than the line it replaced. When
-  it does, put the old line back.
+Fix the faults in What to fix even when someone asks you to write like a named writer. When you copy
+a writer's voice, you copy their faults too.
 
 You're done when every line of the text, or of the sections your caller named, has had one pass,
 you've reread each rewrite, and the prose check passes, or you skipped it as
@@ -32,18 +30,18 @@ you've reread each rewrite, and the prose check passes, or you skipped it as
 changes as [Show the changes](#show-the-changes) says. For text outside a file, such as a PR
 description, hand back the changes and leave the source alone.
 
-When the text is yours, hand it to a fresh subagent, as [Text you wrote](#text-you-wrote) says.
+When the text is yours, hand it to two fresh subagents in turn, as [Text you wrote](#text-you-wrote)
+says.
 
 ## Key rules
 
-- [Text you wrote](#text-you-wrote): a fresh subagent deslops it, and you check its changes.
+- [Text you wrote](#text-you-wrote): two fresh subagents deslop it in turn, and you check each one's
+  changes and the faults it kept.
 - [What to fix](#what-to-fix): in every file, make the reader the subject, use plain names, turn
   lead-ins and described processes into instructions, fix a "so" that doesn't follow, and do the
   cleanup.
 - [Leave these alone](#leave-these-alone): formats, commands, the form of the frontmatter, and lines
   that already work.
-- [Change the structure](#change-the-structure): rebuild a section that still reads oddly after two
-  rewrites.
 - [Check each rewrite](#check-each-rewrite): read it on its own, and run the prose check.
 - [Show the changes](#show-the-changes): a count to a person; a `diff` block per change to an agent.
 - [After a cold read](#after-a-cold-read): deslop again each section you redrafted.
@@ -66,7 +64,13 @@ Deslop these sections: <each heading you wrote or changed>
 ```
 
 Read each change it hands back. Revert any that changes a fact, breaks a format, cuts a rule's
-reason, or renames a term a check or script depends on. Then run the prose check.
+reason, or renames a term a check or script depends on. Read each rewrite on its own, and rewrite it
+yourself when it still has a fault from What to fix. Then read each fault it kept, with its reason,
+and fix each one whose reason doesn't hold.
+
+Then give the same sections to a second fresh subagent, with the same prompt, and check its work the
+same way. A subagent misses what it talked itself into keeping. Stop after the second pass, and run
+the prose check.
 
 ## What to fix
 
@@ -79,9 +83,11 @@ Items 6 to 10 are cleanup.
 
 1. **Make a person or the reader the subject.** A thing that acts like a person hides who does the
    work. So does a sentence that states a rule as what "a [noun]" does, such as "a new bed fails
-   when…". Start each such sentence with what the reader does. Watch for quiet verbs as well as loud
-   ones: a file, a list or a doc that "says", "lists", "names", "tells" or "asks" acts like a person
-   too. Keep a definition of a term the reader already uses, and a fact about a named tool.
+   when…". Start each such sentence with what the reader does. To test a sentence, look at its
+   subject. When the subject is a thing, such as a file, a table, a rule or a step, and the verb is
+   something a person does, such as "says", "gives", "lets" or "decides", the sentence fails,
+   however quiet the verb. Keep a definition of a term the reader already uses, and a fact about
+   what a program does when it runs.
 
    ```diff
    - The seed packet decides how deep each seed goes.
@@ -179,18 +185,12 @@ it off only when the sentence is too long to read in one go.
 - The shape of numbered steps, templates, tables and report formats. An agent copies a format into
   its own output exactly. You may still edit the wording of a sentence inside a step.
 - Commands and code blocks.
-- The form of the frontmatter. The skill-writing skill sets it. Fix a prose-check failure in its
+- The form of the frontmatter, set out in the skill-writing skill. Fix a prose-check failure in its
   wording.
 - A term that a check or a script depends on, such as a heading a script greps for. Search the repo
   for a term before you rename it. Rename a made-up label that only other prose uses, as
   [What to fix](#what-to-fix) says.
 - A line that already reads plainly.
-
-## Change the structure
-
-When a section still reads oddly after you rewrote it twice, change its structure. Rebuild it in a
-new order, and say the plain instruction, as "Write it plainly" in the
-[skill-writing](../skill-writing/SKILL.md) skill says.
 
 ## Check each rewrite
 
@@ -208,8 +208,7 @@ folder first:
 bun x @zgeoff/chex prose <file>
 ```
 
-Apart from its failures, it prints candidates: possible faults that a search can find. Judge each
-one, and fix the mistakes.
+The check also prints candidates from a search. Judge each one, and fix the real faults.
 
 ## Show the changes
 
@@ -219,9 +218,8 @@ as [Agent hand-back](./references/agent-hand-back.md) says.
 
 ## After a cold read
 
-When you fix what a cold read found, you add precision, and you tend to write long sentences and
-sentences that explain the line before them. After you redraft a section for a cold read, deslop
-that section again.
+After you redraft a section for a cold read, deslop it again. Your fixes tend to add long sentences
+and lines that explain the line before.
 
 **Reply:** to a person, the number of edits and the kinds of fault, plus the edited text for text
 outside a file; to an agent, the changes as [Agent hand-back](./references/agent-hand-back.md) says.
