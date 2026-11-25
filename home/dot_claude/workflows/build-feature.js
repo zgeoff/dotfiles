@@ -631,7 +631,10 @@ ${plan}`,
     if (pending.length === 0) break;
     headBeforeLastRead = head;
     const changed = new Set();
-    const settled = await parallel(
+    // Every reader finishes before any compare agent edits a file, since a
+    // changed doc can be another reader's rules file.
+    const reports = {};
+    const readSettled = await parallel(
       pending.map((i) => async () => {
         const file = files[i];
         const readerPrompt = `Read ${scan.coldReadSkillDir}/references/cold-reader.md and follow it as your instructions.
@@ -647,6 +650,14 @@ The rules: ${scan.rulesFiles.join('\n')}`;
           return true;
         }
         state[i].reads = round;
+        reports[i] = report;
+        return true;
+      }),
+    );
+    const compareSettled = await parallel(
+      pending.filter((i) => reports[i] !== undefined).map((i) => async () => {
+        const file = files[i];
+        const report = reports[i];
         const compare = await agent(
           `You wrote ${file.path} (a ${file.kind}) on the feature branch in the worktree at ${scan.worktreePath}. A cold reader with none of your context read it and reported:
 
@@ -656,7 +667,7 @@ Your answers, written before the read:
 
 ${answers[i].answers}
 
-Act on the report as "Act on it" in ${scan.coldReadSkillDir}/SKILL.md says: compare each answer with yours, and fix the file for each finding. Redraft each section a fix lands in. Close every question yourself where that skill says to. Write into openItems each question only the user can answer, each check you skipped, and each fix that belongs in a rules file or any file other than this one, with the text you would write: other readers are reading those files now, so leave them alone. Don't deslop yet: a later agent does.
+Act on the report as "Act on it" in ${scan.coldReadSkillDir}/SKILL.md says: compare each answer with yours, and fix the file for each finding. Redraft each section a fix lands in. Close every question yourself where that skill says to. Write into openItems each question only the user can answer, each check you skipped, and each fix that belongs in a rules file or any file other than this one, with the text you would write: other agents are editing those files now, so leave them alone. Don't deslop yet: a later agent does.
 
 Edit only ${file.path}, and never commit: other agents edit other files in this worktree at the same time. Return clean=true only when every answer matched yours and the reader found no contradiction.`,
           { label: `${tag}cold-compare-${i + 1}-${round}`, model: 'sonnet', schema: COMPARE_SCHEMA, phase: 'Doc check' },
@@ -677,7 +688,7 @@ Edit only ${file.path}, and never commit: other agents edit other files in this 
     );
     // A read that never finished leaves no tick to stand on.
     const failed = state.map((st) => st.failed).filter(Boolean);
-    if (settled.some((x) => !x)) failed.push(`read ${round}: an agent threw`);
+    if ([...readSettled, ...compareSettled].some((x) => !x)) failed.push(`read ${round}: an agent threw`);
     if (failed.length > 0) return stop(failed.join('; '));
     if (changed.size > 0) {
       commit = await commitDocs(scan, [...changed], `docs: fix what cold read ${round} found`, `${tag}commit-cold-read-${round}`, false);
@@ -694,8 +705,11 @@ Edit only ${file.path}, and never commit: other agents edit other files in this 
       redrafted.map(({ file, i }) => () => deslopFile(scan, file, [...state[i].sections], `${tag}${i + 1}-after-cold-read`)),
     );
     if (ok.some((x) => !x)) return stop('a deslop agent died or was skipped');
-    // The cold-read skill's step 4 ends with the scripted checks again.
-    if (!(await runScriptedChecks(scan, allPaths, `${tag}docs-checks-after`))) return stop('the docs-checks agent died or was skipped');
+  }
+  // The cold-read skill's step 4 ends with the scripted checks again.
+  const after = await runScriptedChecks(scan, allPaths, `${tag}docs-checks-after`);
+  if (!after) return stop('the docs-checks agent died or was skipped');
+  if (redrafted.length > 0 || after.changed) {
     commit = await commitDocs(scan, allPaths, 'docs: deslop the cold-read fixes', `${tag}commit-deslop-after-cold-read`, false);
     if (!commit) return stop('commit agent died or was skipped');
     if (commit.blockedReason) return stop(commit.blockedReason);
@@ -950,7 +964,8 @@ async function followDocChanges(docFilesChanged, rebased, tag) {
     (path) => known.get(path) || { path, kind: path.includes('/skills/') ? 'skill' : 'doc', sections: ['the whole file'] },
   );
   let moved = false;
-  if (changed.length > 0 && !docCheck) {
+  // A record from a deletion-only branch read no text, so it counts as none.
+  if (changed.length > 0 && (!docCheck || docCheck.files.length === 0)) {
     log(`${tag}: ${changed.length} doc file(s) changed after the scout, running the doc check on them`);
     const result = await runDocCheck({ ...scan, docFiles: changed }, `${tag}-`);
     if (result.stop) return { stop: { ...result.stop, pr: pr.url, ...extras() } };
@@ -1030,7 +1045,20 @@ ${plan}`,
       },
     };
   }
-  if (followed.pushed && !recheck) return runVerify(round, true);
+  if (followed.pushed && recheck) {
+    return {
+      stop: {
+        status: 'blocked',
+        stage: 'verify',
+        branch,
+        worktree,
+        pr: pr.url,
+        reason: 'the verify recheck changed docs again, and the deslop push after it may have made a verdict stale',
+        ...extras(),
+      },
+    };
+  }
+  if (followed.pushed) return runVerify(round, true);
   return {};
 }
 

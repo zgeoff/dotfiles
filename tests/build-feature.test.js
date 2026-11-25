@@ -306,6 +306,7 @@ describe('build-feature doc check', () => {
       'cold-answers-1',
       'cold-read-1-1',
       'cold-compare-1-1',
+      'docs-checks-after',
       'open-pr',
       'watch-ci-1',
     ]);
@@ -541,7 +542,7 @@ describe('build-feature doc check fixes', () => {
   test('a deslop push after verify publishes gets one verify recheck', async () => {
     const run = await stageRun({
       scan: verifyDocScan,
-      verify: () => ({ status: 'published', unverified: [], docFilesChanged: [quotaDoc.path] }),
+      verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
     });
     expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1', 'verify-1-recheck']);
     expect(run.prompt('verify-1-recheck')).toContain('stale or missing');
@@ -555,5 +556,43 @@ describe('build-feature doc check fixes', () => {
     });
     expect(run.labels.filter((l) => l.startsWith('deslop-verify'))).toEqual([]);
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
+  });
+});
+
+describe('build-feature re-check fixes', () => {
+  const verifyDocScan = { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
+  const otherDoc = { ...quotaDoc, path: '/repo/.worktrees/quota-check/docs/refunds.md' };
+
+  test('no compare agent starts until every reader in the round has finished', async () => {
+    const events = [];
+    // The second doc's reader is slow, so a compare for the first could start while it reads.
+    const reader = async (label) => {
+      await new Promise((resolve) => setTimeout(resolve, label.startsWith('cold-read-2') ? 20 : 0));
+      events.push(`read done ${label}`);
+      return 'Report: all answers match.';
+    };
+    const compare = () => {
+      events.push('compare');
+      return { clean: true, changedFiles: [], changedSections: [], differences: [] };
+    };
+    await stageRun({ scan: { ...docScan, docFiles: [quotaDoc, otherDoc] }, reader, compare });
+    expect(events.indexOf('read done cold-read-2-1')).toBeLessThan(events.indexOf('compare'));
+  });
+
+  test('a doc verify adds after a deletion-only branch gets a cold read', async () => {
+    const run = await stageRun({
+      scan: { ...plainScan, deletedDocFiles: ['/repo/docs/old.md'], verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
+      verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
+    });
+    expect(run.labels).toContain('verify-1-cold-read-1-1');
+  });
+
+  test('a verify recheck that changes docs again stops the run at verify', async () => {
+    const run = await stageRun({
+      scan: verifyDocScan,
+      verify: () => ({ status: 'published', unverified: [], docFilesChanged: [quotaDoc.path] }),
+    });
+    expect(run.labels).not.toContain('watch-ci-1');
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
   });
 });
