@@ -56,7 +56,7 @@ test('it adds the op-mint rules after the allow rules a personal machine already
         'Bash(op-mint vers)',
         'Bash(op-mint wow-forever)',
       ],
-      deny: ['Bash(rm -rf *)'],
+      deny: ['Bash(rm -rf *)', 'AskUserQuestion'],
       defaultMode: 'auto',
     },
     autoMode: { environment: ['a kite workshop'] },
@@ -86,6 +86,7 @@ test('it adds the op-mint rules to a personal settings file with no permissions'
       'Bash(op-mint vers)',
       'Bash(op-mint wow-forever)',
     ],
+    deny: ['AskUserQuestion'],
   });
 });
 
@@ -194,15 +195,30 @@ test('it removes the op-mint rules from a machine that is not personal', async (
   expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
     allow: ['Bash(git status)', 'Bash(op-minted report)'],
     defaultMode: 'auto',
+    deny: ['AskUserQuestion'],
   });
 });
 
-test('it adds no permissions to a settings file without them on a machine that is not personal', async () => {
+test('it adds only the AskUserQuestion deny rule to a settings file without permissions on a machine that is not personal', async () => {
   const ctx = setupTest();
 
   const result = await ctx.applySettings({}, { personal: false, decrypted: {} });
 
-  expect(JSON.parse(result.stdout.toString()).permissions).toBeUndefined();
+  expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
+    deny: ['AskUserQuestion'],
+  });
+});
+
+test('it keeps one AskUserQuestion deny rule when the live file already has it', async () => {
+  const ctx = setupTest();
+  const live = { permissions: { deny: ['AskUserQuestion', 'Bash(rm -rf *)'] } };
+
+  const result = await ctx.applySettings(live, { personal: false, decrypted: {} });
+
+  expect(JSON.parse(result.stdout.toString()).permissions.deny).toStrictEqual([
+    'AskUserQuestion',
+    'Bash(rm -rf *)',
+  ]);
 });
 
 test('it keeps the model that the machine has set', async () => {
