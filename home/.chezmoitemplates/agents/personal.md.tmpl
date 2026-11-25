@@ -84,16 +84,12 @@ PRs get a different review depending on what they change:
 - **An update bot's major bump of any other package:** one local review before hand-off, through
   the `second-opinion` skill.
 
-Review an update bot's PR by the three update-bot rules, even when the package it bumps handles
-auth, secrets or money.
-
 Review rounds:
 
 - Evidence, not votes. On disagreement, write the discriminating test. Do not re-prompt for a
   preferred answer.
-- Fix each finding you agree with, and every defect you meet while doing the work, in the same PR,
-  whatever its size. Reply to each finding you disagree with, with your evidence. File a follow-up
-  issue only for a fix in another repo, or one that needs my decision.
+- Fix every finding, and every defect you meet while doing the work, in the same PR, whatever its
+  size. File a follow-up issue only for a fix in another repo, or one that needs my decision.
 - In a re-check, check only the fixes, and raise no new findings.
 - Fix a security defect before merge.
 - Report a timeout on a required review; never skip it silently.

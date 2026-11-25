@@ -13,9 +13,8 @@ metadata:
 ## Function names
 
 When a function's job has a row, start its name with that row's verb, and keep the row's guarantee.
-You may start the name of a function that returns anything but a boolean with `resolve` instead.
-Give any other function any verb that fits, except a banned verb from the last bullet under the
-table, such as `fetch` or `process`.
+Give any other function any verb that fits, except a banned verb from the last bullet under
+the table, such as `fetch` or `process`.
 
 | Job                                                                                                       | Verb                         | Guarantee                                                                      |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
@@ -44,18 +43,16 @@ table, such as `fetch` or `process`.
 
 - Keep a pure function pure all the way down: a `build` that calls a `read` does I/O. No lint rule
   checks the verbs in a repo without a code-style skill, so check each one by hand.
-- Start a boolean function with `is`, `has`, `can` or `should` even when another verb reads well,
-  except:
-  - Use `probe` when it needs I/O;
-  - Keep the I/O verb when it returns a success flag, such as `removeFile`;
-  - Keep a leading `use`, `on` or `handle`.
+- Start a boolean function with `is`, `has`, `can` or `should` even when another verb reads well.
+  Two kinds of boolean function keep their own verb:
+  - a function with an I/O verb that returns a success flag, such as `removeFile`;
+  - a function whose name starts with `use`, `on` or `handle`.
 - Never use `make`, `with`, `use`, `on` or `to` as a whole name. Follow it with a noun, such as
   `toPosixPath`.
-- You may start a name with `resolve` in place of a row's verb, unless the function returns a
-  boolean. A `resolve` function may do I/O or not, such as a filesystem search or a pure lookup,
-  and its name carries none of the row's guarantees.
-- Never start a name with one of these verbs. They carry no guarantee about I/O or a miss:
+- You may start a name with `resolve` whether or not it does I/O, such as for a pure lookup or a
+  filesystem search.
+- Never start a name with one of these verbs. They say nothing about I/O or a miss:
   - `process`, `manage`, `do`, `perform`, `execute` or `compute`;
   - `fetch`, `save`, `store`, `delete`, `search` or `lookup`. For a database read that can miss, use
     `read` and return `null`;
-  - `handle`, outside the two jobs its row covers.
+  - `handle`, outside a callback.
