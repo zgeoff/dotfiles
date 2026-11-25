@@ -71,8 +71,9 @@ Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, 
 PRs get a different review depending on what they change:
 
 - **Any PR, by default:** one review before hand-off. When you built it through build-feature with
-  its Codex review (`review: 'codex'`), that review counts, even when it fell back to another model. Otherwise get one through the `second-opinion` skill. The PR does not
-  merge until every finding is fixed or answered.
+  its Codex review (`review: 'codex'`), that review counts, even when it fell back to another model.
+  Otherwise get one through the `second-opinion` skill. The PR does not merge until every finding is
+  fixed or answered.
 - **An update bot's patch, security or minor update, or its lock-file refresh:** merges on green CI,
   with no local review. A security update that is a major bump of another package follows the major
   bump rule below.
