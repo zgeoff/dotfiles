@@ -1,7 +1,7 @@
 # Delegation
 
 - Use **Anthropic subagents** by default for search, parallel reads, context forks, and parallel work.
-- Name the decision in each call to the **advisor**. Before work, ask "Which assumption could invalidate this plan?" Before you finish, ask "Which acceptance condition lacks evidence?" Also use it to break a tie that no test can settle.
+- Call the **advisor** only for complicated work, such as a hard design choice, a diagnosis that is stuck, or a tie that no test can settle. Name the decision in each call.
 - Use **another model family** (Codex today) as a peer for review gates, diagnosis, and judging a bake-off. Load the `second-opinion` skill before you ask it anything.
 - Run medium or larger work through the `build-feature` workflow: anything that needs a written plan, adds behaviour, or touches more than a few files. Agree the plan first, then load the `build-feature` skill and run the workflow. Small fixes and doc changes don't need it.
 

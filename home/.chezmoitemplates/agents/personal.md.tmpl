@@ -1,4 +1,4 @@
-{{- /* Private rules live in personal.md.age and assistant.md.age (`chezmoi encrypt`); this file is public. */ -}}
+{{- /* Private rules live in personal.md.age (`chezmoi encrypt`); this file is public. */ -}}
 {{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/personal.md.age" | include | decrypt | trim }}
 
 # Credentials
@@ -39,12 +39,10 @@ echo a token or a secret value.
 - If a secret you need isn't reachable, report the gap. Never ask me to paste a secret into the
   session.
 
-{{ joinPath .chezmoi.sourceDir ".chezmoitemplates/agents/assistant.md.age" | include | decrypt | trim }}
-
 # GitHub
 
 - Agents act on GitHub with my own `zgeoff` login and keys.
-- By default, work on a branch, open a PR, and let the review happen on the PR. Push straight to `main` only when I say so. A change pushed to `main` gets its review afterwards. When "Building and reviewing" calls for a local review of a diff, run that review first, on either path.
+- By default, work on a branch and open a PR. Push straight to `main` only when I say so. On either path, get the one review that "Building and reviewing" asks for before you hand off or push.
 - Never use `gh pr merge --admin` or any other ruleset bypass.
 - Open the PR with the repo's PR template. Keep the description short: a lead of 2 sentences or fewer, one-line bullets, 150 words or fewer. Write the short version first.
 - After pushing, link the PR URL in your reply.
@@ -72,13 +70,13 @@ Verify the PR is linked in Linear. Don’t use Fixes while required evaluation, 
 
 PRs get a different review depending on what they change:
 
-- **Any PR, by default:** no local review before hand-off. Answer every review finding the PR
-  gets: fix it, or reply with why not.
-- **A diff that touches auth, secrets, money, migrations, deletion or infra permissions, or crosses
-  several interacting subsystems:** one local review before hand-off, through the `second-opinion`
-  skill, and the PR does not merge until every finding is fixed or answered.
+- **Any PR, by default:** one review before hand-off. When you built it through build-feature with
+  its Codex review (`review: 'codex'`), that review counts, even when it fell back to another model.
+  Otherwise get one through the `second-opinion` skill. The PR does not merge until every finding is
+  fixed or answered.
 - **An update bot's patch, security or minor update, or its lock-file refresh:** merges on green CI,
-  with no local review.
+  with no local review. A security update that is a major bump of another package follows the major
+  bump rule below.
 - **An update bot's bump of my own packages** (any package built from a `github.com/zgeoff` repo,
   or the `zgeoff/tools` sync ref), at any version level: merges on green CI, with no local review.
 - **An update bot's major bump of any other package:** one local review before hand-off, through
