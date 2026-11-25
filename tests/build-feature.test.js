@@ -237,7 +237,7 @@ const plan = 'Add a quota check to checkout.';
  * `compare(read)` gives the compare agent's result for each read of the doc,
  * `ci` lists each CI watch result in turn, and `fix` gives each CI fix result.
  */
-async function stageRun({ scan, compare, ci, fix, verify } = {}) {
+async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes = true } = {}) {
   const calls = [];
   const ciResults = [...(ci || [{ conclusion: 'green', failures: [] }])];
   const agent = async (prompt, opts) => {
@@ -245,16 +245,23 @@ async function stageRun({ scan, compare, ci, fix, verify } = {}) {
     const label = opts.label;
     if (label === 'implement') return { status: 'done', summary: 'Adds a quota check.', commits: [] };
     if (label === 'scan-repo') return scan || plainScan;
-    if (label.startsWith('deslop-check-')) return { changed: true, summary: 'Kept both passes.' };
+    if (label.includes('docs-checks-')) return { changed: false, summary: 'The docs checks pass.' };
+    if (label.includes('deslop-check-')) return { changed: true, summary: 'Kept both passes.' };
     if (label.startsWith('deslop-')) return '### Cut drama words\n```diff\n- critical\n+ needed\n```';
-    if (label.startsWith('commit-')) return { committed: true, head: `sha-${label}` };
-    if (label.startsWith('cold-answers-')) return { answers: '1. Read it before changing a quota.' };
-    if (label.startsWith('cold-read-')) return 'Report: question 1 answered as "read it after checkout".';
-    if (label.startsWith('cold-compare-')) {
+    if (label.startsWith('commit-') || label.startsWith('push-docs-') || label.includes('-commit-')) return { committed: true, head: `sha-${label}` };
+    if (label.includes('cold-answers-')) return { answers: '1. Read it before changing a quota.' };
+    if (/(^|-)cold-read-\d/.test(label)) return reader ? reader(label) : 'Report: question 1 answered as "read it after checkout".';
+    if (label.includes('cold-compare-')) {
       const read = Number(label.split('-').at(-1));
       return (compare || (() => ({ clean: true, changedFiles: [], changedSections: [], differences: [] })))(read);
     }
-    if (label === 'open-pr') return { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
+    if (label === 'open-pr') {
+      const pr = { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
+      const deslop = /- \[x\] Deslop \(([^)]+)\)/.exec(prompt);
+      const coldRead = /- \[x\] Cold read \(([^)]+)\)/.exec(prompt);
+      if (!openPrHashes || !deslop) return pr;
+      return { ...pr, deslopCommit: deslop[1], coldReadCommit: coldRead[1] };
+    }
     if (label.startsWith('verify-')) {
       return (verify || (() => ({ status: 'published', unverified: [], docFilesChanged: [] })))(label);
     }
@@ -294,6 +301,7 @@ describe('build-feature doc check', () => {
       'deslop-check-1-1',
       'deslop-1-2',
       'deslop-check-1-2',
+      'docs-checks-before',
       'commit-deslop',
       'cold-answers-1',
       'cold-read-1-1',
@@ -465,5 +473,87 @@ describe('build-feature verify stage', () => {
       'watch-ci-2',
     ]);
     expect(run.prompt('verify-2')).toContain('stale or missing');
+  });
+});
+
+describe('build-feature doc check fixes', () => {
+  const verifyDocScan = { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
+
+  test('changed docs with no deslop or cold-read skill stop the run before the PR', async () => {
+    const run = await stageRun({ scan: { ...docScan, coldReadSkillDir: '' } });
+    expect(run.labels).not.toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
+  });
+
+  test('a branch that only deletes a doc ticks both lines at its HEAD, with no deslop', async () => {
+    const run = await stageRun({ scan: { ...plainScan, deletedDocFiles: ['/repo/docs/old.md'] } });
+    expect(run.labels.filter((l) => /deslop|cold/.test(l))).toEqual([]);
+    expect(run.prompt('open-pr')).toContain('- [x] Deslop (aaa0001)');
+    expect(run.prompt('open-pr')).toContain('- [x] Cold read (aaa0001)');
+  });
+
+  test('a cold read with no report stops the run, with no tick', async () => {
+    const run = await stageRun({ scan: docScan, reader: () => null });
+    expect(run.labels).toContain('cold-read-1-1-retry');
+    expect(run.labels).not.toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
+  });
+
+  test('a compare agent may edit only its own doc', async () => {
+    const run = await stageRun({ scan: docScan });
+    expect(run.prompt('cold-compare-1-1')).toContain(`Edit only ${quotaDoc.path}`);
+  });
+
+  test('the scripted docs checks run before the reads and after the cold-read fixes', async () => {
+    const run = await stageRun({ scan: docScan, compare: fixedOnce });
+    const labels = run.labels;
+    expect(labels.indexOf('docs-checks-before')).toBeLessThan(labels.indexOf('cold-read-1-1'));
+    expect(labels.indexOf('docs-checks-after')).toBeGreaterThan(labels.indexOf('deslop-check-1-after-cold-read-2'));
+  });
+
+  test('an opener that returns no hashes gets its ticks checked against the branch', async () => {
+    const run = await stageRun({ scan: docScan, openPrHashes: false });
+    expect(run.labels).toContain('retick-open-pr');
+    expect(run.prompt('retick-open-pr')).toContain('the newest commit with the recorded one');
+  });
+
+  test('a doc that verify adds first gets the whole doc check, and the body gains its tick lines', async () => {
+    const run = await stageRun({
+      scan: { ...plainScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
+      verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
+    });
+    expect(run.labels).toContain('verify-1-cold-read-1-1');
+    expect(run.labels).toContain('push-docs-verify-1');
+    expect(run.prompt('retick-verify-1')).toContain('when it has no Checks section, add one');
+    expect(run.labels).toContain('verify-1-recheck');
+    expect(run.result).toMatchObject({ status: 'ready', docCheck: { files: [quotaDoc.path] } });
+  });
+
+  test('a verify run that pushes a doc and then blocks still moves the Deslop tick', async () => {
+    const run = await stageRun({
+      scan: verifyDocScan,
+      verify: () => ({ status: 'blocked', unverified: [], docFilesChanged: [quotaDoc.path], blockedReason: 'publish failed' }),
+    });
+    expect(run.prompt('retick-verify-1')).toContain('- [x] Deslop (sha-commit-deslop-verify-1)');
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
+  });
+
+  test('a deslop push after verify publishes gets one verify recheck', async () => {
+    const run = await stageRun({
+      scan: verifyDocScan,
+      verify: () => ({ status: 'published', unverified: [], docFilesChanged: [quotaDoc.path] }),
+    });
+    expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1', 'verify-1-recheck']);
+    expect(run.prompt('verify-1-recheck')).toContain('stale or missing');
+  });
+
+  test('more later doc changes than the cap stop the run', async () => {
+    const paths = Array.from({ length: 21 }, (_, i) => `/repo/docs/page-${i}.md`);
+    const run = await stageRun({
+      scan: verifyDocScan,
+      verify: () => ({ status: 'published', unverified: [], docFilesChanged: paths }),
+    });
+    expect(run.labels.filter((l) => l.startsWith('deslop-verify'))).toEqual([]);
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
   });
 });
