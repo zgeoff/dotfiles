@@ -1,7 +1,7 @@
 export const meta = {
   name: 'build-feature',
   description:
-    'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex or Opus reviews the diff when asked, a PR opens once clean, haiku watches CI, with bounded fix loops at each gate',
+    'Implement an agreed feature plan: sonnet builds on a worktree branch, Codex or Opus reviews the diff when asked, fresh agents deslop and cold-read the changed docs, a PR opens once clean, the repo verify steps publish their report, haiku watches CI, with bounded fix loops at each gate',
   whenToUse:
     'After a feature plan has been agreed interactively. Load the build-feature skill first; it documents the args. Pass args: { plan: string, branch: string, base?: string, issue?: number, prNumber?: number, verifyCommands?: string[], review?: "none" | "codex" | "opus" }. A run cannot pause for conversation, so bake every decision into the plan. Returns the PR URL on success, or a failure report with the branch left in place.',
   phases: [
@@ -16,8 +16,19 @@ export const meta = {
         'Skipped when review is "none"; otherwise Codex (Opus fallback) reviews the diff and sonnet fixes blocking findings (max 2 rounds)',
     },
     {
+      title: 'Doc check',
+      detail:
+        'Skipped when the branch changes no doc or skill file; otherwise fresh sonnet agents deslop each one twice, then cold-read it (max 3 reads per file)',
+      model: 'sonnet',
+    },
+    {
       title: 'Open PR',
-      detail: 'rebase onto the base branch, push, open (or ready) the PR',
+      detail: 'rebase onto the base branch, push, open (or ready) the PR, tick the Deslop and Cold read lines',
+    },
+    {
+      title: 'Verify',
+      detail: 'Skipped when the repo has no verify skill; otherwise sonnet runs its verify steps and publishes the report to the PR',
+      model: 'sonnet',
     },
     {
       title: 'Watch CI',
@@ -30,6 +41,11 @@ export const meta = {
 const MAX_FIX_ROUNDS = 2;
 // A Codex review takes 3 to 9 minutes; past this, fall back to Opus.
 const CODEX_TIMEOUT_SECONDS = 900;
+// The cold-read skill's limit: at most 3 reads of a file in one pull request.
+const MAX_COLD_READS = 3;
+// Each doc file costs up to 16 agents; past this many files the run stops
+// before the doc check, so the run stays far under the 1000-agent cap.
+const MAX_DOC_FILES = 20;
 
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args;
 
@@ -140,6 +156,157 @@ const PR_SCHEMA = {
       type: 'boolean',
       description: `True when the rebase onto origin/${base} hit conflicts that were resolved by hand`,
     },
+    deslopCommit: {
+      type: 'string',
+      description: 'Only when the body ticks a Deslop line: the short hash it names',
+    },
+    coldReadCommit: {
+      type: 'string',
+      description: 'Only when the body ticks a Cold read line: the short hash it names',
+    },
+  },
+};
+
+const DOC_FILE = {
+  type: 'object',
+  required: ['path', 'kind', 'sections'],
+  properties: {
+    path: { type: 'string', description: 'Absolute path, inside the worktree' },
+    kind: { enum: ['doc', 'skill'], description: 'As step 3 of the cold-read skill\'s "Run it" decides' },
+    sections: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Each heading whose section the branch adds or changes; ["the whole file"] for a new file',
+    },
+  },
+};
+
+const SCAN_SCHEMA = {
+  type: 'object',
+  required: ['worktreePath', 'head', 'docRule', 'docFiles', 'checkLines', 'verifySkill'],
+  properties: {
+    worktreePath: { type: 'string', description: 'Absolute path of the worktree' },
+    head: { type: 'string', description: 'Short hash of the worktree HEAD' },
+    docRule: {
+      type: 'string',
+      description: 'The rule that decides which files count as docs, such as the pathspecs, and where the repo states it',
+    },
+    docFiles: { type: 'array', items: DOC_FILE },
+    deslopSkillDir: { type: 'string', description: 'Absolute folder of the deslop SKILL.md; empty when none' },
+    coldReadSkillDir: { type: 'string', description: 'Absolute folder of the cold-read SKILL.md; empty when none' },
+    rulesFiles: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Absolute path of each rules file a cold reader gets',
+    },
+    checkLines: {
+      type: 'boolean',
+      description: 'True when the PR template has the "- [x] Deslop (<sha>)" and "- [x] Cold read (<sha>)" lines',
+    },
+    verifySkill: {
+      type: 'string',
+      description: 'Absolute path of the repo verify SKILL.md; empty when the repo has no verify skill',
+    },
+  },
+};
+
+const DOC_EDIT_SCHEMA = {
+  type: 'object',
+  required: ['changed', 'summary'],
+  properties: {
+    changed: { type: 'boolean', description: 'True when the file differs from its committed copy' },
+    summary: { type: 'string' },
+  },
+};
+
+const ANSWERS_SCHEMA = {
+  type: 'object',
+  required: ['answers'],
+  properties: {
+    answers: { type: 'string', description: 'Your answer to each question, numbered as the questions are' },
+  },
+};
+
+const COMPARE_SCHEMA = {
+  type: 'object',
+  required: ['clean', 'changedFiles', 'changedSections', 'differences'],
+  properties: {
+    clean: {
+      type: 'boolean',
+      description: "True when every answer matched yours and the reader found no contradiction",
+    },
+    changedFiles: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Absolute path of each file you edited',
+    },
+    changedSections: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Each heading of the doc file whose section you redrafted',
+    },
+    differences: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Each answer that differed, or contradiction found, with the fix you made',
+    },
+    openItems: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Each question for the user, rule you added, or check you skipped',
+    },
+  },
+};
+
+const COMMIT_SCHEMA = {
+  type: 'object',
+  required: ['committed', 'head'],
+  properties: {
+    committed: { type: 'boolean' },
+    head: { type: 'string', description: 'Short hash of HEAD after the commit, or of HEAD when nothing changed' },
+    blockedReason: { type: 'string', description: 'Only when a hook failed and you could not fix its cause' },
+  },
+};
+
+const RETICK_SCHEMA = {
+  type: 'object',
+  required: ['deslopCommit', 'coldReadCommit'],
+  properties: {
+    deslopCommit: { type: 'string' },
+    coldReadCommit: { type: 'string' },
+  },
+};
+
+const DOC_FILES_CHANGED = {
+  type: 'array',
+  items: { type: 'string' },
+  description: 'Each doc or skill file, by the doc rule in the prompt, that your commits changed, as an absolute path',
+};
+
+const CI_FIX_SCHEMA = {
+  ...FIX_SCHEMA,
+  properties: { ...FIX_SCHEMA.properties, docFilesChanged: DOC_FILES_CHANGED },
+};
+
+const VERIFY_SCHEMA = {
+  type: 'object',
+  required: ['status', 'unverified'],
+  properties: {
+    status: {
+      enum: ['published', 'blocked'],
+      description: 'published once the report is in the PR description',
+    },
+    unverified: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'reason'],
+        properties: { feature: { type: 'string' }, reason: { type: 'string' } },
+      },
+      description: 'Each changed feature with no current verdict, with the end state you expected and what you got',
+    },
+    docFilesChanged: DOC_FILES_CHANGED,
+    blockedReason: { type: 'string' },
   },
 };
 
@@ -318,6 +485,237 @@ async function runReviewGate() {
   return { summary: { reviewedBy: [...reviewedBy], minorFindings } };
 }
 
+/**
+ * Finds what the doc check and the verify stage need, since the script can't
+ * read the repo: the changed doc files by the repo's own rule, the skills that
+ * check them, the PR template's tick lines, and the verify skill.
+ */
+const scanPrompt = `Scout the feature branch in the worktree at ${worktree} for two later stages. Change no file.
+
+1. Run \`git -C ${worktree} fetch origin\`, then list the files the branch adds or changes: \`git -C ${worktree} diff --name-only --diff-filter=d origin/${base}...HEAD\`.
+2. Decide which of them count as doc or skill files, by the repo's own rule. Read the rule from the repo: the PR template's Checks section, the repo's docs-writing and project-docs-writing skills, its deslop and cold-read skills, and its docs-check script. When the repo runs the chex docs checks (\`@zgeoff/chex\`, or a \`check:docs\` script), count at least every file the chex pr-body check counts: the pathspecs in the \`if [ "$#" -eq 0 ]\` block of chex's \`src/docs/check-prose.sh\` (each README.md outside .claude/ and .agents/, Markdown under docs/, each results.md, and skill Markdown under .agents/skills/, .claude/skills/, skills/ and sync/skills/). A narrower list fails that check. Return the rule you used as docRule, in a form a later agent can apply to a file list. For each doc file, return its absolute path, whether it is a skill (anything an agent reads to do its work, such as a SKILL.md, a reference, a brief or AGENTS.md) or a doc, and each heading whose section the branch adds or changes (\`git -C ${worktree} diff origin/${base}...HEAD -- <file>\`), or ["the whole file"] for a new file.
+3. Find the deslop and cold-read skills: the folder holding each one's SKILL.md, from the worktree's \`.agents/skills/\` or \`.claude/skills/\` first, else from where your agent loads skills, such as \`~/.claude/skills/\`. Return absolute paths, with symlinks resolved, or an empty string when a skill is missing. Collect the rules files the cold-read skill's "Run it" step 2 names, as absolute paths.
+4. Return checkLines=true when the repo's PR template (such as \`.github/PULL_REQUEST_TEMPLATE.md\`) holds the lines \`- [x] Deslop (<sha>)\` and \`- [x] Cold read (<sha>)\`, in its text or its comments.
+5. Find the repo's verify skill, by its own instructions: AGENTS.md or CLAUDE.md, or a \`.agents/skills/verify/\` or \`.claude/skills/verify/\` folder in the worktree. Return the absolute path of its SKILL.md, or an empty string when the repo has none.
+6. Return the absolute path of the worktree, and the short hash of its HEAD.`;
+
+/**
+ * Where the commits the PR body ticks stand. `deslop` moves to each later
+ * commit that a deslop pass checked; `coldRead` stays on the commit the last
+ * cold read read, which chex accepts after later doc commits.
+ */
+function chooseTicks(headBeforeLastRead, finalHead) {
+  return { deslop: finalHead, coldRead: headBeforeLastRead };
+}
+
+function moveDeslopTick(ticks, head) {
+  return ticks ? { ...ticks, deslop: head } : ticks;
+}
+
+function relativeTo(root, path) {
+  return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+}
+
+function shortName(path) {
+  return path.split('/').filter(Boolean).slice(-2).join('/');
+}
+
+/**
+ * The deslop skill's "Text you wrote": two fresh agents deslop the sections in
+ * turn, each with the skill's prompt and nothing else, and an author agent
+ * checks each one's changes. Returns false when an agent died.
+ */
+async function deslopFile(scan, file, sections, tag) {
+  const rel = relativeTo(scan.worktreePath, file.path);
+  for (let pass = 1; pass <= 2; pass++) {
+    const handBack = await agent(
+      `Read ${scan.deslopSkillDir}/SKILL.md and follow it as your instructions.
+The text: ${file.path}
+It is a: ${file.kind}
+Deslop these sections: ${sections.join('; ')}`,
+      {
+        label: `deslop-${tag}-${pass}`,
+        model: 'sonnet',
+        agentType: 'general-purpose',
+        phase: 'Doc check',
+      },
+    );
+    if (handBack === null) return false;
+    const proseCheck =
+      pass === 2
+        ? `\nThen run the prose check from the worktree root, \`cd ${scan.worktreePath} && bun x @zgeoff/chex prose ${rel}\`, and fix each failure in the file. When chex can't run, skip it and say so in the summary.`
+        : '';
+    const check = await agent(
+      `You wrote ${file.path} on the feature branch in the worktree at ${scan.worktreePath}. A fresh agent deslopped it (pass ${pass} of 2), and handed back these changes:
+
+${handBack}
+
+Check them as the "Text you wrote" section of ${scan.deslopSkillDir}/SKILL.md says. Read each change in \`git -C ${scan.worktreePath} diff -- ${rel}\`. Revert any change that changes a fact, breaks a format, cuts a rule's reason, or renames a term a check or script depends on. Read each rewrite on its own, and rewrite it yourself when it still has a fault from the skill's What to fix. Then read each fault it kept, with its reason, and fix each one whose reason doesn't hold.${proseCheck}
+
+Edit only ${file.path}, and never commit: other agents edit other files in this worktree at the same time. Return changed=true when the file differs from its committed copy.`,
+      {
+        label: `deslop-check-${tag}-${pass}`,
+        model: 'sonnet',
+        schema: DOC_EDIT_SCHEMA,
+        phase: 'Doc check',
+      },
+    );
+    if (check === null) return false;
+  }
+  return true;
+}
+
+async function commitDocs(scan, files, message, label, push) {
+  const pushStep = push ? ` Then push with \`git -C ${scan.worktreePath} push\`, without force.` : '';
+  return agent(
+    `Commit the uncommitted changes to these files in the worktree at ${scan.worktreePath}, and to no other file:
+${files.map((f) => `- ${f}`).join('\n')}
+${REPO_RULES}
+Use the commit message \`${message}\`. When none of the files has a change, make no commit.${pushStep} Return committed, and the short hash of HEAD afterwards.`,
+    { label, model: 'sonnet', effort: 'low', schema: COMMIT_SCHEMA, phase: 'Doc check' },
+  );
+}
+
+/**
+ * The doc check: deslop each changed doc file, cold-read it up to
+ * MAX_COLD_READS times, deslop what the cold reads changed, and commit after
+ * each step. Files run side by side and only a commit step commits, so no two
+ * agents commit in one worktree at once. Returns `{ stop }` or `{ docCheck }`.
+ */
+async function runDocCheck(scan) {
+  const files = scan.docFiles;
+  const stop = (reason) => ({ stop: { status: 'failed', stage: 'doc-check', branch, worktree, reason } });
+
+  const deslopped = await parallel(files.map((file, i) => () => deslopFile(scan, file, file.sections, `${i + 1}`)));
+  if (deslopped.some((ok) => !ok)) return stop('a deslop agent died or was skipped');
+  const allPaths = files.map((f) => f.path);
+  let commit = await commitDocs(scan, allPaths, 'docs: deslop the changed docs', 'commit-deslop', false);
+  if (!commit) return stop('commit agent died or was skipped');
+  if (commit.blockedReason) return stop(commit.blockedReason);
+  let head = commit.head;
+
+  // The author writes its answers before any reader starts.
+  const answers = await parallel(
+    files.map((file, i) => () =>
+      agent(
+        `You wrote ${file.path} (a ${file.kind}) on the feature branch in the worktree at ${scan.worktreePath}, for the plan below. Before a cold reader reads it, write your own answers, as steps 3 and 4 of "Run it" in ${scan.coldReadSkillDir}/SKILL.md say: answer each question in ${scan.coldReadSkillDir}/references/cold-reader.md#the-questions for a ${file.kind}, with what the file is meant to tell a reader. Write "doesn't apply" where that skill says to. Spawn nothing and edit no file.
+
+The plan:
+
+${plan}`,
+        { label: `cold-answers-${i + 1}`, model: 'sonnet', schema: ANSWERS_SCHEMA, phase: 'Doc check' },
+      ),
+    ),
+  );
+  if (answers.some((a) => !a)) return stop('an answers agent died or was skipped');
+
+  const state = files.map(() => ({ clean: false, reads: 0, sections: new Set(), differences: [], openItems: [], unread: false }));
+  let headBeforeLastRead = head;
+  for (let round = 1; round <= MAX_COLD_READS; round++) {
+    const pending = files.map((file, i) => i).filter((i) => !state[i].clean);
+    if (pending.length === 0) break;
+    headBeforeLastRead = head;
+    const changed = new Set();
+    await parallel(
+      pending.map((i) => async () => {
+        const file = files[i];
+        const readerPrompt = `Read ${scan.coldReadSkillDir}/references/cold-reader.md and follow it as your instructions.
+The file: ${file.path}
+It is a: ${file.kind}
+The rules: ${scan.rulesFiles.join('\n')}`;
+        const readerOpts = { model: 'sonnet', agentType: 'general-purpose', phase: 'Doc check' };
+        // A read with no report doesn't count, so a fresh reader gets one more try.
+        let report = await agent(readerPrompt, { ...readerOpts, label: `cold-read-${i + 1}-${round}` });
+        if (report === null) report = await agent(readerPrompt, { ...readerOpts, label: `cold-read-${i + 1}-${round}-retry` });
+        if (report === null) {
+          state[i].clean = true;
+          state[i].differences.push(`read ${round}: no cold reader returned a report`);
+          return;
+        }
+        state[i].reads = round;
+        const compare = await agent(
+          `You wrote ${file.path} (a ${file.kind}) on the feature branch in the worktree at ${scan.worktreePath}. A cold reader with none of your context read it and reported:
+
+${report}
+
+Your answers, written before the read:
+
+${answers[i].answers}
+
+Act on the report as "Act on it" in ${scan.coldReadSkillDir}/SKILL.md says: compare each answer with yours, and fix the file, or the rules file in the worktree, for each finding. Redraft each section a fix lands in. Close every question yourself where that skill says to; write each question only the user can answer, each rule you added, and each check you skipped into openItems. Don't deslop yet: a later agent does.
+
+Edit files only inside the worktree, and never commit: other agents edit other files there at the same time. Return clean=true only when every answer matched yours and the reader found no contradiction.`,
+          { label: `cold-compare-${i + 1}-${round}`, model: 'sonnet', schema: COMPARE_SCHEMA, phase: 'Doc check' },
+        );
+        if (!compare) {
+          state[i].clean = true;
+          state[i].differences.push(`read ${round}: the compare agent died`);
+          return;
+        }
+        state[i].clean = compare.clean;
+        state[i].unread = compare.changedFiles.length > 0;
+        state[i].differences = compare.clean ? [] : compare.differences;
+        state[i].openItems.push(...(compare.openItems || []));
+        for (const s of compare.changedSections) state[i].sections.add(s);
+        for (const f of compare.changedFiles) changed.add(f);
+      }),
+    );
+    if (changed.size > 0) {
+      commit = await commitDocs(scan, [...changed], `docs: fix what cold read ${round} found`, `commit-cold-read-${round}`, false);
+      if (!commit) return stop('commit agent died or was skipped');
+      if (commit.blockedReason) return stop(commit.blockedReason);
+      head = commit.head;
+    }
+  }
+
+  // The cold-read skill's last step: deslop each section a cold read changed.
+  const redrafted = files.map((file, i) => ({ file, i })).filter(({ i }) => state[i].sections.size > 0);
+  if (redrafted.length > 0) {
+    const ok = await parallel(
+      redrafted.map(({ file, i }) => () => deslopFile(scan, file, [...state[i].sections], `${i + 1}-after-cold-read`)),
+    );
+    if (ok.some((x) => !x)) return stop('a deslop agent died or was skipped');
+    commit = await commitDocs(scan, allPaths, 'docs: deslop the cold-read fixes', 'commit-deslop-after-cold-read', false);
+    if (!commit) return stop('commit agent died or was skipped');
+    if (commit.blockedReason) return stop(commit.blockedReason);
+    head = commit.head;
+  }
+
+  const stillDiffer = files.flatMap((file, i) =>
+    state[i].clean ? [] : state[i].differences.map((d) => `${shortName(file.path)}: ${d}`),
+  );
+  // A fix after the last allowed read was never read.
+  const unreadFixes = files.filter((file, i) => state[i].unread && state[i].reads === MAX_COLD_READS && !state[i].clean).map((f) => f.path);
+  const openItems = files.flatMap((file, i) => state[i].openItems.map((o) => `${shortName(file.path)}: ${o}`));
+  return {
+    docCheck: {
+      files: allPaths,
+      ticks: chooseTicks(headBeforeLastRead, head),
+      stillDiffer,
+      unreadFixes,
+      openItems,
+    },
+  };
+}
+
+/**
+ * Edits only the Deslop and Cold read lines of the live PR body, so the
+ * published verify report and CI's chex tick stay as they are.
+ */
+async function retick(prRef, prRepo, ticks, rebased, label) {
+  const mapping = rebased
+    ? ` The branch was rebased since these commits were recorded, so first find each one's copy: the commit in \`git -C ${worktree} log origin/${base}..HEAD\` whose \`git patch-id --stable\` matches the recorded one's (\`git -C ${worktree} show <old> | git patch-id --stable\`). Write the copies' short hashes.`
+    : '';
+  return agent(
+    `Update the Checks lines of PR #${prRef} in ${prRepo}. Pass \`-R ${prRepo}\` to every \`gh\` command. Read the live body with \`gh pr view ${prRef} -R ${prRepo} --json body -q .body\`, and change only these two lines:
+- [x] Deslop (${ticks.deslop})
+- [x] Cold read (${ticks.coldRead})
+${mapping}
+Replace the existing Deslop and Cold read lines in place, and leave every other line as it is, including the report between the \`wringer:report\` markers and the chex line. Hold the body in a file only this run uses, made with \`mktemp\`, and write it with \`gh pr edit ${prRef} -R ${prRepo} --body-file <file>\`. Return the two hashes the body now names.`,
+    { label, model: 'sonnet', effort: 'low', schema: RETICK_SCHEMA, phase: 'Watch CI' },
+  );
+}
+
 phase('Implement');
 const verifyGate =
   verifyCommands && verifyCommands.length > 0
@@ -367,8 +765,77 @@ if (reviewer === 'none') {
   reviewSummary = gate.summary;
 }
 
+phase('Doc check');
+const scan = await agent(scanPrompt, { label: 'scan-repo', model: 'sonnet', effort: 'low', schema: SCAN_SCHEMA, phase: 'Doc check' });
+if (!scan)
+  return {
+    status: 'failed',
+    stage: 'scan',
+    branch,
+    worktree,
+    reason: 'scout agent died or was skipped',
+    ...reviewSummary,
+  };
+
+let docCheck = null;
+const docSkillsFound = Boolean(scan.deslopSkillDir && scan.coldReadSkillDir);
+if (scan.docFiles.length === 0) {
+  log('Doc check skipped: the branch changes no doc or skill file');
+} else if (!docSkillsFound) {
+  log('Doc check skipped: no deslop or cold-read skill found');
+} else if (scan.docFiles.length > MAX_DOC_FILES) {
+  return {
+    status: 'blocked',
+    stage: 'doc-check',
+    branch,
+    worktree,
+    reason: `the branch changes ${scan.docFiles.length} doc files, over the doc check's cap of ${MAX_DOC_FILES}; split the PR or run deslop and cold-read by hand`,
+    ...reviewSummary,
+  };
+} else {
+  log(`Doc check: ${scan.docFiles.length} doc file(s)`);
+  const result = await runDocCheck(scan);
+  if (result.stop) return { ...result.stop, ...reviewSummary };
+  docCheck = result.docCheck;
+  log(
+    `Doc check done: Deslop at ${docCheck.ticks.deslop}, Cold read at ${docCheck.ticks.coldRead}, ${docCheck.stillDiffer.length} difference(s) left`,
+  );
+}
+let ticks = docCheck ? docCheck.ticks : null;
+const tickLines = Boolean(ticks && scan.checkLines);
+let verifyResult = null;
+
+/** The fields every later result carries. */
+function extras() {
+  return {
+    ...reviewSummary,
+    docCheck: docCheck ? { ...docCheck, ticks } : null,
+    verify: verifyResult,
+  };
+}
+
 phase('Open PR');
-const prBodySpec = `Write the PR body from the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries${issue ? `, starting with \`Closes #${issue}\`` : ''}. Hold the body in a file only this run uses: create it with \`mktemp\` and pass it with \`--body-file\`. Never write it to a fixed path such as \`/tmp/body.md\`: other runs write there at the same time, and a PR can get another run's body. For orientation only, the implementer summarized the work as: ${impl.summary}`;
+let checksSpec;
+if (tickLines) {
+  checksSpec = `The branch changes doc or skill files, and a doc check ran on them. In the template's Checks section, keep its other lines, such as \`- [ ] chex\` (CI ticks it), and write these two lines, each naming the short hash of the branch's copy of the commit:
+- [x] Deslop (${ticks.deslop})
+- [x] Cold read (${ticks.coldRead})
+When the rebase in step 1 rewrote commits, find each commit's copy: the commit in \`git -C ${worktree} log origin/${base}..HEAD\` whose \`git patch-id --stable\` matches the recorded one's (\`git -C ${worktree} show <old> | git patch-id --stable\`). Return the two hashes you wrote as deslopCommit and coldReadCommit.`;
+} else if (scan.docFiles.length === 0) {
+  checksSpec = `The branch changes no doc or skill file: write the Checks section as the template says for that case.`;
+} else {
+  checksSpec = `Write the Checks section as the template says.`;
+}
+const verifySpec = scan.verifySkill
+  ? 'Leave the Verification section as the template gives it, markers and all: a later stage publishes the verify report into it.'
+  : 'The repo has no verify skill: write the Verification section, when the template has one, as the template says for that case.';
+const prBodySpec = `Write the PR body from the repo's PR template and the branch's actual final diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) — do not paraphrase second-hand summaries${issue ? `, starting with \`Closes #${issue}\`` : ''}. Hold the body in a file only this run uses: create it with \`mktemp\` and pass it with \`--body-file\`. Never write it to a fixed path such as \`/tmp/body.md\`: other runs write there at the same time, and a PR can get another run's body.
+
+${checksSpec}
+
+${verifySpec}
+
+For orientation only, the implementer summarized the work as: ${impl.summary}`;
 const prAction = prNumber
   ? `Update the existing PR #${prNumber}: refresh its body with \`gh pr edit ${prNumber}\` and mark it ready for review with \`gh pr ready ${prNumber}\`. Return its URL and number.`
   : `Open the PR with \`gh pr create --base ${base} --head ${branch}\`. Return the new PR's URL and number.`;
@@ -412,6 +879,102 @@ if (!prRepoMatch)
     reason: `PR URL ${JSON.stringify(pr.url)} does not name a GitHub repo`,
   };
 const prRepo = prRepoMatch[1];
+if (tickLines && pr.deslopCommit && pr.coldReadCommit) {
+  ticks = { deslop: pr.deslopCommit, coldRead: pr.coldReadCommit };
+}
+
+const docRuleLine = `The doc rule, which decides which files count as doc or skill files: ${scan.docRule}`;
+
+/**
+ * Keeps the doc ticks true after a later push. A doc file that a later commit
+ * changed gets the two deslop passes again, and the Deslop tick moves to that
+ * commit. A rebase rewrote every commit, so both ticks move to their copies.
+ * Returns a stop result, or null.
+ */
+async function followDocChanges(docFilesChanged, rebased, tag) {
+  if (!docSkillsFound) return null;
+  const known = new Map(scan.docFiles.map((f) => [f.path, f]));
+  const changed = (docFilesChanged || []).map(
+    (path) => known.get(path) || { path, kind: path.includes('/skills/') ? 'skill' : 'doc', sections: [] },
+  );
+  let moved = false;
+  if (changed.length > 0) {
+    log(`${tag}: ${changed.length} doc file(s) changed after the doc check, deslopping them again`);
+    const sinceRef = ticks ? ticks.deslop : `origin/${base}`;
+    const ok = await parallel(
+      changed.map((file, i) => () =>
+        deslopFile(
+          scan,
+          file,
+          [`each section changed since commit ${sinceRef} (\`git -C ${scan.worktreePath} diff ${sinceRef} -- ${file.path}\`)`],
+          `${tag}-${i + 1}`,
+        ),
+      ),
+    );
+    if (ok.some((x) => !x)) return { status: 'failed', stage: 'doc-check', branch, worktree, pr: pr.url, reason: 'a deslop agent died or was skipped', ...extras() };
+    const commit = await commitDocs(scan, changed.map((f) => f.path), 'docs: deslop the later doc changes', `commit-deslop-${tag}`, true);
+    if (!commit || commit.blockedReason)
+      return { status: 'blocked', stage: 'doc-check', branch, worktree, pr: pr.url, reason: commit ? commit.blockedReason : 'commit agent died or was skipped', ...extras() };
+    ticks = moveDeslopTick(ticks, commit.head);
+    moved = true;
+  }
+  if (tickLines && (moved || rebased)) {
+    const updated = await retick(pr.number, prRepo, ticks, rebased, `retick-${tag}`);
+    if (!updated) return { status: 'failed', stage: 'doc-check', branch, worktree, pr: pr.url, reason: 'retick agent died or was skipped', ...extras() };
+    ticks = { deslop: updated.deslopCommit, coldRead: updated.coldReadCommit };
+  }
+  return null;
+}
+
+/**
+ * Runs the repo's verify steps and publishes the report into the PR. A rerun
+ * after a CI fix checks only the verdicts that went stale or missing.
+ */
+async function runVerify(round) {
+  const rerun =
+    round > 1
+      ? '\n\nA previous run published a report, and a CI fix has since pushed commits. Check only the features whose verdict is now stale or missing, then publish again.'
+      : '';
+  const v = await agent(
+    `Run the repo's verify steps for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}. Load the verify skill at ${scan.verifySkill} and follow it: check each feature the branch changes, and each feature the plan names, record each verdict, then publish the report into PR #${pr.number} as the skill says. Run each command from inside the worktree, and pass \`-R ${prRepo}\` to every \`gh\` command.${rerun}
+${REPO_RULES}
+When the skill says to fix the app's code, fix it, commit (hooks must pass), and push without force. Never print a token or a secret.
+
+${docRuleLine}
+Return docFilesChanged for your commits, and each changed feature left with no current verdict in unverified. Return status=blocked with the reason when you could not publish.
+
+The plan the branch implements, for context:
+
+${plan}`,
+    { label: `verify-${round}`, model: 'sonnet', schema: VERIFY_SCHEMA, phase: 'Verify' },
+  );
+  if (!v) return { stop: { status: 'failed', stage: 'verify', branch, worktree, pr: pr.url, reason: 'verify agent died or was skipped', ...extras() } };
+  verifyResult = { status: v.status, unverified: v.unverified };
+  if (v.status === 'blocked' || v.unverified.length > 0) {
+    return {
+      stop: {
+        status: 'blocked',
+        stage: 'verify',
+        branch,
+        worktree,
+        pr: pr.url,
+        reason: v.status === 'blocked' ? v.blockedReason : `${v.unverified.length} changed feature(s) have no verdict`,
+        ...extras(),
+      },
+    };
+  }
+  const followed = await followDocChanges(v.docFilesChanged, false, `verify-${round}`);
+  return followed ? { stop: followed } : {};
+}
+
+if (scan.verifySkill) {
+  phase('Verify');
+  const verified = await runVerify(1);
+  if (verified.stop) return verified.stop;
+  log(`Verify report published to ${pr.url}`);
+} else {
+  log('Verify skipped: the repo has no verify skill');
+}
 
 phase('Watch CI');
 for (let round = 0; ; round++) {
@@ -437,7 +1000,7 @@ When all checks have completed: if everything passed, return conclusion=green wi
       worktree,
       pr: pr.url,
       reason: 'CI watcher died or was skipped',
-      ...reviewSummary,
+      ...extras(),
     };
 
   if (ci.conclusion === 'green') break;
@@ -450,7 +1013,7 @@ When all checks have completed: if everything passed, return conclusion=green wi
       reason: `CI still red after ${MAX_FIX_ROUNDS} fix rounds`,
       failures: ci.failures,
       rebaseConflicts,
-      ...reviewSummary,
+      ...extras(),
     };
   }
 
@@ -464,11 +1027,14 @@ ${JSON.stringify(ci.failures, null, 2)}
 
 If a failure's check is "merge-conflict", the branch has fallen behind ${base}: \`git -C ${worktree} fetch origin\`, rebase onto origin/${base}, resolve conflicts faithfully to both sides' intent (reinstall dependencies in the worktree if their manifests changed), push with \`--force-with-lease\` — that flag is allowed for this case ONLY — and return resolvedConflicts=true if you resolved conflicts by hand.
 
-For every other failure, commit the fixes (hooks must pass) and push to the existing branch without force.`,
+For every other failure, commit the fixes (hooks must pass) and push to the existing branch without force.
+
+${docRuleLine}
+Return docFilesChanged for your commits.`,
     {
       label: `fix-ci-${round + 1}`,
       model: 'sonnet',
-      schema: FIX_SCHEMA,
+      schema: CI_FIX_SCHEMA,
       phase: 'Watch CI',
     },
   );
@@ -482,10 +1048,17 @@ For every other failure, commit the fixes (hooks must pass) and push to the exis
       reason: fix ? fix.blockedReason : 'CI fixer died or was skipped',
       failures: ci.failures,
       rebaseConflicts,
-      ...reviewSummary,
+      ...extras(),
     };
   }
   if (fix.resolvedConflicts) rebaseConflicts = true;
+  const rebased = ci.failures.some((f) => f.check === 'merge-conflict');
+  const followed = await followDocChanges(fix.docFilesChanged, rebased, `ci-${round + 1}`);
+  if (followed) return { ...followed, rebaseConflicts };
+  if (scan.verifySkill) {
+    const verified = await runVerify(round + 2);
+    if (verified.stop) return { ...verified.stop, rebaseConflicts };
+  }
 }
 
 return {
@@ -495,5 +1068,5 @@ return {
   worktree,
   summary: impl.summary,
   rebaseConflicts,
-  ...reviewSummary,
+  ...extras(),
 };
