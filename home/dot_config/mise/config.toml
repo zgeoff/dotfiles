@@ -15,7 +15,7 @@ pnpm = "11"
 # global CLI tools
 "npm:agent-browser" = "latest"
 "pipx:poetry" = "latest"
-"pipx:shell-gpt" = "latest"
+"pipx:shell-gpt" = { version = "latest", uvx_args = "--with typer<0.26" }
 gitleaks = "8.30.1"
 rust = "stable"
 "cargo:tokei" = "15.0.0"
