@@ -61,7 +61,7 @@ test('it mints the boxxy profile with write access to the boxxy vault, into the 
 });
 
 test.each([
-  ['global', 'op://zgeoff/files-upload-token/credential'],
+  ['global', 'op://agents/files-upload-token/credential'],
   ['imp', 'op://imp-e2e/files-upload-token/credential'],
 ])('it points the %s profile uploads at the token in its own vault', (profile, ref) => {
   const ctx = setupTest();

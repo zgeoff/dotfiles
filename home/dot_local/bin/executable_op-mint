@@ -16,7 +16,7 @@ set -eu
 
 profile_vaults() {
   case "$1" in
-    global) echo "--vault zgeoff:read_items,write_items" ;;
+    global) echo "--vault agents:read_items,write_items" ;;
     vers) echo "--vault vers:read_items,write_items --vault vers-ci:read_items" ;;
     # cloud-deploy holds the secrets the cloud deploy workflows read; fleet holds the Claude slot tokens the rotation writes
     cloud) echo "--vault cloud:read_items,write_items --vault cloud-deploy:read_items,write_items --vault imp:read_items,write_items --vault fleet:read_items,write_items" ;;
@@ -36,7 +36,7 @@ profile_vaults() {
 # the vault that holds the profile's files-upload-token item
 profile_upload_vault() {
   case "$1" in
-    global) echo zgeoff ;;
+    global) echo agents ;;
     imp) echo imp-e2e ;;
     *) echo "$1" ;;
   esac

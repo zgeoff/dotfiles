@@ -13,7 +13,7 @@ echo a token or a secret value.
   lives in `~/projects/<repo>/.claude/settings.local.json`, which overrides the global
   `~/.claude/settings.json`. `op-mint --list` gives every profile, its vaults and its settings file.
 - These profiles differ from the convention:
-  - `global` uses the `zgeoff` vault, in `~/.claude/settings.json`. `zgeoff` holds the items every
+  - `global` uses the `agents` vault, in `~/.claude/settings.json`. `agents` holds the items every
     agent shares, such as `repo-sync-github-app`.
   - `imp` uses the `imp-e2e` vault, which holds imp's e2e tailnet OAuth client.
   - `vers` adds `vers-ci` (read-only), which holds only what the vers infra-drift CI job reads.
