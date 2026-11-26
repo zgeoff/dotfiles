@@ -36,7 +36,7 @@ profile_vaults() {
 # the vault that holds the profile's files-upload-token item
 profile_upload_vault() {
   case "$1" in
-    global) echo zgeoff ;;
+    global) echo agents ;;
     imp) echo imp-e2e ;;
     *) echo "$1" ;;
   esac
