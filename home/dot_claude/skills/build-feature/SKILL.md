@@ -71,7 +71,6 @@ Then act on each of these fields that the result holds:
 
 - `reviewedBy` lists `codex`, `opus` or both, and is empty when `review` was `'none'`. When it lists only `opus` after you passed `'codex'`, tell the user that Codex was unavailable for the whole run.
 - `minorFindings` holds the review findings that didn't block the PR. Answer each one on the PR: fix it, or reply with why not.
-- When `rebaseConflicts` is `true`, a run agent resolved a rebase conflict by hand. Before you merge, have a fresh subagent compare each file that conflicted with both sides: what the base branch changed, and what the branch meant to change. Fix each loss it finds in the PR. Bring the user only a conflict whose fix needs their decision.
 - `docCheck` is null when the run checked no doc. Otherwise `stillDiffer` lists each cold-read answer that still differed after 3 reads, and `unreadFixes` each file a fix changed after its last read. Fix each one, and tell the user. Bring each item in `openItems` to the user.
 
 The branch and the worktree stay in place after every result. Remove them once the PR merges.
