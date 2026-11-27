@@ -10,7 +10,7 @@ go = "1.27.4"
 node = "24.22.3"
 python = "3.15.2"
 ruby = "4.0.9"
-pnpm = "11"
+pnpm = "12"
 
 # global CLI tools
 "npm:agent-browser" = "latest"
