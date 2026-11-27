@@ -52,7 +52,7 @@ The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, suc
 
 The run also does the checks that need a fresh agent, which its own agents can't start:
 
-- When the branch changes a doc or a skill file, as the repo's docs checks count them, fresh agents deslop each one twice, then cold-read it up to 3 times, before the PR opens. The PR body ticks the Deslop and Cold read lines when the repo's PR template has them. A later commit that changes a doc gets deslopped again, and the Deslop line moves to it.
+- When the branch changes a doc or a skill file, as the repo's docs checks count them, fresh agents cold-read each one once, then deslop it once, before the PR opens. The PR body ticks the Deslop and Cold read lines when the repo's PR template has them. A later commit that changes a doc gets deslopped again, and the Deslop line moves to it.
 - When the repo has a verify skill, an agent runs its verify steps after the PR opens, and publishes the report into the PR. It runs them again after each CI fix.
 
 ## Act on the result
@@ -71,7 +71,7 @@ Then act on each of these fields that the result holds:
 
 - `reviewedBy` lists `codex`, `opus` or both, and is empty when `review` was `'none'`. When it lists only `opus` after you passed `'codex'`, tell the user that Codex was unavailable for the whole run.
 - `minorFindings` holds the review findings that didn't block the PR. Answer each one on the PR: fix it, or reply with why not.
-- `docCheck` is null when the run checked no doc. Otherwise `stillDiffer` lists each cold-read answer that still differed after 3 reads, and `unreadFixes` each file a fix changed after its last read. Fix each one, and tell the user. Bring each item in `openItems` to the user.
+- `docCheck` is null when the run checked no doc. Otherwise `stillDiffer` lists each cold-read answer that still differed after the one read. Fix each one, and tell the user. Bring each item in `openItems` to the user.
 
 The branch and the worktree stay in place after every result. Remove them once the PR merges.
 

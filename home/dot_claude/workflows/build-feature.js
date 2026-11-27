@@ -18,7 +18,7 @@ export const meta = {
     {
       title: 'Doc check',
       detail:
-        'Skipped when the branch changes no doc or skill file; otherwise fresh sonnet agents deslop each one twice, then cold-read it (max 3 reads per file)',
+        'Skipped when the branch changes no doc or skill file; otherwise fresh sonnet agents cold-read each one once, fix what the read found, then deslop it once',
       model: 'sonnet',
     },
     {
@@ -41,9 +41,7 @@ export const meta = {
 const MAX_FIX_ROUNDS = 2;
 // A Codex review takes 3 to 9 minutes; past this, fall back to Opus.
 const CODEX_TIMEOUT_SECONDS = 900;
-// The cold-read skill's limit: at most 3 reads of a file in one pull request.
-const MAX_COLD_READS = 3;
-// Each doc file costs up to 16 agents; past this many files the run stops
+// Each doc file costs at most 6 agents; past this many files the run stops
 // before the doc check, so the run stays far under the 1000-agent cap.
 const MAX_DOC_FILES = 20;
 
@@ -506,11 +504,11 @@ const scanPrompt = `Scout the feature branch in the worktree at ${worktree} for 
 
 /**
  * Where the commits the PR body ticks stand. `deslop` moves to each later
- * commit that a deslop pass checked; `coldRead` stays on the commit the last
- * cold read read, which chex accepts after later doc commits.
+ * commit that a deslop checked; `coldRead` stays on the commit the cold
+ * read read, which chex accepts after later doc commits.
  */
-function chooseTicks(headBeforeLastRead, finalHead) {
-  return { deslop: finalHead, coldRead: headBeforeLastRead };
+function chooseTicks(readHead, finalHead) {
+  return { deslop: finalHead, coldRead: readHead };
 }
 
 function moveDeslopTick(ticks, head) {
@@ -526,48 +524,24 @@ function shortName(path) {
 }
 
 /**
- * The deslop skill's "Text you wrote": two fresh agents deslop the sections in
- * turn, each with the skill's prompt and nothing else, and an author agent
- * checks each one's changes. Returns false when an agent died.
+ * One fresh agent deslops the sections with the skill's prompt, and rereads
+ * its own edits and runs the prose check itself, as the deslop skill says.
+ * Returns false when the agent died.
  */
-async function deslopFile(scan, file, sections, tag) {
+async function deslopFile(scan, file, sections, label) {
   const rel = relativeTo(scan.worktreePath, file.path);
-  for (let pass = 1; pass <= 2; pass++) {
-    const handBack = await agent(
-      `Read ${scan.deslopSkillDir}/SKILL.md and follow it as your instructions.
+  const result = await agent(
+    `Read ${scan.deslopSkillDir}/SKILL.md and follow it as your instructions.
 The text: ${file.path}
 It is a: ${file.kind}
-Deslop these sections: ${sections.join('; ')}`,
-      {
-        label: `deslop-${tag}-${pass}`,
-        model: 'sonnet',
-        agentType: 'general-purpose',
-        phase: 'Doc check',
-      },
-    );
-    if (handBack === null) return false;
-    const proseCheck =
-      pass === 2
-        ? `\nThen run the prose check from the worktree root, \`cd ${scan.worktreePath} && bun x @zgeoff/chex prose ${rel}\`, and fix each failure in the file. When chex can't run, skip it and say so in the summary.`
-        : '';
-    const check = await agent(
-      `You wrote ${file.path} on the feature branch in the worktree at ${scan.worktreePath}. A fresh agent deslopped it (pass ${pass} of 2), and handed back these changes:
+Deslop these sections: ${sections.join('; ')}
 
-${handBack}
-
-Check them as the "Text you wrote" section of ${scan.deslopSkillDir}/SKILL.md says. Read each change in \`git -C ${scan.worktreePath} diff -- ${rel}\`. Revert any change that changes a fact, breaks a format, cuts a rule's reason, or renames a term a check or script depends on. Read each rewrite on its own, and rewrite it yourself when it still has a fault from the skill's What to fix. Then read each fault it kept, with its reason, and fix each one whose reason doesn't hold.${proseCheck}
+When you are done, reread your own edits, as the "Text you wrote" section of the skill says: revert any change that changes a fact, breaks a format, cuts a rule's reason, or renames a term a check or script depends on. Then run the prose check from the worktree root, \`cd ${scan.worktreePath} && bun x @zgeoff/chex prose ${rel}\`, and fix each failure in the file. When chex can't run, skip it and say so in the summary.
 
 Edit only ${file.path}, and never commit: other agents edit other files in this worktree at the same time. Return changed=true when the file differs from its committed copy.`,
-      {
-        label: `deslop-check-${tag}-${pass}`,
-        model: 'sonnet',
-        schema: DOC_EDIT_SCHEMA,
-        phase: 'Doc check',
-      },
-    );
-    if (check === null) return false;
-  }
-  return true;
+    { label, model: 'sonnet', agentType: 'general-purpose', schema: DOC_EDIT_SCHEMA, phase: 'Doc check' },
+  );
+  return result !== null;
 }
 
 async function commitDocs(scan, files, message, label, push) {
@@ -582,9 +556,10 @@ Use the commit message \`${message}\`. When none of the files has a change, make
 }
 
 /**
- * The doc check: deslop each changed doc file, cold-read it up to
- * MAX_COLD_READS times, deslop what the cold reads changed, and commit after
- * each step. Files run side by side and only a commit step commits, so no two
+ * The doc check: the scripted checks, one cold read of each changed doc file
+ * with a fix pass, then one deslop of the sections the branch changed and the
+ * cold read redrafted, with the scripted checks again, and a commit after each
+ * step. Files run side by side and only a commit step commits, so no two
  * agents commit in one worktree at once. Returns `{ stop }` or `{ docCheck }`.
  */
 async function runScriptedChecks(scan, files, label) {
@@ -601,13 +576,12 @@ async function runDocCheck(scan, tag = '') {
   const stop = (reason) => ({ stop: { status: 'failed', stage: 'doc-check', branch, worktree, reason } });
   const allPaths = files.map((f) => f.path);
 
-  const deslopped = await parallel(files.map((file, i) => () => deslopFile(scan, file, file.sections, `${tag}${i + 1}`)));
-  if (deslopped.some((ok) => !ok)) return stop('a deslop agent died or was skipped');
   if (!(await runScriptedChecks(scan, allPaths, `${tag}docs-checks-before`))) return stop('the docs-checks agent died or was skipped');
-  let commit = await commitDocs(scan, allPaths, 'docs: deslop the changed docs', `${tag}commit-deslop`, false);
+  let commit = await commitDocs(scan, allPaths, 'docs: pass the docs checks', `${tag}commit-checks`, false);
   if (!commit) return stop('commit agent died or was skipped');
   if (commit.blockedReason) return stop(commit.blockedReason);
-  let head = commit.head;
+  // The cold reader reads this commit.
+  const readHead = commit.head;
 
   // The author writes its answers before any reader starts.
   const answers = await parallel(
@@ -624,44 +598,36 @@ ${plan}`,
   );
   if (answers.some((a) => !a)) return stop('an answers agent died or was skipped');
 
-  const state = files.map(() => ({ clean: false, reads: 0, sections: new Set(), differences: [], openItems: [], unread: false, failed: null }));
-  let headBeforeLastRead = head;
-  for (let round = 1; round <= MAX_COLD_READS; round++) {
-    const pending = files.map((file, i) => i).filter((i) => !state[i].clean);
-    if (pending.length === 0) break;
-    headBeforeLastRead = head;
-    const changed = new Set();
-    // Every reader finishes before any compare agent edits a file, since a
-    // changed doc can be another reader's rules file.
-    const reports = {};
-    const readSettled = await parallel(
-      pending.map((i) => async () => {
-        const file = files[i];
-        const readerPrompt = `Read ${scan.coldReadSkillDir}/references/cold-reader.md and follow it as your instructions.
+  const state = files.map(() => ({ clean: false, sections: new Set(), differences: [], openItems: [], failed: null }));
+  // Every reader finishes before any compare agent edits a file, since a
+  // changed doc can be another reader's rules file.
+  const reports = {};
+  const readSettled = await parallel(
+    files.map((file, i) => async () => {
+      const readerPrompt = `Read ${scan.coldReadSkillDir}/references/cold-reader.md and follow it as your instructions.
 The file: ${file.path}
 It is a: ${file.kind}
 The rules: ${scan.rulesFiles.join('\n')}`;
-        const readerOpts = { model: 'sonnet', agentType: 'general-purpose', phase: 'Doc check' };
-        // A read with no report doesn't count, so a fresh reader gets one more try.
-        let report = await agent(readerPrompt, { ...readerOpts, label: `${tag}cold-read-${i + 1}-${round}` });
-        if (report === null) report = await agent(readerPrompt, { ...readerOpts, label: `${tag}cold-read-${i + 1}-${round}-retry` });
-        if (report === null) {
-          state[i].failed = `read ${round} of ${shortName(file.path)}: no cold reader returned a report`;
-          return true;
-        }
-        state[i].reads = round;
-        reports[i] = report;
+      const readerOpts = { model: 'sonnet', agentType: 'general-purpose', phase: 'Doc check' };
+      // A read with no report doesn't count, so a fresh reader gets one more try.
+      let report = await agent(readerPrompt, { ...readerOpts, label: `${tag}cold-read-${i + 1}` });
+      if (report === null) report = await agent(readerPrompt, { ...readerOpts, label: `${tag}cold-read-${i + 1}-retry` });
+      if (report === null) {
+        state[i].failed = `the cold read of ${shortName(file.path)}: no cold reader returned a report`;
         return true;
-      }),
-    );
-    const compareSettled = await parallel(
-      pending.filter((i) => reports[i] !== undefined).map((i) => async () => {
-        const file = files[i];
-        const report = reports[i];
-        const compare = await agent(
-          `You wrote ${file.path} (a ${file.kind}) on the feature branch in the worktree at ${scan.worktreePath}. A cold reader with none of your context read it and reported:
+      }
+      reports[i] = report;
+      return true;
+    }),
+  );
+  const changed = new Set();
+  const compareSettled = await parallel(
+    files.map((file, i) => i).filter((i) => reports[i] !== undefined).map((i) => async () => {
+      const file = files[i];
+      const compare = await agent(
+        `You wrote ${file.path} (a ${file.kind}) on the feature branch in the worktree at ${scan.worktreePath}. A cold reader with none of your context read it and reported:
 
-${report}
+${reports[i]}
 
 Your answers, written before the read:
 
@@ -670,64 +636,52 @@ ${answers[i].answers}
 Act on the report as "Act on it" in ${scan.coldReadSkillDir}/SKILL.md says: compare each answer with yours, and fix the file for each finding. Redraft each section a fix lands in. Close every question yourself where that skill says to. Write into openItems each question only the user can answer, each check you skipped, and each fix that belongs in a rules file or any file other than this one, with the text you would write: other agents are editing those files now, so leave them alone. Don't deslop yet: a later agent does.
 
 Edit only ${file.path}, and never commit: other agents edit other files in this worktree at the same time. Return clean=true only when every answer matched yours and the reader found no contradiction.`,
-          { label: `${tag}cold-compare-${i + 1}-${round}`, model: 'sonnet', schema: COMPARE_SCHEMA, phase: 'Doc check' },
-        );
-        if (!compare) {
-          state[i].failed = `read ${round} of ${shortName(file.path)}: the compare agent died`;
-          return true;
-        }
-        state[i].clean = compare.clean;
-        state[i].unread = compare.changedFiles.length > 0;
-        state[i].differences = compare.clean ? [] : compare.differences;
-        state[i].openItems.push(...(compare.openItems || []));
-        for (const s of compare.changedSections) state[i].sections.add(s);
-        // A compare agent edits only its own file.
-        if (compare.changedFiles.length > 0) changed.add(file.path);
+        { label: `${tag}cold-compare-${i + 1}`, model: 'sonnet', schema: COMPARE_SCHEMA, phase: 'Doc check' },
+      );
+      if (!compare) {
+        state[i].failed = `the cold read of ${shortName(file.path)}: the compare agent died`;
         return true;
-      }),
-    );
-    // A read that never finished leaves no tick to stand on.
-    const failed = state.map((st) => st.failed).filter(Boolean);
-    if ([...readSettled, ...compareSettled].some((x) => !x)) failed.push(`read ${round}: an agent threw`);
-    if (failed.length > 0) return stop(failed.join('; '));
-    if (changed.size > 0) {
-      commit = await commitDocs(scan, [...changed], `docs: fix what cold read ${round} found`, `${tag}commit-cold-read-${round}`, false);
-      if (!commit) return stop('commit agent died or was skipped');
-      if (commit.blockedReason) return stop(commit.blockedReason);
-      head = commit.head;
-    }
-  }
-
-  // The cold-read skill's last step: deslop each section a cold read changed.
-  const redrafted = files.map((file, i) => ({ file, i })).filter(({ i }) => state[i].sections.size > 0);
-  if (redrafted.length > 0) {
-    const ok = await parallel(
-      redrafted.map(({ file, i }) => () => deslopFile(scan, file, [...state[i].sections], `${tag}${i + 1}-after-cold-read`)),
-    );
-    if (ok.some((x) => !x)) return stop('a deslop agent died or was skipped');
-  }
-  // The cold-read skill's step 4 ends with the scripted checks again.
-  const after = await runScriptedChecks(scan, allPaths, `${tag}docs-checks-after`);
-  if (!after) return stop('the docs-checks agent died or was skipped');
-  if (redrafted.length > 0 || after.changed) {
-    commit = await commitDocs(scan, allPaths, 'docs: deslop the cold-read fixes', `${tag}commit-deslop-after-cold-read`, false);
+      }
+      state[i].clean = compare.clean;
+      state[i].differences = compare.clean ? [] : compare.differences;
+      state[i].openItems.push(...(compare.openItems || []));
+      for (const s of compare.changedSections) state[i].sections.add(s);
+      // A compare agent edits only its own file.
+      if (compare.changedFiles.length > 0) changed.add(file.path);
+      return true;
+    }),
+  );
+  // A read that never finished leaves no tick to stand on.
+  const failed = state.map((st) => st.failed).filter(Boolean);
+  if ([...readSettled, ...compareSettled].some((x) => !x)) failed.push('the cold read: an agent threw');
+  if (failed.length > 0) return stop(failed.join('; '));
+  if (changed.size > 0) {
+    commit = await commitDocs(scan, [...changed], 'docs: fix what the cold read found', `${tag}commit-cold-read`, false);
     if (!commit) return stop('commit agent died or was skipped');
     if (commit.blockedReason) return stop(commit.blockedReason);
-    head = commit.head;
   }
+
+  // The cold-read skill's last step: deslop the sections the branch changed
+  // and each section the cold read redrafted.
+  const deslopped = await parallel(
+    files.map((file, i) => () => deslopFile(scan, file, [...file.sections, ...state[i].sections], `${tag}deslop-${i + 1}`)),
+  );
+  if (deslopped.some((ok) => !ok)) return stop('a deslop agent died or was skipped');
+  // The cold-read skill's step 4 ends with the scripted checks again.
+  if (!(await runScriptedChecks(scan, allPaths, `${tag}docs-checks-after`))) return stop('the docs-checks agent died or was skipped');
+  commit = await commitDocs(scan, allPaths, 'docs: deslop the changed docs', `${tag}commit-deslop`, false);
+  if (!commit) return stop('commit agent died or was skipped');
+  if (commit.blockedReason) return stop(commit.blockedReason);
 
   const stillDiffer = files.flatMap((file, i) =>
     state[i].clean ? [] : state[i].differences.map((d) => `${shortName(file.path)}: ${d}`),
   );
-  // A fix after the last allowed read was never read.
-  const unreadFixes = files.filter((file, i) => state[i].unread && state[i].reads === MAX_COLD_READS && !state[i].clean).map((f) => f.path);
   const openItems = files.flatMap((file, i) => state[i].openItems.map((o) => `${shortName(file.path)}: ${o}`));
   return {
     docCheck: {
       files: allPaths,
-      ticks: chooseTicks(headBeforeLastRead, head),
+      ticks: chooseTicks(readHead, commit.head),
       stillDiffer,
-      unreadFixes,
       openItems,
     },
   };
@@ -827,7 +781,7 @@ if (scan.docFiles.length === 0 && deletedDocs.length === 0) {
   // chex counts a deleted doc, so the body still needs its tick lines. No
   // text is left to deslop or read, so both name the branch's HEAD.
   log(`Doc check skipped: the branch only deletes ${deletedDocs.length} doc file(s)`);
-  docCheck = { files: [], ticks: chooseTicks(scan.head, scan.head), stillDiffer: [], unreadFixes: [], openItems: [] };
+  docCheck = { files: [], ticks: chooseTicks(scan.head, scan.head), stillDiffer: [], openItems: [] };
 } else if (!docSkillsFound) {
   return {
     status: 'blocked',
@@ -947,7 +901,7 @@ const docRuleLine = `The doc rule, which decides which files count as doc or ski
 
 /**
  * Keeps the doc ticks true after a later push. A doc file that a later commit
- * changed gets the two deslop passes again, and the Deslop tick moves to that
+ * changed gets a deslop again, and the Deslop tick moves to that
  * commit; when no doc check ran yet, the file gets the whole doc check. A
  * rebase rewrote every commit, so both ticks move to their copies. Returns
  * `{ stop }` with the run's result, or `{ pushed }`.
@@ -983,7 +937,7 @@ async function followDocChanges(docFilesChanged, rebased, tag) {
           scan,
           file,
           [`each section changed since commit ${sinceRef} (\`git -C ${scan.worktreePath} diff ${sinceRef} -- ${file.path}\`)`],
-          `${tag}-${i + 1}`,
+          `deslop-${tag}-${i + 1}`,
         ),
       ),
     );

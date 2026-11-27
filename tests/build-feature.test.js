@@ -246,14 +246,12 @@ async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes =
     if (label === 'implement') return { status: 'done', summary: 'Adds a quota check.', commits: [] };
     if (label === 'scan-repo') return scan || plainScan;
     if (label.includes('docs-checks-')) return { changed: false, summary: 'The docs checks pass.' };
-    if (label.includes('deslop-check-')) return { changed: true, summary: 'Kept both passes.' };
-    if (label.startsWith('deslop-')) return '### Cut drama words\n```diff\n- critical\n+ needed\n```';
     if (label.startsWith('commit-') || label.startsWith('push-docs-') || label.includes('-commit-')) return { committed: true, head: `sha-${label}` };
+    if (/(^|-)deslop-/.test(label)) return { changed: true, summary: 'Cut drama words.' };
     if (label.includes('cold-answers-')) return { answers: '1. Read it before changing a quota.' };
     if (/(^|-)cold-read-\d/.test(label)) return reader ? reader(label) : 'Report: question 1 answered as "read it after checkout".';
     if (label.includes('cold-compare-')) {
-      const read = Number(label.split('-').at(-1));
-      return (compare || (() => ({ clean: true, changedFiles: [], changedSections: [], differences: [] })))(read);
+      return (compare || (() => ({ clean: true, changedFiles: [], changedSections: [], differences: [] })))();
     }
     if (label === 'open-pr') {
       const pr = { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
@@ -279,10 +277,7 @@ async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes =
   return { result, labels, calls, prompt: (label) => calls.find((c) => c.label === label).prompt };
 }
 
-const fixedOnce = (read) =>
-  read === 1
-    ? { clean: false, changedFiles: [quotaDoc.path], changedSections: ['Refunds'], differences: ['Q1 differed'] }
-    : { clean: true, changedFiles: [], changedSections: [], differences: [] };
+const fixedOnce = () => ({ clean: false, changedFiles: [quotaDoc.path], changedSections: ['Refunds'], differences: ['Q1 differed'] });
 
 describe('build-feature doc check', () => {
   test('a branch that changes no doc skips the doc check', async () => {
@@ -292,21 +287,19 @@ describe('build-feature doc check', () => {
     expect(run.prompt('open-pr')).not.toContain('- [x] Deslop');
   });
 
-  test('a changed doc gets two deslop passes, then a cold read, before the PR opens', async () => {
+  test('a changed doc gets one cold read, then one deslop, before the PR opens', async () => {
     const run = await stageRun({ scan: docScan });
     expect(run.labels).toEqual([
       'implement',
       'scan-repo',
-      'deslop-1-1',
-      'deslop-check-1-1',
-      'deslop-1-2',
-      'deslop-check-1-2',
       'docs-checks-before',
-      'commit-deslop',
+      'commit-checks',
       'cold-answers-1',
-      'cold-read-1-1',
-      'cold-compare-1-1',
+      'cold-read-1',
+      'cold-compare-1',
+      'deslop-1',
       'docs-checks-after',
+      'commit-deslop',
       'open-pr',
       'watch-ci-1',
     ]);
@@ -315,32 +308,30 @@ describe('build-feature doc check', () => {
 
   test('the deslop and cold-reader agents get the skills\' prompts and nothing else', async () => {
     const run = await stageRun({ scan: docScan });
-    expect(run.prompt('deslop-1-1')).toBe(
+    expect(run.prompt('deslop-1').startsWith(
       'Read /repo/.agents/skills/deslop/SKILL.md and follow it as your instructions.\n' +
-        `The text: ${quotaDoc.path}\nIt is a: doc\nDeslop these sections: Refunds`,
-    );
-    expect(run.prompt('cold-read-1-1')).toBe(
+        `The text: ${quotaDoc.path}\nIt is a: doc\nDeslop these sections: Refunds\n`,
+    )).toBe(true);
+    expect(run.prompt('deslop-1')).toContain('reread your own edits');
+    expect(run.prompt('deslop-1')).toContain('bun x @zgeoff/chex prose docs/quota.md');
+    expect(run.prompt('cold-read-1')).toBe(
       'Read /repo/.agents/skills/cold-read/references/cold-reader.md and follow it as your instructions.\n' +
         `The file: ${quotaDoc.path}\nIt is a: doc\nThe rules: /repo/.agents/skills/docs-writing/SKILL.md`,
     );
-    for (const label of ['deslop-1-1', 'cold-read-1-1']) {
+    for (const label of ['deslop-1', 'cold-read-1']) {
       const call = run.calls.find((c) => c.label === label);
       expect(call.prompt).not.toContain(plan);
       expect(call.opts).toMatchObject({ model: 'sonnet', agentType: 'general-purpose' });
     }
   });
 
-  test('a doc that never reads clean stops after 3 cold reads', async () => {
-    const run = await stageRun({
-      scan: docScan,
-      compare: () => ({ clean: false, changedFiles: [quotaDoc.path], changedSections: ['Refunds'], differences: ['Q2 differed'] }),
-    });
-    expect(run.labels.filter((l) => l.startsWith('cold-read-'))).toEqual(['cold-read-1-1', 'cold-read-1-2', 'cold-read-1-3']);
-    expect(run.labels).toContain('deslop-1-after-cold-read-2');
-    expect(run.result).toMatchObject({
-      status: 'ready',
-      docCheck: { stillDiffer: ['docs/quota.md: Q2 differed'], unreadFixes: [quotaDoc.path] },
-    });
+  test('a doc whose one read differs is fixed, deslopped once and reported', async () => {
+    const run = await stageRun({ scan: docScan, compare: fixedOnce });
+    expect(run.labels.filter((l) => l.startsWith('cold-read-'))).toEqual(['cold-read-1']);
+    expect(run.labels).toContain('commit-cold-read');
+    expect(run.prompt('deslop-1')).toContain('Deslop these sections: Refunds; Refunds');
+    expect(run.result).toMatchObject({ status: 'ready', docCheck: { stillDiffer: ['docs/quota.md: Q1 differed'] } });
+    expect(run.result.docCheck.unreadFixes).toBeUndefined();
   });
 
   test('every agent the doc check and verify start names a model', async () => {
@@ -360,27 +351,27 @@ describe('build-feature doc check', () => {
 });
 
 describe('build-feature PR body ticks', () => {
-  test('a clean first read ticks both lines at the deslop commit', async () => {
+  test('a clean read ticks Deslop at the deslop commit and Cold read at the read commit', async () => {
     const run = await stageRun({ scan: docScan });
     const body = run.prompt('open-pr');
     expect(body).toContain('- [x] Deslop (sha-commit-deslop)');
-    expect(body).toContain('- [x] Cold read (sha-commit-deslop)');
+    expect(body).toContain('- [x] Cold read (sha-commit-checks)');
   });
 
-  test('Deslop ticks the last deslop commit, and Cold read the commit the last read read', async () => {
+  test('Deslop ticks the deslop commit, and Cold read the commit the cold reader read', async () => {
     const run = await stageRun({ scan: docScan, compare: fixedOnce });
     const body = run.prompt('open-pr');
-    expect(body).toContain('- [x] Deslop (sha-commit-deslop-after-cold-read)');
-    expect(body).toContain('- [x] Cold read (sha-commit-cold-read-1)');
+    expect(body).toContain('- [x] Deslop (sha-commit-deslop)');
+    expect(body).toContain('- [x] Cold read (sha-commit-checks)');
     expect(run.result.docCheck.ticks).toEqual({
-      deslop: 'sha-commit-deslop-after-cold-read',
-      coldRead: 'sha-commit-cold-read-1',
+      deslop: 'sha-commit-deslop',
+      coldRead: 'sha-commit-checks',
     });
   });
 
   test('a repo whose template has no tick lines leaves them to the template', async () => {
     const run = await stageRun({ scan: { ...docScan, checkLines: false } });
-    expect(run.labels).toContain('deslop-1-1');
+    expect(run.labels).toContain('deslop-1');
     expect(run.prompt('open-pr')).not.toContain('- [x] Deslop');
     expect(run.prompt('open-pr')).toContain('Write the Checks section as the template says.');
   });
@@ -394,14 +385,14 @@ describe('build-feature PR body ticks', () => {
       ],
       fix: () => ({ status: 'done', summary: 'Fixed the link.', docFilesChanged: [quotaDoc.path] }),
     });
-    expect(run.labels).toContain('deslop-ci-1-1-2');
+    expect(run.labels).toContain('deslop-ci-1-1');
     const retick = run.prompt('retick-ci-1');
     expect(retick).toContain('- [x] Deslop (sha-commit-deslop-ci-1)');
-    expect(retick).toContain('- [x] Cold read (sha-commit-deslop)');
+    expect(retick).toContain('- [x] Cold read (sha-commit-checks)');
     expect(retick).toContain('change only these two lines');
     expect(run.result).toMatchObject({
       status: 'ready',
-      docCheck: { ticks: { deslop: 'sha-commit-deslop-ci-1', coldRead: 'sha-commit-deslop' } },
+      docCheck: { ticks: { deslop: 'sha-commit-deslop-ci-1', coldRead: 'sha-commit-checks' } },
     });
   });
 
@@ -495,21 +486,21 @@ describe('build-feature doc check fixes', () => {
 
   test('a cold read with no report stops the run, with no tick', async () => {
     const run = await stageRun({ scan: docScan, reader: () => null });
-    expect(run.labels).toContain('cold-read-1-1-retry');
+    expect(run.labels).toContain('cold-read-1-retry');
     expect(run.labels).not.toContain('open-pr');
     expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
   });
 
   test('a compare agent may edit only its own doc', async () => {
     const run = await stageRun({ scan: docScan });
-    expect(run.prompt('cold-compare-1-1')).toContain(`Edit only ${quotaDoc.path}`);
+    expect(run.prompt('cold-compare-1')).toContain(`Edit only ${quotaDoc.path}`);
   });
 
-  test('the scripted docs checks run before the reads and after the cold-read fixes', async () => {
+  test('the scripted docs checks run before the read and after the deslop', async () => {
     const run = await stageRun({ scan: docScan, compare: fixedOnce });
     const labels = run.labels;
-    expect(labels.indexOf('docs-checks-before')).toBeLessThan(labels.indexOf('cold-read-1-1'));
-    expect(labels.indexOf('docs-checks-after')).toBeGreaterThan(labels.indexOf('deslop-check-1-after-cold-read-2'));
+    expect(labels.indexOf('docs-checks-before')).toBeLessThan(labels.indexOf('cold-read-1'));
+    expect(labels.indexOf('docs-checks-after')).toBeGreaterThan(labels.indexOf('deslop-1'));
   });
 
   test('an opener that returns no hashes gets its ticks checked against the branch', async () => {
@@ -523,7 +514,7 @@ describe('build-feature doc check fixes', () => {
       scan: { ...plainScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
       verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
     });
-    expect(run.labels).toContain('verify-1-cold-read-1-1');
+    expect(run.labels).toContain('verify-1-cold-read-1');
     expect(run.labels).toContain('push-docs-verify-1');
     expect(run.prompt('retick-verify-1')).toContain('when it has no Checks section, add one');
     expect(run.labels).toContain('verify-1-recheck');
@@ -584,7 +575,7 @@ describe('build-feature re-check fixes', () => {
       scan: { ...plainScan, deletedDocFiles: ['/repo/docs/old.md'], verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
       verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
     });
-    expect(run.labels).toContain('verify-1-cold-read-1-1');
+    expect(run.labels).toContain('verify-1-cold-read-1');
   });
 
   test('a verify recheck that changes docs again stops the run at verify', async () => {
