@@ -1016,7 +1016,9 @@ ${tail}`,
     { label, model: 'sonnet', schema: VERIFY_RUN_SCHEMA, phase: 'Verify' },
   );
   if (!first) return null;
-  const firstBatch = [...new Set(first.batch || [])];
+  // When the agent leaves out batch, fall back on every feature it answered for.
+  const answered = [...(first.verdicts || []), ...(first.unmatched || []), ...(first.skipped || [])].map((d) => d.feature);
+  const firstBatch = [...new Set(first.batch && first.batch.length ? first.batch : answered)];
   const left = [...new Set(first.remaining || [])].filter((f) => !firstBatch.includes(f));
   const features = [...firstBatch, ...left];
   const batches = [];
@@ -1033,7 +1035,7 @@ ${tail}`,
 ${batch.map((f) => `- ${f}`).join('\n')}
 
 ${runRules('the list')}
-${last ? `\nYou have the last batch, so publish the report yourself when you have run the list. ${publishRules}\n\nThese are the verdicts the earlier batches recorded:\n\n${JSON.stringify([...verdicts.values()], null, 2)}${(() => { const open = features.filter((f) => !verdicts.has(f) || verdicts.get(f).verdict !== 'done').map((f) => ({ feature: f, reason: reasons.get(f) || 'not run' })); return open.length ? `\n\nThese earlier features have no verdict, so leave them out of the report as the skill says:\n\n${JSON.stringify(open, null, 2)}` : ''; })()}\n\nLeave out of the report each feature in your own list that has no \`done\` verdict, as the skill says.` : 'Do not publish the report, and do not run `bun verify down`: the agent with the last batch does both.'}
+${last ? `\nYou have the last batch, so publish the report yourself when you have run the list. ${publishRules}\n\nThese are the verdicts the earlier batches recorded:\n\n${JSON.stringify([...verdicts.values()], null, 2)}${(() => { const open = features.filter((f) => !batch.includes(f) && (!verdicts.has(f) || verdicts.get(f).verdict !== 'done')).map((f) => ({ feature: f, reason: reasons.get(f) || 'not run' })); return open.length ? `\n\nThese earlier features have no verdict, so leave them out of the report as the skill says:\n\n${JSON.stringify(open, null, 2)}` : ''; })()}\n\nLeave out of the report each feature in your own list that has no \`done\` verdict, as the skill says.` : 'Do not publish the report, and do not run `bun verify down`: the agent with the last batch does both.'}
 ${tail}`,
       { label: `${label}-batch-${i + 2}`, model: 'sonnet', schema: VERIFY_RUN_SCHEMA, phase: 'Verify' },
     );
@@ -1055,15 +1057,16 @@ ${tail}`,
   for (const f of stale) merged.delete(f);
   const missing = features.filter((f) => verdicts.has(f) && !merged.has(f) && !stale.includes(f));
   const lost = [...stale, ...missing];
-  // An agent that never published returns no status, which blocks the run.
-  const status = published.status || 'blocked';
+  // An agent that never published returns no status, which blocks the run. So does a published report with no list of verdicts or of unverified features, because an empty list is not a proof.
+  const incomplete = published.status === 'published' && !(Array.isArray(published.reportVerdicts) && Array.isArray(published.unverified));
+  const status = incomplete ? 'blocked' : published.status || 'blocked';
   return {
     status,
     unverified: [...unverified, ...lost.map((feature) => ({ feature, reason: 'the verdict is stale or missing from the published report' }))],
     verdicts: [...merged.values()],
     head: published.head || first.head || '',
     docFilesChanged: [...docFiles],
-    blockedReason: published.blockedReason || (published.status ? undefined : 'the agent that held the last batch did not publish the report'),
+    blockedReason: published.blockedReason || (incomplete ? 'the publishing agent returned no list of report verdicts or of unverified features' : published.status ? undefined : 'the agent that held the last batch did not publish the report'),
   };
 }
 

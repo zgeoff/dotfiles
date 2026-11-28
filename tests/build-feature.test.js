@@ -280,7 +280,7 @@ const doneBatch = (features) => ({ verdicts: features.map((feature) => ({ featur
  * gives each batch's verdicts, and `verify(label)` gives the publishing
  * agent's report and a later rerun's.
  */
-async function stageRun({ scan, pass, ci, fix, verify, features, batch, reader, openPrHashes = true, args = {} } = {}) {
+async function stageRun({ scan, pass, ci, fix, verify, features, batch, omitBatch = false, reader, openPrHashes = true, args = {} } = {}) {
   const calls = [];
   const ciResults = [...(ci || [{ conclusion: 'green', failures: [] }])];
   const theScan = scan || plainScan;
@@ -322,7 +322,7 @@ async function stageRun({ scan, pass, ci, fix, verify, features, batch, reader, 
       const all = features || ['checkout'];
       const mine = all.slice(0, 12);
       const remaining = all.slice(12);
-      return withPublish((batch || doneBatch)(mine, label), label, remaining.length === 0, { batch: mine, remaining });
+      return withPublish((batch || doneBatch)(mine, label), label, remaining.length === 0, omitBatch ? { remaining } : { batch: mine, remaining });
     }
     if (/^verify-\d+-batch-\d+$/.test(label)) {
       const listed = [...prompt.matchAll(/^- (\S+)$/gm)].map((m) => m[1]);
@@ -585,6 +585,37 @@ describe('build-feature verify stage', () => {
     expect(run.prompt('verify-1-batch-2')).toContain('You must run every feature in the list');
     expect(run.result).toMatchObject({ status: 'ready', verify: { status: 'published', unverified: [] } });
     expect(run.result.verify.verdicts.map((d) => d.feature)).toEqual(names);
+  });
+
+  test('the last agent is not told to leave out its own batch', async () => {
+    const names = Array.from({ length: 30 }, (_, i) => `feature-${i + 1}`);
+    const run = await stageRun({
+      scan: verifyScan,
+      features: names,
+      verify: (label) => ({ ...publishedVerify(label), verdicts: names.map((feature) => ({ feature, verdict: 'done' })) }),
+    });
+    expect(run.prompt('verify-1-batch-3')).not.toContain('have no verdict, so leave them out');
+  });
+
+  test('a first agent that leaves out its batch list still answers for the features it ran', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      features: ['checkout', 'refunds'],
+      omitBatch: true,
+      batch: () => ({ verdicts: [], unmatched: [{ feature: 'checkout', reason: 'the quota page 500s' }], skipped: [] }),
+      verify: (label) => ({ ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'done' }] }),
+    });
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
+    expect(run.result.verify.unverified.map((u) => u.feature)).toContain('checkout');
+  });
+
+  test('a published report with no list of unverified features blocks the run', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      features: ['checkout'],
+      verify: (label) => ({ ...publishedVerify(label), unverified: undefined }),
+    });
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
   });
 
   test('a last agent that does not publish blocks the run', async () => {
