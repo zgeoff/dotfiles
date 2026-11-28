@@ -337,6 +337,72 @@ const VERIFY_SCHEMA = {
   },
 };
 
+const VERIFY_RUN_SCHEMA = {
+  type: 'object',
+  required: ['verdicts', 'unmatched', 'skipped', 'remaining'],
+  properties: {
+    batch: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Only the first agent returns it: the features you took to run, the first ones of the list',
+    },
+    remaining: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Only the first agent fills it: the changed features without a current verdict that you did not take, in order. Empty when you took them all, and for every later agent',
+    },
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'verdict'],
+        properties: { feature: { type: 'string' }, verdict: { type: 'string', description: 'done, for a feature whose end state matched' } },
+      },
+      description: 'Each feature you recorded a verdict for',
+    },
+    unmatched: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'reason'],
+        properties: { feature: { type: 'string' }, reason: { type: 'string', description: 'The end state you expected and what you got' } },
+      },
+      description: 'Each feature that ran and did not match',
+    },
+    skipped: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'command', 'errorCode'],
+        properties: {
+          feature: { type: 'string' },
+          command: { type: 'string', minLength: 1, description: 'The command that failed' },
+          errorCode: { type: 'string', minLength: 1, description: 'The failure\'s error.code' },
+        },
+      },
+      description: 'Each feature you skipped, and only for a failure that stopped it',
+    },
+    docFilesChanged: DOC_FILES_CHANGED,
+    status: { enum: ['published', 'blocked'], description: 'Only when you published: published once the report is in the PR description' },
+    head: { type: 'string', description: 'Short hash of the HEAD the report was run or published at' },
+    reportVerdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'verdict'],
+        properties: { feature: { type: 'string' }, verdict: { type: 'string', description: 'As the report names it' } },
+      },
+      description: 'Only when you published: each feature in the published report, with its verdict',
+    },
+    unverified: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Only when you published: each changed feature the report command still marks as having no current verdict, after you published',
+    },
+    blockedReason: { type: 'string' },
+  },
+};
+
 const CI_SCHEMA = {
   type: 'object',
   required: ['conclusion', 'failures'],
@@ -907,6 +973,103 @@ async function followDocChanges(docFilesChanged, rebased, tag) {
   return { pushed: moved };
 }
 
+const VERIFY_BATCH_SIZE = 12;
+
+/**
+ * The first verify run. The first agent runs `bun verify report`, runs the
+ * first batch of changed features itself, and publishes when none are left, so
+ * a small list costs one agent. When features are left it returns them, and
+ * the script starts a fresh agent for each next batch, one after another,
+ * because the repo's verify target is shared in the worktree. The agent with
+ * the last batch publishes the report and ends the run. Returns what the
+ * single verify agent returns.
+ */
+async function runVerifyBatches(label) {
+  const where = `for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}`;
+  const runRules = (kind) => `Run every feature in ${kind}, one at a time. Use the order the verify skill sets for them, and this order when it sets none. Record \`done\` for each one whose end state matches. You must run every feature in ${kind}. Skip one only for a failure that stops it, and then report the feature in skipped with the command that failed and its \`error.code\`. A feature that ran and did not match goes in unmatched with the end state you expected and what you got. Return each verdict you recorded in verdicts.`;
+  const publishRules = `Publish the report into PR #${pr.number} as the skill says, then end the verify run as the skill says for the target in use, which is \`bun verify down\` unless the skill says otherwise. Return status=blocked with the reason in blockedReason when that teardown fails or you could not publish. Pass \`-R ${prRepo}\` to every \`gh\` command. Commits since a verdict can make it stale, so run \`bun verify report\` after you publish, return each feature in the published report with its verdict in reportVerdicts, and each changed feature it still marks as having no current verdict in unverified. Return the short hash of the HEAD you published at in head.`;
+  const tail = `${REPO_RULES}
+When the skill says to fix the app's code, fix it, commit (hooks must pass), and push without force. Never print a token or a secret.
+
+${docRuleLine}
+Return docFilesChanged for your commits.${notes()}`;
+  const verdicts = new Map();
+  const reasons = new Map();
+  const docFiles = new Set();
+  const take = (r, batch) => {
+    // A batch can only answer for the features it was given.
+    for (const d of (r && r.verdicts) || []) if (batch.includes(d.feature)) verdicts.set(d.feature, d);
+    for (const u of (r && r.unmatched) || []) reasons.set(u.feature, u.reason);
+    for (const u of (r && r.skipped) || []) {
+      reasons.set(u.feature, `skipped after ${u.command || 'a failure with no command'} failed with error.code ${u.errorCode || '(none given)'}`);
+    }
+    for (const f of (r && r.docFilesChanged) || []) docFiles.add(f);
+    if (!r) for (const f of batch) reasons.set(f, 'the batch agent died or was skipped');
+  };
+  const first = await agent(
+    `Run the verify journeys that need a run ${where}. Load the verify skill at ${scan.verifySkill} and follow it. Run \`bun verify report\` as the skill says, from inside the worktree. Take each changed feature that has no current verdict, in the order the verify skill runs journeys, and in the order the report lists them when the skill sets none, and each feature the plan in ${planFile} names that has no current verdict. Run the first ${VERIFY_BATCH_SIZE} of them yourself, and return them in batch. ${runRules('your batch')}
+
+When none are left, publish the report yourself. ${publishRules}
+
+When features are left, return them in remaining, in order, and return the short hash of HEAD in head. Do not publish the report, and do not run \`bun verify down\`: the agent with the last batch does both.
+${tail}`,
+    { label, model: 'sonnet', schema: VERIFY_RUN_SCHEMA, phase: 'Verify' },
+  );
+  if (!first) return null;
+  // When the agent leaves out batch, fall back on every feature it answered for.
+  const answered = [...(first.verdicts || []), ...(first.unmatched || []), ...(first.skipped || [])].map((d) => d.feature);
+  const firstBatch = [...new Set(first.batch && first.batch.length ? first.batch : answered)];
+  const left = [...new Set(first.remaining || [])].filter((f) => !firstBatch.includes(f));
+  const features = [...firstBatch, ...left];
+  const batches = [];
+  for (let i = 0; i < left.length; i += VERIFY_BATCH_SIZE) batches.push(left.slice(i, i + VERIFY_BATCH_SIZE));
+  log(`Verify runs ${features.length} feature(s) in ${1 + batches.length} agent(s)`);
+  take(first, firstBatch);
+  let published = left.length === 0 ? first : null;
+  // One batch at a time: the repo's verify target is shared in the worktree.
+  for (const [i, batch] of batches.entries()) {
+    const last = i === batches.length - 1;
+    const r = await agent(
+      `Run these verify journeys ${where}. Load the verify skill at ${scan.verifySkill} and follow it for each one:
+
+${batch.map((f) => `- ${f}`).join('\n')}
+
+${runRules('the list')}
+${last ? `\nYou have the last batch, so publish the report yourself when you have run the list. ${publishRules}\n\nThese are the verdicts the earlier batches recorded:\n\n${JSON.stringify([...verdicts.values()], null, 2)}${(() => { const open = features.filter((f) => !batch.includes(f) && (!verdicts.has(f) || verdicts.get(f).verdict !== 'done')).map((f) => ({ feature: f, reason: reasons.get(f) || 'not run' })); return open.length ? `\n\nThese earlier features have no verdict, so leave them out of the report as the skill says:\n\n${JSON.stringify(open, null, 2)}` : ''; })()}\n\nLeave out of the report each feature in your own list that has no \`done\` verdict, as the skill says.` : 'Do not publish the report, and do not run `bun verify down`: the agent with the last batch does both.'}
+${tail}`,
+      { label: `${label}-batch-${i + 2}`, model: 'sonnet', schema: VERIFY_RUN_SCHEMA, phase: 'Verify' },
+    );
+    take(r, batch);
+    if (last) published = r;
+  }
+  if (!published) return null;
+  const unverified = features
+    .filter((f) => !verdicts.has(f) || verdicts.get(f).verdict !== 'done')
+    .map((f) => ({ feature: f, reason: reasons.get(f) || 'not run' }));
+  // The report on disk is the truth: a later batch's commit can make an earlier verdict stale.
+  const stale = (published.unverified || []).filter((f) => !unverified.some((u) => u.feature === f));
+  // A batch's `done` counts only when the published report keeps it. Verdicts for features outside the list come from the report alone.
+  const listedSet = new Set(features);
+  const merged = new Map();
+  for (const d of published.reportVerdicts || []) {
+    if (!listedSet.has(d.feature) || (verdicts.get(d.feature) || {}).verdict === 'done') merged.set(d.feature, d);
+  }
+  for (const f of stale) merged.delete(f);
+  const missing = features.filter((f) => verdicts.has(f) && !merged.has(f) && !stale.includes(f));
+  const lost = [...stale, ...missing];
+  // An agent that never published returns no status, which blocks the run. So does a published report with no list of verdicts or of unverified features, because an empty list is not a proof.
+  const incomplete = published.status === 'published' && !(Array.isArray(published.reportVerdicts) && Array.isArray(published.unverified));
+  const status = incomplete ? 'blocked' : published.status || 'blocked';
+  return {
+    status,
+    unverified: [...unverified, ...lost.map((feature) => ({ feature, reason: 'the verdict is stale or missing from the published report' }))],
+    verdicts: [...merged.values()],
+    head: published.head || first.head || '',
+    docFilesChanged: [...docFiles],
+    blockedReason: published.blockedReason || (incomplete ? 'the publishing agent returned no list of report verdicts or of unverified features' : published.status ? undefined : 'the agent that held the last batch did not publish the report'),
+  };
+}
+
 /**
  * Runs the repo's verify steps and publishes the report into the PR. A rerun,
  * after a CI fix or after the doc follow-up pushes, gets the earlier verdicts
@@ -929,7 +1092,8 @@ async function runVerify(round, recheck = false, rebased = false) {
     rerun = `\n\nA previous run published a report, and commits have been pushed since${rebased ? ', including a rebase' : ''}. Keep every other verdict as it is, and never run the whole journey set again.${kept}`;
   }
   const label = recheck ? `verify-${round}-recheck` : `verify-${round}`;
-  const v = await agent(
+  const firstRun = !earlier && round === 1 && !recheck;
+  const v = firstRun ? await runVerifyBatches(label) : await agent(
     `Run the repo's verify steps for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}. Load the verify skill at ${scan.verifySkill} and follow it: ${scope}, then publish the report into PR #${pr.number} as the skill says. Run each command from inside the worktree, and pass \`-R ${prRepo}\` to every \`gh\` command.${rerun}
 ${REPO_RULES}
 When the skill says to fix the app's code, fix it, commit (hooks must pass), and push without force. Never print a token or a secret.
