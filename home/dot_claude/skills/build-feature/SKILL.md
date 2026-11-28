@@ -5,14 +5,14 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when a row of the [result table](#act-on-the-result) tells you to hand the failure to the user and you have. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when a row of the [result table](#act-on-the-result) tells you to hand the failure to the user and you have. Run it as soon as you load this skill for agreed work. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
 - [Before you run it](#before-you-run-it): agree the plan, check that git can sign, and run one PR at a time.
 - [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when the change needs a local review under CLAUDE.md.
 - [Act on the result](#act-on-the-result): fix what is left in the same PR, and answer every minor finding.
-- [Resume a run](#resume-a-run): pass the run ID and the full `args` again, with any new line in `resumeNotes`, never in the plan.
+- [Resume a run](#resume-a-run): pass the run ID and the full `args` again, and put any new line in `resumeNotes`.
 
 ## Before you run it
 
@@ -40,7 +40,7 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 | `verifyCommands` | string[] | none | Shell commands that check the whole repo, such as a full build, for a change that crosses packages. The run gets each one green before its last commit. |
 | `review` | `'none'`, `'codex'` or `'opus'` | `'none'` | Who reviews the diff before the PR opens. See the next table. |
 | `resumeNotes` | string | none | Lines for a [resumed run](#resume-a-run), such as the fix you made. |
-| `resumeFrom` | `'implement'`, `'review'`, `'doc-check'`, `'open-pr'`, `'watch-ci'` or `'verify'` | none | The stage whose prompts take `resumeNotes` first. Required with `resumeNotes`. |
+| `resumeFrom` | `'implement'`, `'review'`, `'doc-check'`, `'open-pr'`, `'watch-ci'` or `'verify'` | none | The first stage whose prompts get `resumeNotes`. Required with `resumeNotes`. |
 
 | `review` | What the run does |
 | --- | --- |
@@ -54,7 +54,7 @@ The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, suc
 
 The run also does the checks that need a fresh agent, which its own agents can't start:
 
-- When the branch changes a doc or a skill file, as the repo's docs checks count them, one fresh agent cold-reads all of them once, before the PR opens. A second agent writes its own answers, fixes what the read found, deslops, runs the docs checks and commits. The PR body ticks the Deslop and Cold read lines when the repo's PR template has them. When a later commit changes a doc, one agent deslops what changed, and the Deslop line moves to its commit.
+- When the branch changes a doc or a skill file, as the repo's docs checks count them, one fresh agent cold-reads all of them before the PR opens. A second agent writes its own answers, fixes what the read found, deslops, runs the docs checks and commits. The run ticks the Deslop and Cold read lines in the PR body when the repo's PR template has them. When a later commit changes a doc, one agent deslops what changed, and the Deslop line moves to its commit.
 - When the repo has a verify skill, the run gets CI green first, and counts the verify gate check as passed while the PR has no verify report. An agent then runs the verify steps once and publishes the report into the PR, and the run watches CI again for the gate check. CI fixes before verify don't add a verify run. After a fix that comes after verify, an agent gets the earlier verdicts, and checks only the features that the report command, run against the verified commit, marks changed.
 
 ## Act on the result
