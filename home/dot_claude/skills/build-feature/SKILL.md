@@ -5,14 +5,14 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when you've handed the user a failure from the [result table](#act-on-the-result). Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when a row of the [result table](#act-on-the-result) tells you to hand the failure to the user and you have. Run it as soon as you load this skill for agreed work. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
 - [Before you run it](#before-you-run-it): agree the plan, check that git can sign, and run one PR at a time.
 - [Call it](#call-it): pass the plan and the branch, and pass `review: 'codex'` when the change needs a local review under CLAUDE.md.
 - [Act on the result](#act-on-the-result): fix what is left in the same PR, and answer every minor finding.
-- [Resume a run](#resume-a-run): pass the run ID and the full `args` again.
+- [Resume a run](#resume-a-run): pass the run ID and the full `args` again, and put any new line in `resumeNotes`.
 
 ## Before you run it
 
@@ -39,6 +39,8 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 | `prNumber` | number | none | An existing PR to push to and mark ready, in place of a new one. Pass it to each later run of a split job. |
 | `verifyCommands` | string[] | none | Shell commands that check the whole repo, such as a full build, for a change that crosses packages. The run gets each one green before its last commit. |
 | `review` | `'none'`, `'codex'` or `'opus'` | `'none'` | Who reviews the diff before the PR opens. See the next table. |
+| `resumeNotes` | string | none | Lines for a [resumed run](#resume-a-run), such as the fix you made. |
+| `resumeFrom` | `'implement'`, `'review'`, `'doc-check'`, `'open-pr'`, `'watch-ci'` or `'verify'` | none | The first stage whose prompts get `resumeNotes`. Required with `resumeNotes`. |
 
 | `review` | What the run does |
 | --- | --- |
@@ -48,12 +50,12 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 
 Pass `review: 'codex'` when the change needs a local review under the "Building and reviewing" rules in CLAUDE.md. Pass `'opus'` only when the user names that model.
 
-The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install, the test services and the skills to load. When the run's agents can't find a step the repo needs, add it to that repo's AGENTS.md.
+The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install and the test services. When they can't find a step the repo needs, add it to that repo's AGENTS.md.
 
 The run also does the checks that need a fresh agent, which its own agents can't start:
 
-- When the branch changes a doc or a skill file, as the repo's docs checks count them, fresh agents cold-read each one once, then deslop it once, before the PR opens. The PR body ticks the Deslop and Cold read lines when the repo's PR template has them. A later commit that changes a doc gets deslopped again, and the Deslop line moves to it.
-- When the repo has a verify skill, the run gets CI green first, and counts the verify gate check as passed while the PR has no verify report. An agent then runs the verify steps once and publishes the report into the PR, and the run watches CI again for the gate check. CI fixes before verify don't add a verify run. After a CI fix that comes after verify, an agent reruns only the verdicts that fix made stale.
+- When the branch changes a doc or a skill file, as the repo's docs checks count them, one fresh agent cold-reads all of them before the PR opens. A second agent writes its own answers, fixes what the read found, deslops, runs the docs checks and commits. The run ticks the Deslop and Cold read lines in the PR body when the repo's PR template has them. When a later commit changes a doc, one agent deslops what changed, and the Deslop line moves to its commit.
+- When the repo has a verify skill, the run gets CI green first, and counts the verify gate check as passed while the PR has no verify report. An agent then runs the verify steps once and publishes the report into the PR, and the run watches CI again for the gate check. CI fixes before verify don't add a verify run. After a fix that comes after verify, an agent gets the earlier verdicts, and checks only the features that the report command, run against the verified commit, marks changed.
 
 ## Act on the result
 
@@ -81,7 +83,13 @@ The branch and the worktree stay in place after every result. Remove them once t
 2. Call `Workflow({ name: 'build-feature', resumeFromRunId: '<run ID>', args })`, with the run ID the first call returned.
 3. Pass the full `args` object again. A resume never carries the first call's `args`, so without them the run stops at its argument check.
 
-On a resume, the Workflow tool replays the cached result of each stage whose prompt and options are unchanged. That covers a stage that ended `blocked`, so a resume with the same plan ends `blocked` again. To get past a block, add a line to the plan, such as the fix you made. Every stage's prompt holds the plan, so the Workflow tool then runs every stage again, starting with the implement stage, the first. The implement stage reuses the branch and its commits.
+On a resume, the Workflow tool replays each agent's cached result up to the first agent whose prompt or options changed, then runs that agent and every later one. A stage that ended `blocked` replays too, so a resume with the same `args` ends `blocked` again.
+
+To get past a block, leave `plan` as it was, and put what changed in `resumeNotes`, such as the fix you made. Set `resumeFrom` to the result's `stage`, or to an earlier stage when the fix changes what an earlier stage did. Pass `'review'` for `review-fix`, `'doc-check'` for `scan`, and `'watch-ci'` for `ci-fix`. The notes go into the prompts of that stage and every later one, so each earlier stage replays. The cold reader never gets them: it reads the docs blind.
+
+On a second resume, keep `resumeFrom`, and add lines to the end of the same notes. Any change to the notes changes every prompt from the first `resumeFrom` on, so the run reruns from that stage.
+
+When the plan itself is wrong, change `plan`. The run reruns from the implement stage, on the same branch, because only that stage's prompt holds the plan. Each later stage that needs the plan reads `.build-feature/plan.md` in the worktree, which git ignores.
 
 ## Gotchas
 

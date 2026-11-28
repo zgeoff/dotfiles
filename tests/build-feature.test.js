@@ -58,13 +58,12 @@ async function dryRun(reviews, review) {
   const calls = [];
   const trace = [];
   const agent = async (prompt, opts) => {
-    calls.push({ label: opts.label, prompt });
+    calls.push({ label: opts.label, prompt, opts });
     trace.push(`agent ${opts.label}`);
     if (opts.label === 'implement') return { status: 'done', summary: 'Adds a quota check.', commits: [] };
     if (opts.label === 'scan-repo') return plainScan;
-    if (opts.label.startsWith('codex-')) {
-      return { ran: true, findings: reviews[opts.label.slice('codex-'.length)] || [] };
-    }
+    const reviewMatch = /^(codex|opus)-(.+)$/.exec(opts.label);
+    if (reviewMatch) return { ran: true, findings: reviews[reviewMatch[2]] || [] };
     if (opts.label.startsWith('fix-')) {
       return { status: 'done', summary: 'Fixed.' };
     }
@@ -229,30 +228,51 @@ const quotaDoc = {
   kind: 'doc',
   sections: ['Refunds'],
 };
+const refundsSkill = {
+  path: '/repo/.worktrees/quota-check/.agents/skills/refunds/SKILL.md',
+  kind: 'skill',
+  sections: ['the whole file'],
+};
 const docScan = { ...plainScan, docFiles: [quotaDoc] };
+const verifyScan = { ...plainScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
 const plan = 'Add a quota check to checkout.';
+const cleanPass = (files) => ({
+  files: files.map((f) => ({ path: f.path, clean: true, differences: [] })),
+  readHead: 'read0001',
+  head: 'sha-deslop',
+  committed: true,
+});
+const publishedVerify = (label) => ({
+  status: 'published',
+  unverified: [],
+  verdicts: [{ feature: 'checkout', verdict: 'verified' }],
+  head: `head-${label}`,
+  docFilesChanged: [],
+});
 
 /**
  * Runs the workflow with stub agents for the doc check, verify and CI stages.
- * `compare(read)` gives the compare agent's result for each read of the doc,
- * `ci` lists each CI watch result in turn, and `fix` gives each CI fix result.
+ * `pass(label)` gives the doc pass agent's result, `ci` lists each CI watch
+ * result in turn, and `fix` gives each CI fix result. `args` adds to the
+ * workflow's args.
  */
-async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes = true } = {}) {
+async function stageRun({ scan, pass, ci, fix, verify, reader, openPrHashes = true, args = {} } = {}) {
   const calls = [];
   const ciResults = [...(ci || [{ conclusion: 'green', failures: [] }])];
+  const theScan = scan || plainScan;
   const agent = async (prompt, opts) => {
     calls.push({ label: opts.label, prompt, opts });
     const label = opts.label;
     if (label === 'implement') return { status: 'done', summary: 'Adds a quota check.', commits: [] };
-    if (label === 'scan-repo') return scan || plainScan;
-    if (label.includes('docs-checks-')) return { changed: false, summary: 'The docs checks pass.' };
-    if (label.startsWith('commit-') || label.startsWith('push-docs-') || label.includes('-commit-')) return { committed: true, head: `sha-${label}` };
-    if (/(^|-)deslop-/.test(label)) return { changed: true, summary: 'Cut drama words.' };
-    if (label.includes('cold-answers-')) return { answers: '1. Read it before changing a quota.' };
-    if (/(^|-)cold-read-\d/.test(label)) return reader ? reader(label) : 'Report: question 1 answered as "read it after checkout".';
-    if (label.includes('cold-compare-')) {
-      return (compare || (() => ({ clean: true, changedFiles: [], changedSections: [], differences: [] })))();
+    if (label === 'scan-repo') return theScan;
+    if (label.startsWith('codex-')) return { ran: true, findings: [] };
+    if (/(^|-)cold-read(-retry)?$/.test(label)) return reader ? reader(label) : 'Report: question 1 answered as "read it after checkout".';
+    if (/(^|-)deslop$/.test(label)) {
+      if (pass) return pass(label);
+      const paths = [...prompt.matchAll(/^- (\/\S+) \(a /gm)].map((m) => ({ path: m[1] }));
+      return { ...cleanPass(paths), readHead: `read-${label}`, head: `sha-${label}` };
     }
+    if (label.startsWith('deslop-')) return { committed: true, head: `sha-${label}` };
     if (label === 'open-pr') {
       const pr = { url: 'https://github.com/example/shop/pull/7', number: 7, resolvedConflicts: false };
       const deslop = /- \[x\] Deslop \(([^)]+)\)/.exec(prompt);
@@ -260,9 +280,7 @@ async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes =
       if (!openPrHashes || !deslop) return pr;
       return { ...pr, deslopCommit: deslop[1], coldReadCommit: coldRead[1] };
     }
-    if (label.startsWith('verify-')) {
-      return (verify || (() => ({ status: 'published', unverified: [], docFilesChanged: [] })))(label);
-    }
+    if (label.startsWith('verify-')) return (verify || publishedVerify)(label);
     if (label.startsWith('watch-ci-')) return ciResults.length > 1 ? ciResults.shift() : ciResults[0];
     if (label.startsWith('fix-ci-')) return (fix || (() => ({ status: 'done', summary: 'Fixed.' })))(label);
     if (label.startsWith('retick-')) {
@@ -272,127 +290,155 @@ async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes =
     }
     throw new Error(`unexpected agent ${label}`);
   };
-  const result = await loadWorkflow()({ plan, branch: 'quota-check' }, agent, () => {}, () => {});
+  const result = await loadWorkflow()({ plan, branch: 'quota-check', ...args }, agent, () => {}, () => {});
   const labels = calls.map((c) => c.label);
   return { result, labels, calls, prompt: (label) => calls.find((c) => c.label === label).prompt };
 }
 
-const fixedOnce = () => ({ clean: false, changedFiles: [quotaDoc.path], changedSections: ['Refunds'], differences: ['Q1 differed'] });
+const differedOnce = () => ({
+  files: [{ path: quotaDoc.path, clean: false, differences: ['Q1 differed'] }],
+  openItems: ['Ask whether refunds count toward the quota.'],
+  readHead: 'read0001',
+  head: 'sha-deslop',
+  committed: true,
+});
 
 describe('build-feature doc check', () => {
   test('a branch that changes no doc skips the doc check', async () => {
     const run = await stageRun();
-    expect(run.labels.filter((l) => /^(deslop|cold|commit)-/.test(l))).toEqual([]);
+    expect(run.labels.filter((l) => /deslop|cold/.test(l))).toEqual([]);
     expect(run.result).toMatchObject({ status: 'ready', docCheck: null });
     expect(run.prompt('open-pr')).not.toContain('- [x] Deslop');
   });
 
-  test('a changed doc gets one cold read, then one deslop, before the PR opens', async () => {
+  test('a changed doc gets one cold read, then one deslop agent, before the PR opens', async () => {
     const run = await stageRun({ scan: docScan });
-    expect(run.labels).toEqual([
-      'implement',
-      'scan-repo',
-      'docs-checks-before',
-      'commit-checks',
-      'cold-answers-1',
-      'cold-read-1',
-      'cold-compare-1',
-      'deslop-1',
-      'docs-checks-after',
-      'commit-deslop',
-      'open-pr',
-      'watch-ci-1',
-    ]);
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'cold-read', 'deslop', 'open-pr', 'watch-ci-1']);
     expect(run.result).toMatchObject({ status: 'ready', docCheck: { stillDiffer: [] } });
   });
 
-  test('the deslop and cold-reader agents get the skills\' prompts and nothing else', async () => {
-    const run = await stageRun({ scan: docScan });
-    expect(run.prompt('deslop-1').startsWith(
-      'Read /repo/.agents/skills/deslop/SKILL.md and follow it as your instructions.\n' +
-        `The text: ${quotaDoc.path}\nIt is a: doc\nDeslop these sections: Refunds\n`,
-    )).toBe(true);
-    expect(run.prompt('deslop-1')).toContain('reread your own edits');
-    expect(run.prompt('deslop-1')).toContain('bun x @zgeoff/chex prose docs/quota.md');
-    expect(run.prompt('cold-read-1')).toBe(
+  test('two changed docs still get one cold reader and one deslop agent', async () => {
+    const run = await stageRun({ scan: { ...docScan, docFiles: [quotaDoc, refundsSkill] } });
+    expect(run.labels.filter((l) => /deslop|cold/.test(l))).toEqual(['cold-read', 'deslop']);
+    expect(run.prompt('cold-read')).toContain(`The file: ${quotaDoc.path}\nIt is a: doc\nThe file: ${refundsSkill.path}\nIt is a: skill\n`);
+    const pass = run.prompt('deslop');
+    expect(pass).toContain(`- ${quotaDoc.path} (a doc): Refunds`);
+    expect(pass).toContain(`- ${refundsSkill.path} (a skill): the whole file`);
+  });
+
+  test('the cold reader gets the skill\'s prompt and nothing else', async () => {
+    const run = await stageRun({ scan: docScan, args: { resumeNotes: 'The quota doc moved.', resumeFrom: 'implement' } });
+    expect(run.prompt('cold-read')).toBe(
       'Read /repo/.agents/skills/cold-read/references/cold-reader.md and follow it as your instructions.\n' +
         `The file: ${quotaDoc.path}\nIt is a: doc\nThe rules: /repo/.agents/skills/docs-writing/SKILL.md`,
     );
-    for (const label of ['deslop-1', 'cold-read-1']) {
-      const call = run.calls.find((c) => c.label === label);
-      expect(call.prompt).not.toContain(plan);
-      expect(call.opts).toMatchObject({ model: 'sonnet', agentType: 'general-purpose' });
-    }
+    expect(run.calls.find((c) => c.label === 'cold-read').opts).toMatchObject({ model: 'sonnet', agentType: 'general-purpose' });
   });
 
-  test('a doc whose one read differs is fixed, deslopped once and reported', async () => {
-    const run = await stageRun({ scan: docScan, compare: fixedOnce });
-    expect(run.labels.filter((l) => l.startsWith('cold-read-'))).toEqual(['cold-read-1']);
-    expect(run.labels).toContain('commit-cold-read');
-    expect(run.prompt('deslop-1')).toContain('Deslop these sections: Refunds; Refunds');
-    expect(run.result).toMatchObject({ status: 'ready', docCheck: { stillDiffer: ['docs/quota.md: Q1 differed'] } });
-    expect(run.result.docCheck.unreadFixes).toBeUndefined();
+  test('the deslop agent writes its answers before the report, then fixes, deslops, runs the checks and commits', async () => {
+    const run = await stageRun({ scan: docScan });
+    const pass = run.prompt('deslop');
+    const steps = ['Before you read the report, write your own answers', 'Act on the report', 'Deslop, as /repo/.agents/skills/deslop/SKILL.md says', 'run the repo\'s scripted docs checks', 'Then commit your changes'];
+    const at = steps.map((step) => pass.indexOf(step));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(pass.indexOf('The cold reader\'s report:')).toBeGreaterThan(at[4]);
+    expect(pass).toContain('Report: question 1 answered');
+    expect(pass).toContain('/repo/.worktrees/quota-check/.build-feature/cold-answers.md');
+    expect(pass).not.toContain(plan);
+    expect(run.calls.find((c) => c.label === 'deslop').opts).toMatchObject({ model: 'sonnet', agentType: 'general-purpose' });
   });
 
-  test('every agent the doc check and verify start names a model', async () => {
-    const run = await stageRun({
-      scan: { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
-      compare: fixedOnce,
+  test('a doc whose read differs is reported, with its open items', async () => {
+    const run = await stageRun({ scan: docScan, pass: differedOnce });
+    expect(run.labels.filter((l) => l.includes('cold-read'))).toEqual(['cold-read']);
+    expect(run.result).toMatchObject({
+      status: 'ready',
+      docCheck: {
+        stillDiffer: ['docs/quota.md: Q1 differed'],
+        openItems: ['Ask whether refunds count toward the quota.'],
+      },
     });
-    expect(run.calls.filter((c) => !c.opts.model).map((c) => c.label)).toEqual([]);
   });
 
-  test('more doc files than the cap stops the run before any deslop agent', async () => {
+  test('a cold read with no report stops the run, with no tick', async () => {
+    const run = await stageRun({ scan: docScan, reader: () => null });
+    expect(run.labels).toContain('cold-read-retry');
+    expect(run.labels).not.toContain('deslop');
+    expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
+  });
+
+  test('a deslop agent that skips a file stops the run, with no tick', async () => {
+    const run = await stageRun({ scan: { ...docScan, docFiles: [quotaDoc, refundsSkill] }, pass: () => cleanPass([quotaDoc]) });
+    expect(run.labels).not.toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
+    expect(run.result.reason).toContain('refunds/SKILL.md');
+  });
+
+  test('a deslop agent whose hook fails stops the run before the PR', async () => {
+    const run = await stageRun({ scan: docScan, pass: () => ({ ...differedOnce(), blockedReason: 'the prose hook failed' }) });
+    expect(run.labels).not.toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check', reason: 'the prose hook failed' });
+  });
+
+  test('more doc files than the cap stops the run before any doc agent', async () => {
     const docFiles = Array.from({ length: 21 }, (_, i) => ({ ...quotaDoc, path: `/repo/docs/page-${i}.md` }));
     const run = await stageRun({ scan: { ...docScan, docFiles } });
     expect(run.labels).toEqual(['implement', 'scan-repo']);
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
   });
+
+  test('changed docs with no deslop or cold-read skill stop the run before the PR', async () => {
+    const run = await stageRun({ scan: { ...docScan, coldReadSkillDir: '' } });
+    expect(run.labels).not.toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
+  });
+
+  test('a branch that only deletes a doc ticks both lines at its HEAD, with no deslop', async () => {
+    const run = await stageRun({ scan: { ...plainScan, deletedDocFiles: ['/repo/docs/old.md'] } });
+    expect(run.labels.filter((l) => /deslop|cold/.test(l))).toEqual([]);
+    expect(run.prompt('open-pr')).toContain('- [x] Deslop (aaa0001)');
+    expect(run.prompt('open-pr')).toContain('- [x] Cold read (aaa0001)');
+  });
 });
 
 describe('build-feature PR body ticks', () => {
-  test('a clean read ticks Deslop at the deslop commit and Cold read at the read commit', async () => {
-    const run = await stageRun({ scan: docScan });
-    const body = run.prompt('open-pr');
-    expect(body).toContain('- [x] Deslop (sha-commit-deslop)');
-    expect(body).toContain('- [x] Cold read (sha-commit-checks)');
-  });
-
   test('Deslop ticks the deslop commit, and Cold read the commit the cold reader read', async () => {
-    const run = await stageRun({ scan: docScan, compare: fixedOnce });
+    const run = await stageRun({ scan: docScan, pass: differedOnce });
     const body = run.prompt('open-pr');
-    expect(body).toContain('- [x] Deslop (sha-commit-deslop)');
-    expect(body).toContain('- [x] Cold read (sha-commit-checks)');
-    expect(run.result.docCheck.ticks).toEqual({
-      deslop: 'sha-commit-deslop',
-      coldRead: 'sha-commit-checks',
-    });
+    expect(body).toContain('- [x] Deslop (sha-deslop)');
+    expect(body).toContain('- [x] Cold read (read0001)');
+    expect(run.result.docCheck.ticks).toEqual({ deslop: 'sha-deslop', coldRead: 'read0001' });
   });
 
   test('a repo whose template has no tick lines leaves them to the template', async () => {
     const run = await stageRun({ scan: { ...docScan, checkLines: false } });
-    expect(run.labels).toContain('deslop-1');
+    expect(run.labels).toContain('deslop');
     expect(run.prompt('open-pr')).not.toContain('- [x] Deslop');
     expect(run.prompt('open-pr')).toContain('Write the Checks section as the template says.');
   });
 
-  test('a CI fix that changes a doc moves the Deslop tick and leaves Cold read', async () => {
+  test('a CI fix that changes a doc gets one deslop agent, moves the Deslop tick and leaves Cold read', async () => {
     const run = await stageRun({
-      scan: docScan,
+      scan: { ...docScan, docFiles: [quotaDoc, refundsSkill] },
       ci: [
         { conclusion: 'red', failures: [{ check: 'docs', summary: 'a link is broken' }] },
         { conclusion: 'green', failures: [] },
       ],
-      fix: () => ({ status: 'done', summary: 'Fixed the link.', docFilesChanged: [quotaDoc.path] }),
+      fix: () => ({ status: 'done', summary: 'Fixed the links.', docFilesChanged: [quotaDoc.path, refundsSkill.path] }),
     });
-    expect(run.labels).toContain('deslop-ci-1-1');
+    expect(run.labels.filter((l) => l.startsWith('deslop-'))).toEqual(['deslop-ci-1']);
+    const deslop = run.prompt('deslop-ci-1');
+    expect(deslop).toContain('each section changed since commit sha-deslop');
+    expect(deslop).toContain('bun x @zgeoff/chex prose docs/quota.md .agents/skills/refunds/SKILL.md');
+    expect(deslop).toContain('push with');
     const retick = run.prompt('retick-ci-1');
-    expect(retick).toContain('- [x] Deslop (sha-commit-deslop-ci-1)');
-    expect(retick).toContain('- [x] Cold read (sha-commit-checks)');
+    expect(retick).toContain('- [x] Deslop (sha-deslop-ci-1)');
+    expect(retick).toContain('- [x] Cold read (read-deslop)');
     expect(retick).toContain('change only these two lines');
     expect(run.result).toMatchObject({
       status: 'ready',
-      docCheck: { ticks: { deslop: 'sha-commit-deslop-ci-1', coldRead: 'sha-commit-checks' } },
+      docCheck: { ticks: { deslop: 'sha-deslop-ci-1', coldRead: 'read-deslop' } },
     });
   });
 
@@ -405,7 +451,7 @@ describe('build-feature PR body ticks', () => {
       ],
       fix: () => ({ status: 'done', summary: 'Fixed.', docFilesChanged: [] }),
     });
-    expect(run.labels.filter((l) => l.startsWith('retick-') || l.startsWith('deslop-ci-'))).toEqual([]);
+    expect(run.labels.filter((l) => l.startsWith('retick-') || l.startsWith('deslop-'))).toEqual([]);
   });
 
   test('a rebase after a merge conflict moves both ticks to their copies', async () => {
@@ -419,10 +465,16 @@ describe('build-feature PR body ticks', () => {
     });
     expect(run.prompt('retick-ci-1')).toContain('git patch-id --stable');
   });
+
+  test('an opener that returns no hashes gets its ticks checked against the branch', async () => {
+    const run = await stageRun({ scan: docScan, openPrHashes: false });
+    expect(run.labels).toContain('retick-open-pr');
+    expect(run.prompt('retick-open-pr')).toContain('the newest commit with the recorded one');
+  });
 });
 
 describe('build-feature verify stage', () => {
-  const verifyScan = { ...plainScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
+  const verifyDocScan = { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
 
   test('a repo with no verify skill skips the verify stage', async () => {
     const run = await stageRun();
@@ -436,13 +488,14 @@ describe('build-feature verify stage', () => {
     expect(run.prompt('watch-ci-1')).toContain('count it as passed');
     expect(run.prompt('watch-ci-2')).not.toContain('count it as passed');
     expect(run.prompt('verify-1')).toContain('Load the verify skill at /repo/.agents/skills/verify/SKILL.md');
-    expect(run.result).toMatchObject({ status: 'ready', verify: { status: 'published', unverified: [] } });
+    expect(run.prompt('verify-1')).not.toContain('--base');
+    expect(run.result).toMatchObject({ status: 'ready', verify: { status: 'published', unverified: [], head: 'head-verify-1' } });
   });
 
   test('a changed feature with no verdict stops the run at the verify stage', async () => {
     const run = await stageRun({
       scan: verifyScan,
-      verify: () => ({ status: 'published', unverified: [{ feature: 'checkout', reason: 'the quota page 500s' }] }),
+      verify: (label) => ({ ...publishedVerify(label), unverified: [{ feature: 'checkout', reason: 'the quota page 500s' }] }),
     });
     expect(run.labels).not.toContain('watch-ci-2');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify', pr: 'https://github.com/example/shop/pull/7' });
@@ -457,19 +510,51 @@ describe('build-feature verify stage', () => {
         { conclusion: 'green', failures: [] },
       ],
     });
-    expect(run.labels).toEqual([
-      'implement',
-      'scan-repo',
-      'open-pr',
-      'watch-ci-1',
-      'fix-ci-1',
-      'watch-ci-2',
-      'verify-1',
-      'watch-ci-3',
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'fix-ci-1', 'watch-ci-2', 'verify-1', 'watch-ci-3']);
+  });
+
+  test('a CI fix after verify rechecks only the features its diff touches, with the earlier verdicts', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      ci: [
+        { conclusion: 'green', failures: [] },
+        { conclusion: 'red', failures: [{ check: 'gate', summary: 'gate failed' }] },
+        { conclusion: 'green', failures: [] },
+      ],
+      verify: (label) =>
+        label === 'verify-1'
+          ? { ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified' }, { feature: 'refunds', verdict: 'verified' }] }
+          : { ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified again' }] },
+    });
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1', 'watch-ci-2', 'fix-ci-2', 'verify-3', 'watch-ci-3']);
+    const rerun = run.prompt('verify-3');
+    expect(rerun).toContain('bun verify report --base head-verify-1');
+    expect(rerun).toContain('never run the whole journey set again');
+    expect(rerun).toContain('"feature": "refunds"');
+    expect(rerun).not.toContain('find that commit\'s copy');
+    expect(run.result.verify.verdicts).toEqual([
+      { feature: 'checkout', verdict: 'verified again' },
+      { feature: 'refunds', verdict: 'verified' },
     ]);
   });
 
-  test('a CI fix after verify runs the verify steps again for stale verdicts', async () => {
+  test('a rebase after verify has the rerun trust only stale verdicts, with no report base', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      ci: [
+        { conclusion: 'green', failures: [] },
+        { conclusion: 'red', failures: [{ check: 'merge-conflict', summary: 'CONFLICTING' }] },
+        { conclusion: 'green', failures: [] },
+      ],
+      fix: () => ({ status: 'done', summary: 'Rebased.', resolvedConflicts: true, docFilesChanged: [] }),
+    });
+    const rerun = run.prompt('verify-3');
+    expect(rerun).toContain('check only the features whose verdict is now stale or missing');
+    expect(rerun).not.toContain('--base');
+    expect(rerun).toContain('"feature": "checkout"');
+  });
+
+  test('a rerun asks for no feature outside the fix', async () => {
     const run = await stageRun({
       scan: verifyScan,
       ci: [
@@ -478,137 +563,181 @@ describe('build-feature verify stage', () => {
         { conclusion: 'green', failures: [] },
       ],
     });
-    expect(run.labels).toEqual([
-      'implement',
-      'scan-repo',
-      'open-pr',
-      'watch-ci-1',
-      'verify-1',
-      'watch-ci-2',
-      'fix-ci-2',
-      'verify-3',
-      'watch-ci-3',
-    ]);
-    expect(run.prompt('verify-3')).toContain('stale or missing');
-  });
-});
-
-describe('build-feature doc check fixes', () => {
-  const verifyDocScan = { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
-
-  test('changed docs with no deslop or cold-read skill stop the run before the PR', async () => {
-    const run = await stageRun({ scan: { ...docScan, coldReadSkillDir: '' } });
-    expect(run.labels).not.toContain('open-pr');
-    expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
+    expect(run.prompt('verify-1')).toContain('each feature the plan in .worktrees/quota-check/.build-feature/plan.md names');
+    expect(run.prompt('verify-3')).not.toContain('each feature the plan');
+    expect(run.prompt('verify-3')).not.toContain('each feature the branch changes');
   });
 
-  test('a branch that only deletes a doc ticks both lines at its HEAD, with no deslop', async () => {
-    const run = await stageRun({ scan: { ...plainScan, deletedDocFiles: ['/repo/docs/old.md'] } });
-    expect(run.labels.filter((l) => /deslop|cold/.test(l))).toEqual([]);
-    expect(run.prompt('open-pr')).toContain('- [x] Deslop (aaa0001)');
-    expect(run.prompt('open-pr')).toContain('- [x] Cold read (aaa0001)');
+  test('CI after verify gets its own 2 fix rounds when CI was green before verify', async () => {
+    const red = { conclusion: 'red', failures: [{ check: 'gate', summary: 'gate failed' }] };
+    const run = await stageRun({ scan: verifyScan, ci: [{ conclusion: 'green', failures: [] }, red, red, red] });
+    expect(run.labels.filter((l) => l.startsWith('fix-ci-'))).toEqual(['fix-ci-2', 'fix-ci-3']);
+    expect(run.result).toMatchObject({ status: 'ci-failed' });
   });
 
-  test('a cold read with no report stops the run, with no tick', async () => {
-    const run = await stageRun({ scan: docScan, reader: () => null });
-    expect(run.labels).toContain('cold-read-1-retry');
-    expect(run.labels).not.toContain('open-pr');
-    expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
+  test('2 fixes before verify leave none for after it', async () => {
+    const red = { conclusion: 'red', failures: [{ check: 'test', summary: 'quota test failed' }] };
+    const run = await stageRun({ scan: verifyScan, ci: [red, red, { conclusion: 'green', failures: [] }, red] });
+    expect(run.labels.filter((l) => l.startsWith('fix-ci-'))).toEqual(['fix-ci-1', 'fix-ci-2']);
+    expect(run.result).toMatchObject({ status: 'ci-failed' });
   });
 
-  test('a compare agent may edit only its own doc', async () => {
-    const run = await stageRun({ scan: docScan });
-    expect(run.prompt('cold-compare-1')).toContain(`Edit only ${quotaDoc.path}`);
-  });
-
-  test('the scripted docs checks run before the read and after the deslop', async () => {
-    const run = await stageRun({ scan: docScan, compare: fixedOnce });
-    const labels = run.labels;
-    expect(labels.indexOf('docs-checks-before')).toBeLessThan(labels.indexOf('cold-read-1'));
-    expect(labels.indexOf('docs-checks-after')).toBeGreaterThan(labels.indexOf('deslop-1'));
-  });
-
-  test('an opener that returns no hashes gets its ticks checked against the branch', async () => {
-    const run = await stageRun({ scan: docScan, openPrHashes: false });
-    expect(run.labels).toContain('retick-open-pr');
-    expect(run.prompt('retick-open-pr')).toContain('the newest commit with the recorded one');
-  });
-
-  test('a doc that verify adds first gets the whole doc check, and the body gains its tick lines', async () => {
+  test('a doc that verify adds first gets the whole doc check, which pushes, and the body gains its tick lines', async () => {
     const run = await stageRun({
-      scan: { ...plainScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
-      verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
+      scan: verifyScan,
+      verify: (label) => ({ ...publishedVerify(label), docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
     });
-    expect(run.labels).toContain('verify-1-cold-read-1');
-    expect(run.labels).toContain('push-docs-verify-1');
+    expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1', 'verify-1-cold-read', 'verify-1-deslop', 'verify-1-recheck']);
+    expect(run.prompt('verify-1-deslop')).toContain('push with');
+    expect(run.prompt('verify-1-deslop')).toContain('.build-feature/verify-1-cold-answers.md');
     expect(run.prompt('retick-verify-1')).toContain('when it has no Checks section, add one');
-    expect(run.labels).toContain('verify-1-recheck');
+    expect(run.prompt('verify-1-recheck')).toContain('bun verify report --base head-verify-1');
     expect(run.result).toMatchObject({ status: 'ready', docCheck: { files: [quotaDoc.path] } });
+  });
+
+  test('a doc verify adds after a deletion-only branch gets a cold read', async () => {
+    const run = await stageRun({
+      scan: { ...verifyScan, deletedDocFiles: ['/repo/docs/old.md'] },
+      verify: (label) => ({ ...publishedVerify(label), docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
+    });
+    expect(run.labels).toContain('verify-1-cold-read');
   });
 
   test('a verify run that pushes a doc and then blocks still moves the Deslop tick', async () => {
     const run = await stageRun({
       scan: verifyDocScan,
-      verify: () => ({ status: 'blocked', unverified: [], docFilesChanged: [quotaDoc.path], blockedReason: 'publish failed' }),
+      verify: (label) => ({ ...publishedVerify(label), status: 'blocked', docFilesChanged: [quotaDoc.path], blockedReason: 'publish failed' }),
     });
-    expect(run.prompt('retick-verify-1')).toContain('- [x] Deslop (sha-commit-deslop-verify-1)');
+    expect(run.prompt('retick-verify-1')).toContain('- [x] Deslop (sha-deslop-verify-1)');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
   });
 
-  test('a deslop push after verify publishes gets one verify recheck', async () => {
+  test('a verify recheck that changes docs again stops the run at verify', async () => {
     const run = await stageRun({
       scan: verifyDocScan,
-      verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
+      verify: (label) => ({ ...publishedVerify(label), docFilesChanged: [quotaDoc.path] }),
     });
     expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1', 'verify-1-recheck']);
-    expect(run.prompt('verify-1-recheck')).toContain('stale or missing');
+    expect(run.labels).not.toContain('watch-ci-2');
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
   });
 
   test('more later doc changes than the cap stop the run', async () => {
     const paths = Array.from({ length: 21 }, (_, i) => `/repo/docs/page-${i}.md`);
     const run = await stageRun({
       scan: verifyDocScan,
-      verify: () => ({ status: 'published', unverified: [], docFilesChanged: paths }),
+      verify: (label) => ({ ...publishedVerify(label), docFilesChanged: paths }),
     });
     expect(run.labels.filter((l) => l.startsWith('deslop-verify'))).toEqual([]);
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'doc-check' });
   });
 });
 
-describe('build-feature re-check fixes', () => {
-  const verifyDocScan = { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' };
-  const otherDoc = { ...quotaDoc, path: '/repo/.worktrees/quota-check/docs/refunds.md' };
-
-  test('no compare agent starts until every reader in the round has finished', async () => {
-    const events = [];
-    // The second doc's reader is slow, so a compare for the first could start while it reads.
-    const reader = async (label) => {
-      await new Promise((resolve) => setTimeout(resolve, label.startsWith('cold-read-2') ? 20 : 0));
-      events.push(`read done ${label}`);
-      return 'Report: all answers match.';
-    };
-    const compare = () => {
-      events.push('compare');
-      return { clean: true, changedFiles: [], changedSections: [], differences: [] };
-    };
-    await stageRun({ scan: { ...docScan, docFiles: [quotaDoc, otherDoc] }, reader, compare });
-    expect(events.indexOf('read done cold-read-2-1')).toBeLessThan(events.indexOf('compare'));
+describe('build-feature models', () => {
+  test('each stage runs on its model', async () => {
+    const run = await stageRun({
+      scan: { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
+      openPrHashes: false,
+      ci: [
+        { conclusion: 'green', failures: [] },
+        { conclusion: 'red', failures: [{ check: 'docs', summary: 'a link is broken' }] },
+        { conclusion: 'green', failures: [] },
+      ],
+      fix: () => ({ status: 'done', summary: 'Fixed the link.', docFilesChanged: [quotaDoc.path] }),
+      args: { review: 'codex' },
+    });
+    const models = Object.fromEntries(run.calls.map((c) => [c.label, c.opts.model]));
+    expect(models).toEqual({
+      implement: 'sonnet',
+      'codex-review': 'haiku',
+      'scan-repo': 'haiku',
+      'cold-read': 'sonnet',
+      deslop: 'sonnet',
+      'open-pr': 'sonnet',
+      'retick-open-pr': 'haiku',
+      'watch-ci-1': 'haiku',
+      'verify-1': 'sonnet',
+      'watch-ci-2': 'haiku',
+      'fix-ci-2': 'sonnet',
+      'deslop-ci-2': 'sonnet',
+      'retick-ci-2': 'haiku',
+      'verify-3': 'sonnet',
+      'watch-ci-3': 'haiku',
+    });
   });
 
-  test('a doc verify adds after a deletion-only branch gets a cold read', async () => {
-    const run = await stageRun({
-      scan: { ...plainScan, deletedDocFiles: ['/repo/docs/old.md'], verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
-      verify: (label) => ({ status: 'published', unverified: [], docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
+  test('the review fixer stays on sonnet and the Opus fallback on opus', async () => {
+    const run = await dryRun({ review: [quotaFinding] }, 'opus');
+    const models = Object.fromEntries(run.calls.map((c) => [c.label, c.opts.model]));
+    expect(models).toMatchObject({ 'opus-review': 'opus', 'fix-review-1': 'sonnet', 'opus-re-review-1': 'opus' });
+  });
+});
+
+describe('build-feature resume', () => {
+  // A run that reaches every stage: review, docs, the PR, CI, verify, a CI fix after verify.
+  const fullRun = (args) =>
+    stageRun({
+      scan: { ...docScan, verifySkill: '/repo/.agents/skills/verify/SKILL.md' },
+      ci: [
+        { conclusion: 'green', failures: [] },
+        { conclusion: 'red', failures: [{ check: 'docs', summary: 'a link is broken' }] },
+        { conclusion: 'green', failures: [] },
+      ],
+      fix: () => ({ status: 'done', summary: 'Fixed the link.', docFilesChanged: [quotaDoc.path] }),
+      args: { review: 'codex', ...args },
     });
-    expect(run.labels).toContain('verify-1-cold-read-1');
+  const keyOf = (call) => JSON.stringify({ prompt: call.prompt, opts: call.opts });
+  const notesText = 'The refund rule changed: count a refund once.';
+  // The label of the first agent each stage starts, in the full run.
+  const firstOf = {
+    implement: 'implement',
+    review: 'codex-review',
+    'doc-check': 'scan-repo',
+    'open-pr': 'open-pr',
+    'watch-ci': 'watch-ci-1',
+    verify: 'verify-1',
+  };
+
+  test('two runs with the same args give every agent the same prompt and options', async () => {
+    const first = await fullRun({});
+    const second = await fullRun({});
+    expect(second.calls.map(keyOf)).toEqual(first.calls.map(keyOf));
+    expect(first.labels).toContain('verify-3');
   });
 
-  test('a verify recheck that changes docs again stops the run at verify', async () => {
-    const run = await stageRun({
-      scan: verifyDocScan,
-      verify: () => ({ status: 'published', unverified: [], docFilesChanged: [quotaDoc.path] }),
+  test('only the implement stage holds the plan, and every later stage names the plan file', async () => {
+    const run = await fullRun({});
+    expect(run.calls.filter((c) => c.prompt.includes(plan)).map((c) => c.label)).toEqual(['implement']);
+    expect(run.prompt('implement')).toContain('write the plan below to .worktrees/quota-check/.build-feature/plan.md, byte for byte');
+    expect(run.prompt('implement')).toContain('rev-parse --git-common-dir)/info/exclude');
+    for (const label of ['codex-review', 'fix-review-1', 'deslop', 'verify-1']) {
+      if (run.labels.includes(label)) expect(run.prompt(label)).toContain('.worktrees/quota-check/.build-feature/plan.md');
+    }
+  });
+
+  for (const stage of Object.keys(firstOf)) {
+    test(`notes from ${stage} leave every earlier prompt unchanged and reach that stage and later ones`, async () => {
+      const plain = await fullRun({});
+      const resumed = await fullRun({ resumeNotes: notesText, resumeFrom: stage });
+      expect(resumed.labels).toEqual(plain.labels);
+      const from = plain.labels.indexOf(firstOf[stage]);
+      expect(from).toBeGreaterThanOrEqual(0);
+      expect(resumed.calls.slice(0, from).map(keyOf)).toEqual(plain.calls.slice(0, from).map(keyOf));
+      const later = resumed.calls.slice(from).filter((c) => !/(^|-)cold-read(-retry)?$/.test(c.label));
+      expect(later.filter((c) => !c.prompt.includes(notesText)).map((c) => c.label)).toEqual([]);
+      expect(resumed.prompt('cold-read')).not.toContain(notesText);
     });
-    expect(run.labels).not.toContain('watch-ci-2');
-    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
+  }
+
+  test('notes from a skipped review start at the next stage', async () => {
+    const plain = await stageRun({ scan: docScan });
+    const resumed = await stageRun({ scan: docScan, args: { resumeNotes: notesText, resumeFrom: 'review' } });
+    expect(resumed.prompt('implement')).toBe(plain.prompt('implement'));
+    expect(resumed.prompt('scan-repo')).toContain(notesText);
+  });
+
+  test('notes with no stage, or an unknown stage, stop the run at its argument check', async () => {
+    await expect(stageRun({ args: { resumeNotes: notesText } })).rejects.toThrow('resumeNotes needs resumeFrom');
+    await expect(stageRun({ args: { resumeNotes: notesText, resumeFrom: 'deploy' } })).rejects.toThrow('resumeFrom must be one of');
   });
 });
