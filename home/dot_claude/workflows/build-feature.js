@@ -1022,19 +1022,45 @@ if (ticksUnconfirmed) {
   if (confirmed.stop) return confirmed.stop;
 }
 
+// CI goes green first, then verify runs once. A CI fix after verify would make
+// every verdict stale and rerun every journey.
+const beforeVerify = await watchUntilGreen(Boolean(scan.verifySkill), 0);
+if (beforeVerify.stop) return beforeVerify.stop;
+
 if (scan.verifySkill) {
   phase('Verify');
   const verified = await runVerify(1);
   if (verified.stop) return verified.stop;
   log(`Verify report published to ${pr.url}`);
+  const afterVerify = await watchUntilGreen(false, beforeVerify.rounds);
+  if (afterVerify.stop) return afterVerify.stop;
 } else {
   log('Verify skipped: the repo has no verify skill');
 }
 
+return {
+  status: 'ready',
+  pr: pr.url,
+  branch,
+  worktree,
+  summary: impl.summary,
+  rebaseConflicts,
+  ...extras(),
+};
+
+/**
+ * Watches CI and sends a fixer until it is green. While gatePending, the verify
+ * gate's failure is expected, because no report is published yet. After verify,
+ * a fix reruns verify, which checks only the stale verdicts.
+ */
+async function watchUntilGreen(gatePending, roundsSoFar) {
 phase('Watch CI');
-for (let round = 0; ; round++) {
+const gateLine = gatePending
+  ? '\n\nNo verify report is published yet, so the verify gate check (its name contains "verify" and "gate") is expected to fail: count it as passed, and never list it as a failure.'
+  : '';
+for (let round = roundsSoFar; ; round++) {
   const ci = await agent(
-    `Watch CI for PR #${pr.number} in ${prRepo} until every check completes. Pass \`-R ${prRepo}\` to every \`gh\` command: your shell may start in another repo's folder. Run \`gh pr checks ${pr.number} -R ${prRepo} --watch\` with a 600000ms timeout; if the command times out while checks are still pending, simply run it again — loop until it exits on its own.
+    `Watch CI for PR #${pr.number} in ${prRepo} until every check completes.${gateLine} Pass \`-R ${prRepo}\` to every \`gh\` command: your shell may start in another repo's folder. Run \`gh pr checks ${pr.number} -R ${prRepo} --watch\` with a 600000ms timeout; if the command times out while checks are still pending, simply run it again — loop until it exits on its own.
 
 If \`gh pr checks\` reports no checks at all (it can exit immediately), do NOT assume green: run \`gh pr view ${pr.number} -R ${prRepo} --json mergeable,mergeStateStatus\`. If the PR is CONFLICTING, return conclusion=red with a single failures entry using check "merge-conflict" and what gh reported as the summary. If it is mergeable and checks simply have not started yet, wait briefly and watch again. If the repo has no CI at all, return conclusion=green.
 
@@ -1048,7 +1074,7 @@ When all checks have completed: if everything passed, return conclusion=green wi
     },
   );
   if (!ci)
-    return {
+    return { stop: {
       status: 'failed',
       stage: 'watch-ci',
       branch,
@@ -1056,11 +1082,11 @@ When all checks have completed: if everything passed, return conclusion=green wi
       pr: pr.url,
       reason: 'CI watcher died or was skipped',
       ...extras(),
-    };
+    } };
 
-  if (ci.conclusion === 'green') break;
+  if (ci.conclusion === 'green') return { rounds: round + 1 };
   if (round >= MAX_FIX_ROUNDS) {
-    return {
+    return { stop: {
       status: 'ci-failed',
       pr: pr.url,
       branch,
@@ -1069,7 +1095,7 @@ When all checks have completed: if everything passed, return conclusion=green wi
       failures: ci.failures,
       rebaseConflicts,
       ...extras(),
-    };
+    } };
   }
 
   log(
@@ -1094,7 +1120,7 @@ Return docFilesChanged for your commits.`,
     },
   );
   if (!fix || fix.status === 'blocked') {
-    return {
+    return { stop: {
       status: 'blocked',
       stage: 'ci-fix',
       branch,
@@ -1104,24 +1130,15 @@ Return docFilesChanged for your commits.`,
       failures: ci.failures,
       rebaseConflicts,
       ...extras(),
-    };
+    } };
   }
   if (fix.resolvedConflicts) rebaseConflicts = true;
   const rebased = ci.failures.some((f) => f.check === 'merge-conflict');
   const followed = await followDocChanges(fix.docFilesChanged, rebased, `ci-${round + 1}`);
-  if (followed.stop) return { ...followed.stop, rebaseConflicts };
-  if (scan.verifySkill) {
+  if (followed.stop) return { stop: { ...followed.stop, rebaseConflicts } };
+  if (scan.verifySkill && !gatePending) {
     const verified = await runVerify(round + 2);
-    if (verified.stop) return { ...verified.stop, rebaseConflicts };
+    if (verified.stop) return { stop: { ...verified.stop, rebaseConflicts } };
   }
 }
-
-return {
-  status: 'ready',
-  pr: pr.url,
-  branch,
-  worktree,
-  summary: impl.summary,
-  rebaseConflicts,
-  ...extras(),
-};
+}
