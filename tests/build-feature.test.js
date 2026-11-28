@@ -263,7 +263,7 @@ async function stageRun({ scan, compare, ci, fix, verify, reader, openPrHashes =
     if (label.startsWith('verify-')) {
       return (verify || (() => ({ status: 'published', unverified: [], docFilesChanged: [] })))(label);
     }
-    if (label.startsWith('watch-ci-')) return ciResults.shift();
+    if (label.startsWith('watch-ci-')) return ciResults.length > 1 ? ciResults.shift() : ciResults[0];
     if (label.startsWith('fix-ci-')) return (fix || (() => ({ status: 'done', summary: 'Fixed.' })))(label);
     if (label.startsWith('retick-')) {
       const [, deslopCommit] = /Deslop \(([^)]+)\)/.exec(prompt);
@@ -430,9 +430,11 @@ describe('build-feature verify stage', () => {
     expect(run.result).toMatchObject({ verify: null });
   });
 
-  test('a repo with a verify skill publishes the report after the PR opens and before CI', async () => {
-    const run = await stageRun({ scan: verifyScan });
-    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'verify-1', 'watch-ci-1']);
+  test('a repo with a verify skill publishes the report after CI is green, then watches CI for the gate', async () => {
+    const run = await stageRun({ scan: verifyScan, ci: [{ conclusion: 'green', failures: [] }, { conclusion: 'green', failures: [] }] });
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1', 'watch-ci-2']);
+    expect(run.prompt('watch-ci-1')).toContain('count it as passed');
+    expect(run.prompt('watch-ci-2')).not.toContain('count it as passed');
     expect(run.prompt('verify-1')).toContain('Load the verify skill at /repo/.agents/skills/verify/SKILL.md');
     expect(run.result).toMatchObject({ status: 'ready', verify: { status: 'published', unverified: [] } });
   });
@@ -442,15 +444,16 @@ describe('build-feature verify stage', () => {
       scan: verifyScan,
       verify: () => ({ status: 'published', unverified: [{ feature: 'checkout', reason: 'the quota page 500s' }] }),
     });
-    expect(run.labels).not.toContain('watch-ci-1');
+    expect(run.labels).not.toContain('watch-ci-2');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify', pr: 'https://github.com/example/shop/pull/7' });
   });
 
-  test('a CI fix runs the verify steps again for stale verdicts', async () => {
+  test('a CI fix before verify does not run verify again', async () => {
     const run = await stageRun({
       scan: verifyScan,
       ci: [
         { conclusion: 'red', failures: [{ check: 'test', summary: 'quota test failed' }] },
+        { conclusion: 'green', failures: [] },
         { conclusion: 'green', failures: [] },
       ],
     });
@@ -458,13 +461,35 @@ describe('build-feature verify stage', () => {
       'implement',
       'scan-repo',
       'open-pr',
-      'verify-1',
       'watch-ci-1',
       'fix-ci-1',
-      'verify-2',
       'watch-ci-2',
+      'verify-1',
+      'watch-ci-3',
     ]);
-    expect(run.prompt('verify-2')).toContain('stale or missing');
+  });
+
+  test('a CI fix after verify runs the verify steps again for stale verdicts', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      ci: [
+        { conclusion: 'green', failures: [] },
+        { conclusion: 'red', failures: [{ check: 'gate', summary: 'gate failed' }] },
+        { conclusion: 'green', failures: [] },
+      ],
+    });
+    expect(run.labels).toEqual([
+      'implement',
+      'scan-repo',
+      'open-pr',
+      'watch-ci-1',
+      'verify-1',
+      'watch-ci-2',
+      'fix-ci-2',
+      'verify-3',
+      'watch-ci-3',
+    ]);
+    expect(run.prompt('verify-3')).toContain('stale or missing');
   });
 });
 
@@ -583,7 +608,7 @@ describe('build-feature re-check fixes', () => {
       scan: verifyDocScan,
       verify: () => ({ status: 'published', unverified: [], docFilesChanged: [quotaDoc.path] }),
     });
-    expect(run.labels).not.toContain('watch-ci-1');
+    expect(run.labels).not.toContain('watch-ci-2');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
   });
 });
