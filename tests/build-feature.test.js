@@ -270,13 +270,17 @@ const publishedVerify = (label) => ({
   docFilesChanged: [],
 });
 
+const doneBatch = (features) => ({ verdicts: features.map((feature) => ({ feature, verdict: 'done' })), unverified: [], docFilesChanged: [] });
+
 /**
  * Runs the workflow with stub agents for the doc check, verify and CI stages.
  * `pass(label)` gives the doc pass agent's result, `ci` lists each CI watch
  * result in turn, and `fix` gives each CI fix result. `args` adds to the
- * workflow's args.
+ * workflow's args. `features` lists what the first verify run's list agent
+ * returns, `batch(features, label)` gives each batch agent's result, and
+ * `verify(label)` gives the publish agent's result and a later rerun's.
  */
-async function stageRun({ scan, pass, ci, fix, verify, reader, openPrHashes = true, args = {} } = {}) {
+async function stageRun({ scan, pass, ci, fix, verify, features, batch, reader, openPrHashes = true, args = {} } = {}) {
   const calls = [];
   const ciResults = [...(ci || [{ conclusion: 'green', failures: [] }])];
   const theScan = scan || plainScan;
@@ -299,6 +303,11 @@ async function stageRun({ scan, pass, ci, fix, verify, reader, openPrHashes = tr
       const coldRead = /- \[x\] Cold read \(([^)]+)\)/.exec(prompt);
       if (!openPrHashes || !deslop) return pr;
       return { ...pr, deslopCommit: deslop[1], coldReadCommit: coldRead[1] };
+    }
+    if (/^verify-\d+-list$/.test(label)) return { features: features || ['checkout'], head: 'head-listed' };
+    if (/^verify-\d+-batch-\d+$/.test(label)) {
+      const batchFeatures = [...prompt.matchAll(/^- (\S+)$/gm)].map((m) => m[1]);
+      return (batch || doneBatch)(batchFeatures, label);
     }
     if (label.startsWith('verify-')) return (verify || publishedVerify)(label);
     if (label.startsWith('watch-ci-')) return ciResults.length > 1 ? ciResults.shift() : ciResults[0];
@@ -504,7 +513,7 @@ describe('build-feature verify stage', () => {
 
   test('a repo with a verify skill publishes the report after CI is green, then watches CI for the gate', async () => {
     const run = await stageRun({ scan: verifyScan, ci: [{ conclusion: 'green', failures: [] }, { conclusion: 'green', failures: [] }] });
-    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1', 'watch-ci-2']);
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1-list', 'verify-1-batch-1', 'verify-1', 'watch-ci-2']);
     expect(run.prompt('watch-ci-1')).toContain('count it as passed');
     expect(run.prompt('watch-ci-2')).not.toContain('count it as passed');
     expect(run.prompt('verify-1')).toContain('Load the verify skill at /repo/.agents/skills/verify/SKILL.md');
@@ -515,10 +524,43 @@ describe('build-feature verify stage', () => {
   test('a changed feature with no verdict stops the run at the verify stage', async () => {
     const run = await stageRun({
       scan: verifyScan,
-      verify: (label) => ({ ...publishedVerify(label), unverified: [{ feature: 'checkout', reason: 'the quota page 500s' }] }),
+      batch: () => ({ verdicts: [], unverified: [{ feature: 'checkout', reason: 'the quota page 500s' }] }),
     });
     expect(run.labels).not.toContain('watch-ci-2');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify', pr: 'https://github.com/example/shop/pull/7' });
+  });
+
+  test('20 flagged features run in 3 batches, one after another, covering all 20 in order', async () => {
+    const names = Array.from({ length: 20 }, (_, i) => `feature-${i + 1}`);
+    const run = await stageRun({
+      scan: verifyScan,
+      features: names,
+    });
+    const batchLabels = run.labels.filter((l) => /^verify-1-batch-\d+$/.test(l));
+    expect(batchLabels).toEqual(['verify-1-batch-1', 'verify-1-batch-2', 'verify-1-batch-3']);
+    expect(run.labels.slice(run.labels.indexOf('verify-1-list'), run.labels.indexOf('verify-1') + 1)).toEqual(['verify-1-list', ...batchLabels, 'verify-1']);
+    const covered = batchLabels.flatMap((l) => [...run.prompt(l).matchAll(/^- (feature-\d+)$/gm)].map((m) => m[1]));
+    expect(covered).toEqual(names);
+    expect(batchLabels.map((l) => [...run.prompt(l).matchAll(/^- feature-\d+$/gm)].length)).toEqual([8, 8, 4]);
+    expect(run.prompt('verify-1-batch-1')).toContain('You must run every listed feature');
+    expect(run.prompt('verify-1-batch-1')).toContain('`error.code`');
+    expect(run.prompt('verify-1')).toContain('bun verify down');
+    expect(run.result).toMatchObject({ status: 'ready', verify: { status: 'published', unverified: [] } });
+    expect(run.result.verify.verdicts.map((d) => d.feature)).toEqual(names);
+  });
+
+  test('a batch that skips a feature without a failure leaves the run blocked', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      features: ['checkout', 'refunds'],
+      batch: () => ({ verdicts: [{ feature: 'checkout', verdict: 'done' }], unverified: [] }),
+    });
+    expect(run.result).toMatchObject({
+      status: 'blocked',
+      stage: 'verify',
+      verify: { unverified: [{ feature: 'refunds', reason: 'not run' }] },
+    });
+    expect(run.labels).not.toContain('watch-ci-2');
   });
 
   test('a CI fix before verify does not run verify again', async () => {
@@ -530,7 +572,7 @@ describe('build-feature verify stage', () => {
         { conclusion: 'green', failures: [] },
       ],
     });
-    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'fix-ci-1', 'watch-ci-2', 'verify-1', 'watch-ci-3']);
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'fix-ci-1', 'watch-ci-2', 'verify-1-list', 'verify-1-batch-1', 'verify-1', 'watch-ci-3']);
   });
 
   test('a CI fix after verify rechecks only the features its diff touches, with the earlier verdicts', async () => {
@@ -541,12 +583,10 @@ describe('build-feature verify stage', () => {
         { conclusion: 'red', failures: [{ check: 'gate', summary: 'gate failed' }] },
         { conclusion: 'green', failures: [] },
       ],
-      verify: (label) =>
-        label === 'verify-1'
-          ? { ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified' }, { feature: 'refunds', verdict: 'verified' }] }
-          : { ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified again' }] },
+      features: ['checkout', 'refunds'],
+      verify: (label) => ({ ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified again' }] }),
     });
-    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1', 'watch-ci-2', 'fix-ci-2', 'verify-3', 'watch-ci-3']);
+    expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1-list', 'verify-1-batch-1', 'verify-1', 'watch-ci-2', 'fix-ci-2', 'verify-3', 'watch-ci-3']);
     const rerun = run.prompt('verify-3');
     expect(rerun).toContain('bun verify report --base head-verify-1');
     expect(rerun).toContain('never run the whole journey set again');
@@ -554,7 +594,7 @@ describe('build-feature verify stage', () => {
     expect(rerun).not.toContain('find that commit\'s copy');
     expect(run.result.verify.verdicts).toEqual([
       { feature: 'checkout', verdict: 'verified again' },
-      { feature: 'refunds', verdict: 'verified' },
+      { feature: 'refunds', verdict: 'done' },
     ]);
   });
 
@@ -583,7 +623,7 @@ describe('build-feature verify stage', () => {
         { conclusion: 'green', failures: [] },
       ],
     });
-    expect(run.prompt('verify-1')).toContain('each feature the plan in .worktrees/quota-check/.build-feature/plan.md names');
+    expect(run.prompt('verify-1-list')).toContain('each feature the plan in .worktrees/quota-check/.build-feature/plan.md names');
     expect(run.prompt('verify-3')).not.toContain('each feature the plan');
     expect(run.prompt('verify-3')).not.toContain('each feature the branch changes');
   });
@@ -607,7 +647,7 @@ describe('build-feature verify stage', () => {
       scan: verifyScan,
       verify: (label) => ({ ...publishedVerify(label), docFilesChanged: label === 'verify-1' ? [quotaDoc.path] : [] }),
     });
-    expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1', 'verify-1-cold-read', 'verify-1-deslop', 'verify-1-recheck']);
+    expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1-list', 'verify-1-batch-1', 'verify-1', 'verify-1-cold-read', 'verify-1-deslop', 'verify-1-recheck']);
     expect(run.prompt('verify-1-deslop')).toContain('push with');
     expect(run.prompt('verify-1-deslop')).toContain('.build-feature/verify-1-cold-answers.md');
     expect(run.prompt('retick-verify-1')).toContain('when it has no Checks section, add one');
@@ -637,7 +677,7 @@ describe('build-feature verify stage', () => {
       scan: verifyDocScan,
       verify: (label) => ({ ...publishedVerify(label), docFilesChanged: [quotaDoc.path] }),
     });
-    expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1', 'verify-1-recheck']);
+    expect(run.labels.filter((l) => l.startsWith('verify-1'))).toEqual(['verify-1-list', 'verify-1-batch-1', 'verify-1', 'verify-1-recheck']);
     expect(run.labels).not.toContain('watch-ci-2');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
   });
@@ -676,6 +716,8 @@ describe('build-feature models', () => {
       'open-pr': 'sonnet',
       'retick-open-pr': 'haiku',
       'watch-ci-1': 'haiku',
+      'verify-1-list': 'haiku',
+      'verify-1-batch-1': 'sonnet',
       'verify-1': 'sonnet',
       'watch-ci-2': 'haiku',
       'fix-ci-2': 'sonnet',
@@ -715,7 +757,7 @@ describe('build-feature resume', () => {
     'doc-check': 'scan-repo',
     'open-pr': 'open-pr',
     'watch-ci': 'watch-ci-1',
-    verify: 'verify-1',
+    verify: 'verify-1-list',
   };
 
   test('two runs with the same args give every agent the same prompt and options', async () => {
@@ -730,7 +772,7 @@ describe('build-feature resume', () => {
     expect(run.calls.filter((c) => c.prompt.includes(plan)).map((c) => c.label)).toEqual(['implement']);
     expect(run.prompt('implement')).toContain('write the plan below to .worktrees/quota-check/.build-feature/plan.md, byte for byte');
     expect(run.prompt('implement')).toContain('rev-parse --git-common-dir)/info/exclude');
-    for (const label of ['codex-review', 'fix-review-1', 'deslop', 'verify-1']) {
+    for (const label of ['codex-review', 'fix-review-1', 'deslop', 'verify-1-list']) {
       if (run.labels.includes(label)) expect(run.prompt(label)).toContain('.worktrees/quota-check/.build-feature/plan.md');
     }
   });

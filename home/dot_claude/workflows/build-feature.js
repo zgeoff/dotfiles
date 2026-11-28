@@ -337,6 +337,61 @@ const VERIFY_SCHEMA = {
   },
 };
 
+const VERIFY_LIST_SCHEMA = {
+  type: 'object',
+  required: ['features', 'head'],
+  properties: {
+    features: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Each changed feature with no current verdict, in the order the report lists them',
+    },
+    head: { type: 'string', description: 'Short hash of the HEAD the report was run at' },
+  },
+};
+
+const VERIFY_BATCH_SCHEMA = {
+  type: 'object',
+  required: ['verdicts', 'unverified'],
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'verdict'],
+        properties: { feature: { type: 'string' }, verdict: { type: 'string', description: 'done, for a feature whose end state matched' } },
+      },
+      description: 'Each feature you recorded a verdict for',
+    },
+    unverified: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['feature', 'reason'],
+        properties: {
+          feature: { type: 'string' },
+          reason: { type: 'string', description: 'The end state you expected and what you got, or the failure that stopped the run' },
+          command: { type: 'string', description: 'The command that failed, when a failure stopped the feature' },
+          errorCode: { type: 'string', description: 'The failure\'s error.code, when a failure stopped the feature' },
+        },
+      },
+      description: 'Each listed feature with no verdict',
+    },
+    docFilesChanged: DOC_FILES_CHANGED,
+  },
+};
+
+const VERIFY_PUBLISH_SCHEMA = {
+  type: 'object',
+  required: ['status', 'head'],
+  properties: {
+    status: { enum: ['published', 'blocked'], description: 'published once the report is in the PR description' },
+    head: { type: 'string', description: 'Short hash of the HEAD the report was published at' },
+    docFilesChanged: DOC_FILES_CHANGED,
+    blockedReason: { type: 'string' },
+  },
+};
+
 const CI_SCHEMA = {
   type: 'object',
   required: ['conclusion', 'failures'],
@@ -907,6 +962,81 @@ async function followDocChanges(docFilesChanged, rebased, tag) {
   return { pushed: moved };
 }
 
+const VERIFY_BATCH_SIZE = 8;
+
+/**
+ * The first verify run. One haiku agent lists the changed features that have
+ * no current verdict. The script then runs them in batches, one fresh agent
+ * per batch and never two at once, because the repo's verify target is shared
+ * in the worktree. A last agent publishes the report and runs `bun verify
+ * down`. Returns what the single verify agent returns.
+ */
+async function runVerifyBatches(label) {
+  const where = `for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}`;
+  const listed = await agent(
+    `List the features that need a verify run ${where}. Load the verify skill at ${scan.verifySkill}. Run \`bun verify report\` as the skill says, from inside the worktree, and return each changed feature that has no current verdict, in the order the report lists them, and each feature the plan in ${planFile} names that has no current verdict. Return the short hash of HEAD in head. Do not run any journey, and do not publish anything. Never print a token or a secret.${notes()}`,
+    { label: `${label}-list`, model: 'haiku', schema: VERIFY_LIST_SCHEMA, phase: 'Verify' },
+  );
+  if (!listed) return null;
+  const features = [...new Set(listed.features)];
+  const batches = [];
+  for (let i = 0; i < features.length; i += VERIFY_BATCH_SIZE) batches.push(features.slice(i, i + VERIFY_BATCH_SIZE));
+  log(`Verify runs ${features.length} feature(s) in ${batches.length} batch(es)`);
+  const verdicts = new Map();
+  const reasons = new Map();
+  const docFiles = new Set();
+  // One batch at a time: the repo's verify target is shared in the worktree.
+  for (const [i, batch] of batches.entries()) {
+    const r = await agent(
+      `Run these verify journeys ${where}. Load the verify skill at ${scan.verifySkill} and follow it for each one:
+
+${batch.map((f) => `- ${f}`).join('\n')}
+
+Run every feature in the list, one at a time, in this order, and record \`done\` for each one whose end state matches. You must run every listed feature. Skip one only for a failure that stops it, and then report the feature in unverified with the command that failed and its \`error.code\`. A feature that ran and did not match goes in unverified with the end state you expected and what you got. Return each verdict you recorded in verdicts. Do not publish the report, and do not run \`bun verify down\`: a later agent does both.
+${REPO_RULES}
+When the skill says to fix the app's code, fix it, commit (hooks must pass), and push without force. Never print a token or a secret.
+
+${docRuleLine}
+Return docFilesChanged for your commits.${notes()}`,
+      { label: `${label}-batch-${i + 1}`, model: 'sonnet', schema: VERIFY_BATCH_SCHEMA, phase: 'Verify' },
+    );
+    for (const d of (r && r.verdicts) || []) verdicts.set(d.feature, d);
+    for (const u of (r && r.unverified) || []) {
+      const cause = u.command || u.errorCode ? ` (${[u.command, u.errorCode && `error.code ${u.errorCode}`].filter(Boolean).join(', ')})` : '';
+      reasons.set(u.feature, `${u.reason}${cause}`);
+    }
+    for (const f of (r && r.docFilesChanged) || []) docFiles.add(f);
+    if (!r) for (const f of batch) reasons.set(f, 'the batch agent died or was skipped');
+  }
+  const unverified = features
+    .filter((f) => !verdicts.has(f) || verdicts.get(f).verdict !== 'done')
+    .map((f) => ({ feature: f, reason: reasons.get(f) || 'not run' }));
+  const all = [...verdicts.values()];
+  const published = await agent(
+    `Publish the verify report ${where}. Load the verify skill at ${scan.verifySkill}. Every journey has run, so run none. Publish the report into PR #${pr.number} as the skill says, with these verdicts, then run \`bun verify down\`. Run each command from inside the worktree, and pass \`-R ${prRepo}\` to every \`gh\` command.
+
+The verdicts:
+
+${JSON.stringify(all, null, 2)}${unverified.length ? `\n\nThese listed features have no verdict, so leave them out of the report as the skill says:\n\n${JSON.stringify(unverified, null, 2)}` : ''}
+${REPO_RULES}
+Never print a token or a secret.
+
+${docRuleLine}
+Return docFilesChanged for your commits, and the short hash of the HEAD you published at in head. Return status=blocked with the reason when you could not publish.${notes()}`,
+    { label, model: 'sonnet', schema: VERIFY_PUBLISH_SCHEMA, phase: 'Verify' },
+  );
+  if (!published) return null;
+  for (const f of published.docFilesChanged || []) docFiles.add(f);
+  return {
+    status: published.status,
+    unverified,
+    verdicts: all,
+    head: published.head || listed.head,
+    docFilesChanged: [...docFiles],
+    blockedReason: published.blockedReason,
+  };
+}
+
 /**
  * Runs the repo's verify steps and publishes the report into the PR. A rerun,
  * after a CI fix or after the doc follow-up pushes, gets the earlier verdicts
@@ -929,7 +1059,8 @@ async function runVerify(round, recheck = false, rebased = false) {
     rerun = `\n\nA previous run published a report, and commits have been pushed since${rebased ? ', including a rebase' : ''}. Keep every other verdict as it is, and never run the whole journey set again.${kept}`;
   }
   const label = recheck ? `verify-${round}-recheck` : `verify-${round}`;
-  const v = await agent(
+  const firstRun = !earlier && round === 1 && !recheck;
+  const v = firstRun ? await runVerifyBatches(label) : await agent(
     `Run the repo's verify steps for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}. Load the verify skill at ${scan.verifySkill} and follow it: ${scope}, then publish the report into PR #${pr.number} as the skill says. Run each command from inside the worktree, and pass \`-R ${prRepo}\` to every \`gh\` command.${rerun}
 ${REPO_RULES}
 When the skill says to fix the app's code, fix it, commit (hooks must pass), and push without force. Never print a token or a secret.
