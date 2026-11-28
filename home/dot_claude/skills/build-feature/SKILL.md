@@ -89,7 +89,7 @@ To get past a block, leave `plan` as it was, and put what changed in `resumeNote
 
 On a second resume, keep `resumeFrom`, and add lines to the end of the same notes. Any change to the notes changes every prompt from the first `resumeFrom` on, so the run reruns from that stage.
 
-When the plan itself is wrong, change `plan`. Only the implement stage's prompt holds it, so the run reruns from there, on the same branch and commits. Every other stage reads the plan from `.build-feature/plan.md` in the worktree, which git ignores.
+When the plan itself is wrong, change `plan`. Only the implement stage's prompt holds it, so the run reruns from there, on the same branch and commits. Each later stage that needs the plan reads `.build-feature/plan.md` in the worktree, which git ignores.
 
 ## Gotchas
 

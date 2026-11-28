@@ -601,6 +601,10 @@ ${report}`,
   );
   if (!pass) return stop('the deslop agent died or was skipped');
   if (pass.blockedReason) return stop(pass.blockedReason);
+  // A file with no verdict was never compared, so it can't carry the ticks.
+  const judged = new Set(pass.files.map((f) => f.path));
+  const missed = allPaths.filter((path) => !judged.has(path));
+  if (missed.length > 0) return stop(`the deslop agent returned no cold-read result for ${missed.map(shortName).join(', ')}`);
 
   const stillDiffer = pass.files.flatMap((f) => (f.clean ? [] : f.differences.map((d) => `${shortName(f.path)}: ${d}`)));
   return {
@@ -905,18 +909,22 @@ async function followDocChanges(docFilesChanged, rebased, tag) {
  */
 async function runVerify(round, recheck = false, rebased = false) {
   const earlier = verifyResult && verifyResult.head ? verifyResult : null;
+  if (verifyResult && !earlier) log('The last verify run returned no head, so the rerun checks the stale or missing verdicts');
+  let scope = 'check each feature the branch changes, and each feature the plan in ' + planFile + ' names, record each verdict';
   let rerun = '';
-  if (earlier) {
-    const copy = rebased
-      ? ` The branch was rebased since, so first find that commit's copy, and use the copy in its place. ${COPY_RULE}`
-      : '';
-    rerun = `\n\nA previous run published a report, with the verdicts below, recorded at commit ${earlier.head}. Commits have been pushed since.${copy} Find the features those commits touch with the verify skill's report command against that commit, such as \`bun verify report --base ${earlier.head}\`, and check only each feature it marks changed, and each feature whose verdict is now stale or missing. Keep every other verdict as it is, and never run the whole journey set again. Then publish again.\n\nThe earlier verdicts:\n\n${JSON.stringify(earlier.verdicts, null, 2)}`;
+  if (earlier && !rebased) {
+    scope = 'check only the features the commits since the last report touch, record each verdict';
+    rerun = `\n\nA previous run published a report, with the verdicts below, recorded at commit ${earlier.head}. Commits have been pushed since. Find the features they touch with the verify skill's report command against that commit, such as \`bun verify report --base ${earlier.head}\`, and check each feature it marks changed, and each feature whose verdict is now stale or missing. Keep every other verdict as it is, and never run the whole journey set again.\n\nThe earlier verdicts:\n\n${JSON.stringify(earlier.verdicts, null, 2)}`;
   } else if (round > 1 || recheck) {
-    rerun = '\n\nA previous run published a report, and commits have been pushed since. Check only the features whose verdict is now stale or missing, then publish again.';
+    // A rebase rewrote the recorded commit, and a conflict resolution may sit
+    // inside its copy, so only the verdicts' own staleness is safe to trust.
+    scope = 'check only the features whose verdict is now stale or missing, record each verdict';
+    const kept = earlier ? `\n\nThe earlier verdicts:\n\n${JSON.stringify(earlier.verdicts, null, 2)}` : '';
+    rerun = `\n\nA previous run published a report, and commits have been pushed since${rebased ? ', including a rebase' : ''}. Keep every other verdict as it is, and never run the whole journey set again.${kept}`;
   }
   const label = recheck ? `verify-${round}-recheck` : `verify-${round}`;
   const v = await agent(
-    `Run the repo's verify steps for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}. Load the verify skill at ${scan.verifySkill} and follow it: check each feature the branch changes, and each feature the plan in ${planFile} names, record each verdict, then publish the report into PR #${pr.number} as the skill says. Run each command from inside the worktree, and pass \`-R ${prRepo}\` to every \`gh\` command.${rerun}
+    `Run the repo's verify steps for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}. Load the verify skill at ${scan.verifySkill} and follow it: ${scope}, then publish the report into PR #${pr.number} as the skill says. Run each command from inside the worktree, and pass \`-R ${prRepo}\` to every \`gh\` command.${rerun}
 ${REPO_RULES}
 When the skill says to fix the app's code, fix it, commit (hooks must pass), and push without force. Never print a token or a secret.
 
@@ -970,7 +978,7 @@ if (ticksUnconfirmed) {
 
 // CI goes green first, then verify runs once. A CI fix after verify reruns
 // only the features its diff touches.
-const beforeVerify = await watchUntilGreen(Boolean(scan.verifySkill), 0);
+const beforeVerify = await watchUntilGreen(Boolean(scan.verifySkill), 0, 0);
 if (beforeVerify.stop) return beforeVerify.stop;
 
 if (scan.verifySkill) {
@@ -979,7 +987,7 @@ if (scan.verifySkill) {
   const verified = await runVerify(1);
   if (verified.stop) return verified.stop;
   log(`Verify report published to ${pr.url}`);
-  const afterVerify = await watchUntilGreen(false, beforeVerify.rounds);
+  const afterVerify = await watchUntilGreen(false, beforeVerify.rounds, beforeVerify.fixes);
   if (afterVerify.stop) return afterVerify.stop;
 } else {
   log('Verify skipped: the repo has no verify skill');
@@ -1000,7 +1008,9 @@ return {
  * gate's failure is expected, because no report is published yet. After verify,
  * a fix reruns verify, which checks only the features the fix touches.
  */
-async function watchUntilGreen(gatePending, roundsSoFar) {
+async function watchUntilGreen(gatePending, roundsSoFar, fixesSoFar) {
+// The fix budget counts fixes, so a green watch before verify spends none of it.
+let fixes = fixesSoFar;
 phase('Watch CI');
 enterStage('watch-ci');
 const gateLine = gatePending
@@ -1032,8 +1042,8 @@ When all checks have completed: if everything passed, return conclusion=green wi
       ...extras(),
     } };
 
-  if (ci.conclusion === 'green') return { rounds: round + 1 };
-  if (round >= MAX_FIX_ROUNDS) {
+  if (ci.conclusion === 'green') return { rounds: round + 1, fixes };
+  if (fixes >= MAX_FIX_ROUNDS) {
     return { stop: {
       status: 'ci-failed',
       pr: pr.url,
@@ -1080,6 +1090,7 @@ Return docFilesChanged for your commits.${notes()}`,
       ...extras(),
     } };
   }
+  fixes += 1;
   if (fix.resolvedConflicts) rebaseConflicts = true;
   const rebased = ci.failures.some((f) => f.check === 'merge-conflict');
   const followed = await followDocChanges(fix.docFilesChanged, rebased, `ci-${round + 1}`);

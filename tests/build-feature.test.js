@@ -368,6 +368,13 @@ describe('build-feature doc check', () => {
     expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
   });
 
+  test('a deslop agent that skips a file stops the run, with no tick', async () => {
+    const run = await stageRun({ scan: { ...docScan, docFiles: [quotaDoc, refundsSkill] }, pass: () => cleanPass([quotaDoc]) });
+    expect(run.labels).not.toContain('open-pr');
+    expect(run.result).toMatchObject({ status: 'failed', stage: 'doc-check' });
+    expect(run.result.reason).toContain('refunds/SKILL.md');
+  });
+
   test('a deslop agent whose hook fails stops the run before the PR', async () => {
     const run = await stageRun({ scan: docScan, pass: () => ({ ...differedOnce(), blockedReason: 'the prose hook failed' }) });
     expect(run.labels).not.toContain('open-pr');
@@ -531,7 +538,7 @@ describe('build-feature verify stage', () => {
     ]);
   });
 
-  test('a rebase after verify has the rerun find the copy of the verified commit', async () => {
+  test('a rebase after verify has the rerun trust only stale verdicts, with no report base', async () => {
     const run = await stageRun({
       scan: verifyScan,
       ci: [
@@ -541,7 +548,38 @@ describe('build-feature verify stage', () => {
       ],
       fix: () => ({ status: 'done', summary: 'Rebased.', resolvedConflicts: true, docFilesChanged: [] }),
     });
-    expect(run.prompt('verify-3')).toContain('find that commit\'s copy');
+    const rerun = run.prompt('verify-3');
+    expect(rerun).toContain('check only the features whose verdict is now stale or missing');
+    expect(rerun).not.toContain('--base');
+    expect(rerun).toContain('"feature": "checkout"');
+  });
+
+  test('a rerun asks for no feature outside the fix', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      ci: [
+        { conclusion: 'green', failures: [] },
+        { conclusion: 'red', failures: [{ check: 'gate', summary: 'gate failed' }] },
+        { conclusion: 'green', failures: [] },
+      ],
+    });
+    expect(run.prompt('verify-1')).toContain('each feature the plan in .worktrees/quota-check/.build-feature/plan.md names');
+    expect(run.prompt('verify-3')).not.toContain('each feature the plan');
+    expect(run.prompt('verify-3')).not.toContain('each feature the branch changes');
+  });
+
+  test('CI after verify gets its own 2 fix rounds when CI was green before verify', async () => {
+    const red = { conclusion: 'red', failures: [{ check: 'gate', summary: 'gate failed' }] };
+    const run = await stageRun({ scan: verifyScan, ci: [{ conclusion: 'green', failures: [] }, red, red, red] });
+    expect(run.labels.filter((l) => l.startsWith('fix-ci-'))).toEqual(['fix-ci-2', 'fix-ci-3']);
+    expect(run.result).toMatchObject({ status: 'ci-failed' });
+  });
+
+  test('2 fixes before verify leave none for after it', async () => {
+    const red = { conclusion: 'red', failures: [{ check: 'test', summary: 'quota test failed' }] };
+    const run = await stageRun({ scan: verifyScan, ci: [red, red, { conclusion: 'green', failures: [] }, red] });
+    expect(run.labels.filter((l) => l.startsWith('fix-ci-'))).toEqual(['fix-ci-1', 'fix-ci-2']);
+    expect(run.result).toMatchObject({ status: 'ci-failed' });
   });
 
   test('a doc that verify adds first gets the whole doc check, which pushes, and the body gains its tick lines', async () => {
