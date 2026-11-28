@@ -53,7 +53,7 @@ The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, suc
 The run also does the checks that need a fresh agent, which its own agents can't start:
 
 - When the branch changes a doc or a skill file, as the repo's docs checks count them, fresh agents cold-read each one once, then deslop it once, before the PR opens. The PR body ticks the Deslop and Cold read lines when the repo's PR template has them. A later commit that changes a doc gets deslopped again, and the Deslop line moves to it.
-- When the repo has a verify skill, the run gets CI green first, treating the verify gate check as passed while no report exists. An agent then runs the verify steps once and publishes the report into the PR, and the run watches CI again for the gate. A CI fix before verify leaves verify to run once. A CI fix after verify reruns only the stale verdicts.
+- When the repo has a verify skill, the run gets CI green first, and counts the verify gate check as passed while the PR has no verify report. An agent then runs the verify steps once and publishes the report into the PR, and the run watches CI again for the gate check. CI fixes before verify don't add a verify run. After a CI fix that comes after verify, an agent reruns only the verdicts that fix made stale.
 
 ## Act on the result
 
