@@ -370,16 +370,22 @@ const CLASSIFY = `Classify each finding:
 - blocking: correctness bugs, broken or missing tests for new behaviour, deviations from the plan, security problems, AGENTS.md violations that hooks/CI will not catch.
 - minor: real but non-blocking improvements. Report them; they will be surfaced to the human reviewer, not fixed here.`;
 
+/**
+ * The plan may list verify items. The verify stage runs them after the PR
+ * opens, so no review round can satisfy them.
+ */
+const VERIFY_SCOPE = `The plan's verify items (running journeys, their verdicts, the published report) belong to the verify stage, which runs after the PR opens. A reviewer never raises them as a finding, and a fixer never runs journeys.`;
+
 const opusReviewPrompt = `You are reviewing an unpushed feature branch before it becomes a PR. Repo root is the current directory; the branch lives in the worktree at ${worktree}. Read AGENTS.md first and load the skills it names for code and tests; their conventions are binding, and convention violations that tooling cannot catch are in scope.
 
-Review the full diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) and read surrounding source where the diff alone is ambiguous. The plan this branch implements is in ${planFile}: read it first.
+Review the full diff (\`git -C ${worktree} diff origin/${base}...HEAD\`) and read surrounding source where the diff alone is ambiguous. The plan this branch implements is in ${planFile}: read it first. ${VERIFY_SCOPE}
 
 ${CLASSIFY}
 Do not modify any files. No praise, no restating the diff.`;
 
 const codexReviewPrompt = `Get a Codex review of the feature branch in the worktree at ${worktree}, and return its findings. Do not review the code yourself, and do not modify any files.
 
-1. Load the \`second-opinion\` skill, and write the prompt for a review as its "Write the prompt" and "Ask for a reply shape" sections say. First run \`git -C ${worktree} fetch origin\`, so origin/${base} is current. The diff command for the prompt is \`git diff origin/${base}...HEAD\`. The rules to paste come from the repo's AGENTS.md and the skills it names, for the files the diff touches. The plan in ${planFile} says what the change is for: in the prompt, tell Codex to read \`.build-feature/plan.md\` in the worktree, and never paste the plan. When a previous round's findings are listed at the end, ask Codex to check only those fixes, and to raise no new findings.
+1. Load the \`second-opinion\` skill, and write the prompt for a review as its "Write the prompt" and "Ask for a reply shape" sections say. First run \`git -C ${worktree} fetch origin\`, so origin/${base} is current. The diff command for the prompt is \`git diff origin/${base}...HEAD\`. The rules to paste come from the repo's AGENTS.md and the skills it names, for the files the diff touches. The plan in ${planFile} says what the change is for: in the prompt, tell Codex to read \`.build-feature/plan.md\` in the worktree, and never paste the plan. ${VERIFY_SCOPE} Put that rule in the prompt. When a previous round's findings are listed at the end, ask Codex to check only those fixes, and to raise no new findings.
 2. From inside the worktree, run the Codex command from the skill's commands reference, wrapped in \`timeout ${CODEX_TIMEOUT_SECONDS}\`, with the prompt and reply files in a scratch folder outside the worktree. Run it in the background and wait for it.
 3. If \`codex\` is not installed, exits non-zero, hits the timeout, or writes no reply, return ran=false with the reason and an empty findings list. Don't fall back to another model yourself: the workflow does that.
 4. Otherwise return ran=true, and map each Codex finding into the findings list, keeping its file and line. Skip the skill's "After the answer" steps: a later stage fixes the findings.
@@ -421,7 +427,7 @@ ${JSON.stringify(blocking, null, 2)}
 
 ${FIX_RULES}
 
-The plan the branch implements, for context, is in ${planFile}.
+The plan the branch implements, for context, is in ${planFile}. ${VERIFY_SCOPE}
 
 Commit the fixes (hooks must pass). Do not push.${notes()}`;
 }
