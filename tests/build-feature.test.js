@@ -265,12 +265,12 @@ const cleanPass = (files) => ({
 const publishedVerify = (label) => ({
   status: 'published',
   unverified: [],
-  verdicts: [{ feature: 'checkout', verdict: 'verified' }],
+  verdicts: [{ feature: 'checkout', verdict: 'done' }],
   head: `head-${label}`,
   docFilesChanged: [],
 });
 
-const doneBatch = (features) => ({ verdicts: features.map((feature) => ({ feature, verdict: 'done' })), unverified: [], docFilesChanged: [] });
+const doneBatch = (features) => ({ verdicts: features.map((feature) => ({ feature, verdict: 'done' })), unmatched: [], skipped: [], docFilesChanged: [] });
 
 /**
  * Runs the workflow with stub agents for the doc check, verify and CI stages.
@@ -524,7 +524,7 @@ describe('build-feature verify stage', () => {
   test('a changed feature with no verdict stops the run at the verify stage', async () => {
     const run = await stageRun({
       scan: verifyScan,
-      batch: () => ({ verdicts: [], unverified: [{ feature: 'checkout', reason: 'the quota page 500s' }] }),
+      batch: () => ({ verdicts: [], unmatched: [{ feature: 'checkout', reason: 'the quota page 500s' }], skipped: [] }),
     });
     expect(run.labels).not.toContain('watch-ci-2');
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify', pr: 'https://github.com/example/shop/pull/7' });
@@ -535,6 +535,7 @@ describe('build-feature verify stage', () => {
     const run = await stageRun({
       scan: verifyScan,
       features: names,
+      verify: (label) => ({ ...publishedVerify(label), verdicts: names.map((feature) => ({ feature, verdict: 'done' })) }),
     });
     const batchLabels = run.labels.filter((l) => /^verify-1-batch-\d+$/.test(l));
     expect(batchLabels).toEqual(['verify-1-batch-1', 'verify-1-batch-2', 'verify-1-batch-3']);
@@ -553,7 +554,7 @@ describe('build-feature verify stage', () => {
     const run = await stageRun({
       scan: verifyScan,
       features: ['checkout', 'refunds'],
-      batch: () => ({ verdicts: [{ feature: 'checkout', verdict: 'done' }], unverified: [] }),
+      batch: () => ({ verdicts: [{ feature: 'checkout', verdict: 'done' }], unmatched: [], skipped: [] }),
     });
     expect(run.result).toMatchObject({
       status: 'blocked',
@@ -561,6 +562,41 @@ describe('build-feature verify stage', () => {
       verify: { unverified: [{ feature: 'refunds', reason: 'not run' }] },
     });
     expect(run.labels).not.toContain('watch-ci-2');
+  });
+
+  test('a batch cannot supply a verdict for a feature outside it', async () => {
+    const names = Array.from({ length: 9 }, (_, i) => `feature-${i + 1}`);
+    const run = await stageRun({
+      scan: verifyScan,
+      features: names,
+      batch: (batchFeatures, label) =>
+        label.endsWith('batch-1')
+          ? doneBatch(names)
+          : { verdicts: [], unmatched: [], skipped: [] },
+      verify: (label) => ({ ...publishedVerify(label), verdicts: [] }),
+    });
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify', verify: { unverified: [{ feature: 'feature-9', reason: 'not run' }] } });
+  });
+
+  test('a feature the published report still marks stale leaves the run blocked and loses its verdict', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      features: ['checkout', 'refunds'],
+      verify: (label) => ({ ...publishedVerify(label), unverified: ['checkout'], verdicts: [{ feature: 'refunds', verdict: 'done' }] }),
+    });
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
+    expect(run.result.verify.unverified.map((u) => u.feature)).toEqual(['checkout']);
+    expect(run.result.verify.verdicts).toEqual([{ feature: 'refunds', verdict: 'done' }]);
+  });
+
+  test('a skipped feature carries its failing command and error.code, and the batch prompt leaves ordering to the verify skill', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      features: ['checkout'],
+      batch: () => ({ verdicts: [], unmatched: [], skipped: [{ feature: 'checkout', command: 'bun verify up', errorCode: 'target-down' }] }),
+    });
+    expect(run.result.verify.unverified).toEqual([{ feature: 'checkout', reason: 'skipped after bun verify up failed with error.code target-down' }]);
+    expect(run.prompt('verify-1-batch-1')).toContain('Use the order the verify skill sets for them');
   });
 
   test('a CI fix before verify does not run verify again', async () => {
