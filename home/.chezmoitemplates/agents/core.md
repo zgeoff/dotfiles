@@ -15,6 +15,14 @@ DO NOT USE AGENT MEMORY. Never write to a built-in memory store (Claude memory, 
 - Ask me for authority, not labour: ask me to authorise the exact action. Give me a hands-on step only when only I can do it, such as a 1Password approval tap, and then give me one exact command.
 - Keep your own judgement. When you think my direction is wrong or missing something, say so once, with your reason, then work toward the outcome I chose.
 - Do not provide the user with time estimates of how long it will take you to complete work.
+- When you write anything, in chat or in a file:
+  - Make a person or the reader the subject.
+    - "The seed packet decides how deep each seed goes." → "Sow each seed at the depth on its packet."
+    - "The planting plan names which beds get water." → "Water only the beds in the planting plan."
+  - Use the plain name, and coin no labels. "Check the wilt score each week." → "Each week, count the
+    plants that wilted."
+  - Write the sentence that a lead-in and a colon leave out. "Watering: early morning, at the roots." →
+    "Water early in the morning, at the roots."
 
 # Coordination and handoffs
 
