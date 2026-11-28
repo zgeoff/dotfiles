@@ -50,6 +50,8 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 
 Pass `review: 'codex'` when the change needs a local review under the "Building and reviewing" rules in CLAUDE.md. Pass `'opus'` only when the user names that model.
 
+Expect the review to skip the plan's verify items (journeys, verdicts, the published report): the verify stage runs them after the PR opens, so the reviewer raises no finding on them and the fixer runs no journeys.
+
 The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install and the test services. When they can't find a step the repo needs, add it to that repo's AGENTS.md.
 
 The run also does the checks that need a fresh agent, which its own agents can't start:

@@ -162,6 +162,26 @@ describe('build-feature review loop', () => {
   });
 });
 
+describe('build-feature review scope', () => {
+  test('the review and fix prompts leave the plan\'s verify items to the verify stage', async () => {
+    const run = await dryRun({ review: [quotaFinding], 're-review-1': [] }, 'codex');
+    for (const label of ['codex-review', 'fix-review-1', 'codex-re-review-1']) {
+      const prompt = run.calls.find((c) => c.label === label).prompt;
+      expect(prompt).toContain("The plan's verify items (running journeys, their verdicts, the published report) belong to the verify stage");
+      expect(prompt).toContain('A reviewer never raises them as a finding, and a fixer never runs journeys.');
+    }
+  });
+
+  test('the Opus review prompt holds the same rule', async () => {
+    const run = await dryRun({ review: [quotaFinding], 're-review-1': [] }, 'opus');
+    for (const label of ['opus-review', 'opus-re-review-1']) {
+      const prompt = run.calls.find((c) => c.label === label).prompt;
+      expect(prompt).toContain("The plan's verify items (running journeys, their verdicts, the published report) belong to the verify stage");
+      expect(prompt).toContain('A reviewer never raises them as a finding, and a fixer never runs journeys.');
+    }
+  });
+});
+
 describe('build-feature gh repo', () => {
   // A red first CI round sends the fixer, so every prompt after the PR runs.
   async function runWithRedCi() {
