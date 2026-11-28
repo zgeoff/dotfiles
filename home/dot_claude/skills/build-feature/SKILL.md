@@ -5,7 +5,7 @@ description: Runs the build-feature workflow, which takes an agreed plan to a CI
 
 # Build a feature
 
-Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when you've handed the user a failure from the [result table](#act-on-the-result). Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
+Run the `build-feature` workflow to take an agreed plan to a CI-green PR. Hand the user the PR link, or the run's `status` and what you did about it, plus each minor finding you answered. You're done when the PR is open with green CI and each minor finding has an answer, or when a row of the [result table](#act-on-the-result) tells you to hand the failure to the user and you have. Loading this skill for agreed work is the instruction to run it. The run can't stop to ask you anything. Its agents guess each decision the plan leaves out. Choose the review yourself. By default the run opens the PR with no local review.
 
 ## Key rules
 
@@ -50,7 +50,7 @@ When the name doesn't resolve, call `Workflow({ scriptPath: '~/.claude/workflows
 
 Pass `review: 'codex'` when the change needs a local review under the "Building and reviewing" rules in CLAUDE.md. Pass `'opus'` only when the user names that model.
 
-The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install, the test services and the skills to load. When the run's agents can't find a step the repo needs, add it to that repo's AGENTS.md.
+The run's agents read each repo's own AGENTS.md and CLAUDE.md for its setup, such as the dependency install and the test services. When they can't find a step the repo needs, add it to that repo's AGENTS.md.
 
 The run also does the checks that need a fresh agent, which its own agents can't start:
 
@@ -83,11 +83,11 @@ The branch and the worktree stay in place after every result. Remove them once t
 2. Call `Workflow({ name: 'build-feature', resumeFromRunId: '<run ID>', args })`, with the run ID the first call returned.
 3. Pass the full `args` object again. A resume never carries the first call's `args`, so without them the run stops at its argument check.
 
-On a resume, the Workflow tool replays each agent's cached result, in order, up to the first agent whose prompt or options changed, and runs that agent and every later one again. A stage that ended `blocked` replays too, so a resume with the same `args` ends `blocked` again.
+On a resume, the Workflow tool replays each agent's cached result up to the first agent whose prompt or options changed, then runs that agent and every later one. A stage that ended `blocked` replays too, so a resume with the same `args` ends `blocked` again.
 
-To get past a block, leave `plan` as it was, and put what changed in `resumeNotes`, such as the fix you made. Set `resumeFrom` to the result's `stage`, or to an earlier stage when the fix changes what an earlier stage did. Pass `review` for a `review-fix` stage, `doc-check` for `scan`, and `watch-ci` for `ci-fix`. The notes go into the prompts of that stage and every later one, so the run replays each earlier stage. The cold reader never gets them: it reads the docs blind.
+To get past a block, leave `plan` as it was, and put what changed in `resumeNotes`, such as the fix you made. Set `resumeFrom` to the result's `stage`, or to an earlier stage when the fix changes what an earlier stage did. Pass `'review'` for `review-fix`, `'doc-check'` for `scan`, and `'watch-ci'` for `ci-fix`. The notes go into the prompts of that stage and every later one, so each earlier stage replays. The cold reader never gets them: it reads the docs blind.
 
-On a second resume, add lines to the same notes. Any change to the notes changes the prompts from the first `resumeFrom` on, so the run reruns from that stage.
+On a second resume, keep `resumeFrom`, and add lines to the end of the same notes. Any change to the notes changes every prompt from the first `resumeFrom` on, so the run reruns from that stage.
 
 When the plan itself is wrong, change `plan`. Only the implement stage's prompt holds it, so the run reruns from there, on the same branch and commits. Every other stage reads the plan from `.build-feature/plan.md` in the worktree, which git ignores.
 
