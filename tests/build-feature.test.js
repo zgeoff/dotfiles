@@ -171,6 +171,15 @@ describe('build-feature review scope', () => {
       expect(prompt).toContain('A reviewer never raises them as a finding, and a fixer never runs journeys.');
     }
   });
+
+  test('the Opus review prompt holds the same rule', async () => {
+    const run = await dryRun({ review: [quotaFinding], 're-review-1': [] }, 'opus');
+    for (const label of ['opus-review', 'opus-re-review-1']) {
+      const prompt = run.calls.find((c) => c.label === label).prompt;
+      expect(prompt).toContain("The plan's verify items (running journeys, their verdicts, the published report) belong to the verify stage");
+      expect(prompt).toContain('A reviewer never raises them as a finding, and a fixer never runs journeys.');
+    }
+  });
 });
 
 describe('build-feature gh repo', () => {
