@@ -344,7 +344,7 @@ const VERIFY_LIST_SCHEMA = {
     features: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Each changed feature with no current verdict, in the order the report lists them',
+      description: 'Each changed feature with no current verdict, in the order the verify skill runs journeys',
     },
     head: { type: 'string', description: 'Short hash of the HEAD the report was run at' },
   },
@@ -379,8 +379,8 @@ const VERIFY_BATCH_SCHEMA = {
         required: ['feature', 'command', 'errorCode'],
         properties: {
           feature: { type: 'string' },
-          command: { type: 'string', description: 'The command that failed' },
-          errorCode: { type: 'string', description: 'The failure\'s error.code' },
+          command: { type: 'string', minLength: 1, description: 'The command that failed' },
+          errorCode: { type: 'string', minLength: 1, description: 'The failure\'s error.code' },
         },
       },
       description: 'Each feature you skipped, and only for a failure that stopped it',
@@ -996,7 +996,7 @@ const VERIFY_BATCH_SIZE = 8;
 async function runVerifyBatches(label) {
   const where = `for PR #${pr.number} in ${prRepo}, from the worktree at ${scan.worktreePath}`;
   const listed = await agent(
-    `List the features that need a verify run ${where}. Load the verify skill at ${scan.verifySkill}. Run \`bun verify report\` as the skill says, from inside the worktree, and return each changed feature that has no current verdict, in the order the report lists them, and each feature the plan in ${planFile} names that has no current verdict. Return the short hash of HEAD in head. Do not run any journey, and do not publish anything. Never print a token or a secret.${notes()}`,
+    `List the features that need a verify run ${where}. Load the verify skill at ${scan.verifySkill}. Run \`bun verify report\` as the skill says, from inside the worktree, and return each changed feature that has no current verdict, in the order the verify skill runs journeys, and in the order the report lists them when the skill sets none, and each feature the plan in ${planFile} names that has no current verdict. Return the short hash of HEAD in head. Do not run any journey, and do not publish anything. Never print a token or a secret.${notes()}`,
     { label: `${label}-list`, model: 'haiku', schema: VERIFY_LIST_SCHEMA, phase: 'Verify' },
   );
   if (!listed) return null;
@@ -1052,12 +1052,18 @@ Return docFilesChanged for your commits, and the short hash of the HEAD you publ
   for (const f of published.docFilesChanged || []) docFiles.add(f);
   // The report on disk is the truth: a later batch's commit can make an earlier verdict stale.
   const stale = (published.unverified || []).filter((f) => !unverified.some((u) => u.feature === f));
-  const merged = new Map(all.map((d) => [d.feature, d]));
-  for (const d of published.verdicts || []) merged.set(d.feature, d);
+  // A batch's `done` counts only when the published report keeps it. Verdicts for features outside the list come from the report alone.
+  const listedSet = new Set(features);
+  const merged = new Map();
+  for (const d of published.verdicts || []) {
+    if (!listedSet.has(d.feature) || (verdicts.get(d.feature) || {}).verdict === 'done') merged.set(d.feature, d);
+  }
   for (const f of stale) merged.delete(f);
+  const missing = features.filter((f) => verdicts.has(f) && !merged.has(f) && !stale.includes(f));
+  const lost = [...stale, ...missing];
   return {
     status: published.status,
-    unverified: [...unverified, ...stale.map((feature) => ({ feature, reason: 'the verdict is stale or missing after the last batch' }))],
+    unverified: [...unverified, ...lost.map((feature) => ({ feature, reason: 'the verdict is stale or missing from the published report' }))],
     verdicts: [...merged.values()],
     head: published.head || listed.head,
     docFilesChanged: [...docFiles],

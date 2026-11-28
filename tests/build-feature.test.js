@@ -573,7 +573,7 @@ describe('build-feature verify stage', () => {
         label.endsWith('batch-1')
           ? doneBatch(names)
           : { verdicts: [], unmatched: [], skipped: [] },
-      verify: (label) => ({ ...publishedVerify(label), verdicts: [] }),
+      verify: (label) => ({ ...publishedVerify(label), verdicts: names.slice(0, 8).map((feature) => ({ feature, verdict: 'done' })) }),
     });
     expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify', verify: { unverified: [{ feature: 'feature-9', reason: 'not run' }] } });
   });
@@ -599,6 +599,26 @@ describe('build-feature verify stage', () => {
     expect(run.prompt('verify-1-batch-1')).toContain('Use the order the verify skill sets for them');
   });
 
+  test('a verdict the published report omits does not survive, and a batch verdict in the report for another batch is ignored', async () => {
+    const run = await stageRun({
+      scan: verifyScan,
+      features: ['checkout'],
+      verify: (label) => ({ ...publishedVerify(label), verdicts: [{ feature: 'refunds', verdict: 'done' }] }),
+    });
+    expect(run.result).toMatchObject({ status: 'blocked', stage: 'verify' });
+    expect(run.result.verify.unverified.map((u) => u.feature)).toEqual(['checkout']);
+    expect(run.result.verify.verdicts).toEqual([{ feature: 'refunds', verdict: 'done' }]);
+  });
+
+  test('a skip must name its command and error.code in the schema', async () => {
+    const run = await stageRun({ scan: verifyScan, features: ['checkout'] });
+    const schema = run.calls.find((c) => c.label === 'verify-1-batch-1').opts.schema;
+    const skipped = schema.properties.skipped.items;
+    expect(skipped.required).toEqual(['feature', 'command', 'errorCode']);
+    expect(skipped.properties.command.minLength).toBe(1);
+    expect(skipped.properties.errorCode.minLength).toBe(1);
+  });
+
   test('a CI fix before verify does not run verify again', async () => {
     const run = await stageRun({
       scan: verifyScan,
@@ -620,7 +640,10 @@ describe('build-feature verify stage', () => {
         { conclusion: 'green', failures: [] },
       ],
       features: ['checkout', 'refunds'],
-      verify: (label) => ({ ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified again' }] }),
+      verify: (label) =>
+        label === 'verify-1'
+          ? { ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'done' }, { feature: 'refunds', verdict: 'done' }] }
+          : { ...publishedVerify(label), verdicts: [{ feature: 'checkout', verdict: 'verified again' }] },
     });
     expect(run.labels).toEqual(['implement', 'scan-repo', 'open-pr', 'watch-ci-1', 'verify-1-list', 'verify-1-batch-1', 'verify-1', 'watch-ci-2', 'fix-ci-2', 'verify-3', 'watch-ci-3']);
     const rerun = run.prompt('verify-3');
