@@ -56,7 +56,7 @@ test('it adds the op-mint rules after the allow rules a personal machine already
         'Bash(op-mint vers)',
         'Bash(op-mint wow-forever)',
       ],
-      deny: ['Bash(rm -rf *)', 'AskUserQuestion'],
+      deny: ['Bash(rm -rf *)', 'AskUserQuestion', 'Artifact'],
       defaultMode: 'auto',
     },
     autoMode: { environment: ['a kite workshop'] },
@@ -86,7 +86,7 @@ test('it adds the op-mint rules to a personal settings file with no permissions'
       'Bash(op-mint vers)',
       'Bash(op-mint wow-forever)',
     ],
-    deny: ['AskUserQuestion'],
+    deny: ['AskUserQuestion', 'Artifact'],
   });
 });
 
@@ -149,6 +149,7 @@ test('it removes the GitHub token and key overrides from the env of a personal m
     HARBOUR_MODE: 'calm',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     FORCE_HYPERLINK: '1',
+    CLAUDE_CODE_DISABLE_ARTIFACT: '1',
   });
 });
 
@@ -169,6 +170,8 @@ test('it keeps the GitHub token and key overrides in the env of a machine that i
       GIT_SSH_COMMAND: 'ssh -i ~/.ssh/heron',
       CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
       FORCE_HYPERLINK: '1',
+      CLAUDE_CODE_DISABLE_ARTIFACT: '1',
+    CLAUDE_CODE_DISABLE_ARTIFACT: '1',
     },
     stderr: '',
   });
@@ -195,17 +198,17 @@ test('it removes the op-mint rules from a machine that is not personal', async (
   expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
     allow: ['Bash(git status)', 'Bash(op-minted report)'],
     defaultMode: 'auto',
-    deny: ['AskUserQuestion'],
+    deny: ['AskUserQuestion', 'Artifact'],
   });
 });
 
-test('it adds only the AskUserQuestion deny rule to a settings file without permissions on a machine that is not personal', async () => {
+test('it adds only the AskUserQuestion and Artifact deny rules to a settings file without permissions on a machine that is not personal', async () => {
   const ctx = setupTest();
 
   const result = await ctx.applySettings({}, { personal: false, decrypted: {} });
 
   expect(JSON.parse(result.stdout.toString()).permissions).toStrictEqual({
-    deny: ['AskUserQuestion'],
+    deny: ['AskUserQuestion', 'Artifact'],
   });
 });
 
@@ -218,6 +221,7 @@ test('it keeps one AskUserQuestion deny rule when the live file already has it',
   expect(JSON.parse(result.stdout.toString()).permissions.deny).toStrictEqual([
     'AskUserQuestion',
     'Bash(rm -rf *)',
+    'Artifact',
   ]);
 });
 
@@ -245,5 +249,22 @@ test('it keeps a plugin that a machine that is not personal has turned on', asyn
 
   expect(JSON.parse(result.stdout.toString()).enabledPlugins).toStrictEqual({
     'codex-image@codex-image-in-cc': true,
+  });
+});
+
+test('it turns off the Artifact tool on every machine', async () => {
+  const ctx = setupTest();
+
+  const result = await ctx.applySettings({}, { personal: false, decrypted: {} });
+  const settings = JSON.parse(result.stdout.toString());
+
+  expect({
+    enableArtifact: settings.enableArtifact,
+    env: settings.env.CLAUDE_CODE_DISABLE_ARTIFACT,
+    deny: settings.permissions.deny,
+  }).toStrictEqual({
+    enableArtifact: false,
+    env: '1',
+    deny: ['AskUserQuestion', 'Artifact'],
   });
 });

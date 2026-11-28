@@ -2,7 +2,7 @@
 # chezmoi owns the keys below and deep-merges them over the live file. Every
 # other key stays as Claude Code, a script or the machine's owner wrote it: the
 # model, env.OP_SERVICE_ACCOUNT_TOKEN (rotated weekly by op-mint) and permissions.
-# On every machine, chezmoi adds AskUserQuestion to permissions.deny.
+# On every machine, chezmoi adds AskUserQuestion and Artifact to permissions.deny.
 # On a personal machine, chezmoi adds the op-mint allow rules, removes the GitHub
 # token and key overrides from env, and owns autoMode in full: edit
 # .chezmoitemplates/claude/automode.json.age with `chezmoi decrypt`/`chezmoi encrypt`,
@@ -25,7 +25,8 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "FORCE_HYPERLINK": "1"
+    "FORCE_HYPERLINK": "1",
+    "CLAUDE_CODE_DISABLE_ARTIFACT": "1"
   },
   "attribution": {
     "commit": "",
@@ -48,6 +49,7 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
   "promptSuggestionEnabled": false,
+  "enableArtifact": false,
   "advisorModel": "fable"
 {{- if and (hasKey . "personal") .personal }},
   "enabledPlugins": {
@@ -62,7 +64,10 @@ printf '%s' "$current" | jq --indent 2 --argjson automode "$automode" --argjson 
 }' '. * $owned
   | if $automode != null then .autoMode = $automode else . end
   # Geoff answers questions in plain text, so take AskUserQuestion out of the toolset
-  | .permissions.deny |= ((. // []) | if any(.[]; . == "AskUserQuestion") then . else . + ["AskUserQuestion"] end)
+  # The Artifact tool schema costs about 14k tokens of context in every agent
+  | .permissions.deny |= (
+      reduce ("AskUserQuestion", "Artifact") as $tool ((. // []); if any(.[]; . == $tool) then . else . + [$tool] end)
+    )
 {{- if and (hasKey . "personal") .personal }}
   | .permissions.allow |= reduce (
       "Bash(op-mint --list)", "Bash(op-mint imp)", "Bash(op-mint nixie)",
